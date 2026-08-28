@@ -730,6 +730,65 @@
     // One store for the page. The market listings and the trade offer inventory are never
     // both on screen, so they cannot collide, and the keys differ anyway.
     const listingState = createListingState();
+
+    // The key an inventory item's price is kept under. It is also the id Steam gives the
+    // item's element, so an item is found the same way in the state and on the page.
+    function getAssetKey(item) {
+        return `${item.appid}_${item.contextid}_${item.id}`;
+    }
+    //#endregion
+
+    //#region Trade offer totals
+    // What one side of a trade offer holds, and what it is worth.
+    //
+    // `resolve` turns an asset into `{ name, type, originalAmount, amount, price }`, or null
+    // when the page cannot say what the asset is. Everything that needs the page lives in
+    // there, so the counting and the total are just a function of the offer.
+    function aggregateTradeOfferAssets(assets, resolve) {
+        const counts = new Map();
+        let totalPrice = 0;
+
+        for (let i = 0; i < assets.length; i++) {
+            const item = resolve(assets[i]);
+            const text = getTradeOfferAssetText(item);
+
+            counts.set(text, (counts.get(text) || 0) + 1);
+
+            if (item != null && item.price > 0) {
+                totalPrice += item.price;
+            }
+        }
+
+        const items = [];
+        counts.forEach((count, text) => {
+            items.push({ text: text, count: count });
+        });
+
+        return { items: items, totalPrice: totalPrice };
+    }
+
+    // `3x Gems`, `Sackboy (Trading Card)`, or `Unknown Item` when the page cannot say what
+    // the asset is. A partly used stack is named by how much of it is in the offer.
+    function getTradeOfferAssetText(item) {
+        if (item == null) {
+            return 'Unknown Item';
+        }
+
+        let text = '';
+
+        if (item.originalAmount != null && item.amount != null) {
+            const usedAmount = parseInt(item.originalAmount) - parseInt(item.amount);
+            text += `${usedAmount.toString()}x `;
+        }
+
+        text += item.name;
+
+        if (item.type != null && item.type.length > 0) {
+            text += ` (${item.type})`;
+        }
+
+        return text;
+    }
     //#endregion
 
     //#region Steam Market
@@ -2767,15 +2826,18 @@
 
                     const sellPrice = calculateSellPriceBeforeFees(null, orderbook, false, 0, 65535);
 
-                    const itemPrice = sellPrice == 65535
-                        ? '∞'
-                        : formatPrice(market.getPriceIncludingFees(sellPrice));
+                    // Nobody is selling this one, so there is no price to show and nothing to
+                    // add to a trade offer total.
+                    const priceWithFees = sellPrice == 65535 ? 0 : market.getPriceIncludingFees(sellPrice);
+                    const itemPrice = sellPrice == 65535 ? '∞' : formatPrice(priceWithFees);
 
-                    const elementName = `${(currentPage == PAGE_TRADEOFFER ? '#item' : '#')}${item.appid}_${item.contextid}_${item.id}`;
+                    listingState.set(getAssetKey(item), { sellPrice: priceWithFees });
+
+                    const elementName = `${(currentPage == PAGE_TRADEOFFER ? '#item' : '#')}${getAssetKey(item)}`;
                     const element = $(elementName);
 
                     $('.inventory_item_price', element).remove();
-                    element.append(`<span class="inventory_item_price price_${sellPrice == 65535 ? 0 : market.getPriceIncludingFees(sellPrice)}">${itemPrice}</span>`);
+                    element.append(`<span class="inventory_item_price price_${priceWithFees}">${itemPrice}</span>`);
 
                     return callback(true, cachedListings);
                 }
@@ -4133,64 +4195,36 @@
         }
 
         function sumTradeOfferAssets(assets, user) {
-            const total = {};
-            let totalPrice = 0;
-            for (let i = 0; i < assets.length; i++) {
-                const rgItem = user.findAsset(assets[i].appid, assets[i].contextid, assets[i].assetid);
+            // What the offer holds and what it is worth. The prices come from the state the
+            // inventory pass wrote, not from the class names on the item elements.
+            const summary = aggregateTradeOfferAssets(assets, (asset) => {
+                const rgItem = user.findAsset(asset.appid, asset.contextid, asset.assetid);
 
-                let text = '';
-                if (rgItem != null) {
-                    if (rgItem.element) {
-                        const inventoryPriceElements = $('.inventory_item_price', rgItem.element);
-                        if (inventoryPriceElements.length) {
-                            const firstPriceElement = inventoryPriceElements[0];
-                            const classes = $(firstPriceElement).attr('class').split(' ');
-                            for (const c in classes) {
-                                if (classes[c].toString().includes('price_')) {
-                                    const price = parseInt(classes[c].toString().replace('price_', ''));
-                                    totalPrice += price;
-                                }
-                            }
-
-                        }
-                    }
-
-                    if (rgItem.original_amount != null && rgItem.amount != null) {
-                        const originalAmount = parseInt(rgItem.original_amount);
-                        const currentAmount = parseInt(rgItem.amount);
-                        const usedAmount = originalAmount - currentAmount;
-                        text += `${usedAmount.toString()}x `;
-                    }
-
-                    text += rgItem.name;
-
-                    if (rgItem.type != null && rgItem.type.length > 0) {
-                        text += ` (${rgItem.type})`;
-                    }
-                } else {
-                    text = 'Unknown Item';
+                if (rgItem == null) {
+                    return null;
                 }
 
-                if (text in total) {
-                    total[text] = total[text] + 1;
-                } else {
-                    total[text] = 1;
-                }
-            }
+                const state = listingState.get(getAssetKey(rgItem));
 
-            const sortable = [];
-            for (const item in total) {
-                sortable.push([
-                    item,
-                    total[item]
-                ]);
-            }
+                return {
+                    name: rgItem.name,
+                    type: rgItem.type,
+                    originalAmount: rgItem.original_amount,
+                    amount: rgItem.amount,
+                    price: state == null ? 0 : state.sellPrice
+                };
+            });
+
+            const sortable = summary.items.map((item) => [
+                item.text,
+                item.count
+            ]);
 
             sortable.sort((a, b) => {
                 return a[1] - b[1];
             }).reverse();
 
-            let totalText = `<strong>Number of unique items: ${sortable.length}, worth ${formatPrice(totalPrice)}<br/><br/></strong>`;
+            let totalText = `<strong>Number of unique items: ${sortable.length}, worth ${formatPrice(summary.totalPrice)}<br/><br/></strong>`;
             let totalNumOfItems = 0;
             for (let i = 0; i < sortable.length; i++) {
                 totalText += `${sortable[i][1]}x ${sortable[i][0]}<br/>`;
@@ -4568,6 +4602,7 @@
         module.exports = {
             CalculateAmountToSendForDesiredReceivedAmount,
             CalculateFeeAmount,
+            aggregateTradeOfferAssets,
             buildOrderBook,
             calculateAverageHistoryPriceBeforeFees,
             calculateBuyOrderPriceBeforeFees,
