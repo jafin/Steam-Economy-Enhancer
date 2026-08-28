@@ -2600,6 +2600,11 @@
         const marketListingsRelistedAssets = [];
         let marketProgressBar;
 
+        // Progress of the current relist run, shown on the relist overpriced button.
+        // Both are reset when the relist queue drains.
+        let marketRelistTotal = 0;
+        let marketRelistDone = 0;
+
         function increaseMarketProgressMax() {
             let value = marketProgressBar.max;
 
@@ -2838,6 +2843,8 @@
                     false,
                     (success) => {
                         const callback = () => {
+                            marketRelistDone += 1;
+
                             increaseMarketProgress();
                             next();
                         };
@@ -2852,6 +2859,14 @@
             },
             1
         );
+
+        // The relist run finished, put the buttons back to showing the (now lower) overpriced count.
+        marketOverpricedQueue.drain(() => {
+            marketRelistTotal = 0;
+            marketRelistDone = 0;
+
+            updateMarketOverpricedButtons();
+        });
 
         function marketOverpricedQueueWorker(item, ignoreErrors, callback) {
             let listingUI = getListingFromLists(item.listing)
@@ -2951,7 +2966,11 @@
                     appid: assetInfo.appid,
                     sellPrice: price
                 });
+
+                marketRelistTotal += 1;
+
                 increaseMarketProgressMax();
+                updateMarketOverpricedButtons();
             }
         }
 
@@ -3380,7 +3399,13 @@
         // Shows the number of overpriced listings on the overpriced buttons.
         // The count is taken from the matching items so it reflects exactly what the buttons act on,
         // which means it follows the search filter.
+        //
+        // While a relist run is in progress the relist button shows its progress instead of the count,
+        // and is marked busy so it cannot queue the same listings twice. Relist selected and the
+        // automatic relist share this queue, so they show their progress here as well.
         function updateMarketOverpricedButtons() {
+            const isRelisting = marketRelistTotal > 0;
+
             $('.market_listing_buttons').each(function () {
                 const selectionGroup = $(this).parent().parent();
                 const marketList = getListFromContainer(selectionGroup);
@@ -3391,7 +3416,12 @@
 
                 const count = marketList.matchingItems.filter(item => $(item.elm).hasClass('overpriced')).length;
 
-                $('.relist_overpriced > span', selectionGroup).text(`Relist overpriced (${count})`);
+                $('.relist_overpriced > span', selectionGroup).text(isRelisting
+                    ? `Relisting ${marketRelistDone}/${marketRelistTotal}`
+                    : `Relist overpriced (${count})`);
+
+                $('.relist_overpriced, .relist_selected', selectionGroup).toggleClass('see_button_busy', isRelisting);
+
                 $('.select_overpriced > span', selectionGroup).text(`Select overpriced (${count})`);
             });
         }
@@ -3550,6 +3580,10 @@
                 marketLists[i].remove('market_listing_item_name', `mylisting_${listingid}_name`);
                 marketLists[i].remove('market_listing_item_name', `mbuyorder_${listingid}_name`);
             }
+
+            // Listings are removed from the lists a few seconds after they are relisted or removed,
+            // which can be after the queue drained, so refresh the counts here as well.
+            updateMarketOverpricedButtons();
         }
 
         // Initialize the market UI.
@@ -3721,6 +3755,10 @@
             });
 
             $('.relist_overpriced').on('click', '*', function () {
+                if ($(this).closest('.relist_overpriced').hasClass('see_button_busy')) {
+                    return;
+                }
+
                 const selectionGroup = $(this).parent().parent().parent().parent();
                 const marketList = getListFromContainer(selectionGroup);
 
@@ -3737,6 +3775,10 @@
             });
 
             $('.relist_selected').on('click', '*', function () {
+                if ($(this).closest('.relist_selected').hasClass('see_button_busy')) {
+                    return;
+                }
+
                 const selectionGroup = $(this).parent().parent().parent().parent();
                 const marketList = getListFromContainer(selectionGroup);
 
@@ -4152,6 +4194,7 @@
         .see_inventory_buttons > .see_inventory_buttons, .see_inventory_buttons > #inventory_items_spinner {flex-basis: 100%;}
         #see_market_progress { display: block; width: 50%; height: 20px; }
         #see_market_progress[hidden] { visibility: hidden; }
+        .item_market_action_button.see_button_busy { pointer-events: none; opacity: 0.6; cursor: default; }
 
         #see_settings { background: #26566c; margin-right: 10px; height: 24px; line-height:24px; display:inline-block; padding: 0px 6px; }
         #see_settings_modal select, #see_settings_modal input[type="number"] { background-color: black; color: white; border: transparent; padding: 4px 8px; }
