@@ -75,6 +75,26 @@ test('algorithm 3 prefers the highest buy order', () => {
     assert.strictEqual(price, see.calculateBuyOrderPriceBeforeFees(orderbook()));
 });
 
+test('CHARACTERISATION: the buy-order branch fires at the price floor of 1, not just above it', () => {
+    // calculateSellPriceBeforeFees used to guard this branch with `buyPrice !== -2`, but
+    // calculateBuyOrderPriceBeforeFees can never return -2: priceBeforeFees's own floor is 1
+    // (`return (price > feeInfo.fees) ? price - feeInfo.fees : 1`). The guard was provably
+    // always true and was removed in 9a9b5ae. This pins the branch at that floor, the one
+    // value the old guard could have been imagined to protect against.
+    setAlgorithm(ALGORITHM_BUY_ORDER);
+
+    const thinBook = {
+        highest_buy_order: 1,
+        lowest_sell_order: 1000,
+        sell_order_graph: [[10.00, 1, '']]
+    };
+
+    const price = see.calculateSellPriceBeforeFees(null, thinBook, false, 0, 65535);
+
+    assert.strictEqual(price, see.calculateBuyOrderPriceBeforeFees(thinBook));
+    assert.strictEqual(price, 1);
+});
+
 test('algorithm 4 uses the history average and ignores the listings', () => {
     setAlgorithm(ALGORITHM_HISTORY);
 
