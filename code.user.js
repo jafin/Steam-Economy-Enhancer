@@ -2496,10 +2496,16 @@
         // Gets the inventory items from the active inventory.
         function getInventoryItems() {
             const arr = [];
+            const activeInventory = getActiveInventory();
 
-            for (const child in getActiveInventory().m_rgChildInventories) {
-                for (const key in getActiveInventory().m_rgChildInventories[child].m_rgAssets) {
-                    const value = getActiveInventory().m_rgChildInventories[child].m_rgAssets[key];
+            // We don't have an active inventory yet.
+            if (!activeInventory) {
+                return arr;
+            }
+
+            for (const child in activeInventory.m_rgChildInventories) {
+                for (const key in activeInventory.m_rgChildInventories[child].m_rgAssets) {
+                    const value = activeInventory.m_rgChildInventories[child].m_rgAssets[key];
                     if (typeof value === 'object') {
                         // Merges the description in the normal object, this is done to keep the layout consistent with the market page, which is also flattened.
                         Object.assign(value, value.description);
@@ -2512,8 +2518,8 @@
             }
 
             // Some inventories (e.g. BattleBlock Theater) do not have child inventories, they have just one.
-            for (const key in getActiveInventory().m_rgAssets) {
-                const value = getActiveInventory().m_rgAssets[key];
+            for (const key in activeInventory.m_rgAssets) {
+                const value = activeInventory.m_rgAssets[key];
                 if (typeof value === 'object') {
                     // Merges the description in the normal object, this is done to keep the layout consistent with the market page, which is also flattened.
                     Object.assign(value, value.description);
