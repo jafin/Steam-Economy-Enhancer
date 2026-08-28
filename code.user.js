@@ -58,7 +58,12 @@
     let totalPriceWithoutFeesOnMarket = 0;
     let totalScrap = 0;
 
-    let numberOfFailedRequests = 0;
+    // Retry timings shared by every queue. The values are the ones the queues used inline.
+    const RETRY_DELAY_SHORT_MIN = 1000;
+    const RETRY_DELAY_SHORT_MAX = 1500;
+    const RETRY_DELAY_LONG_MIN = 30000;
+    const RETRY_DELAY_LONG_MAX = 45000;
+    const RETRY_FAILURES_BEFORE_RESET = 3;
 
     const enableConsoleLog = false;
 
@@ -585,6 +590,32 @@
     //#region Integer helpers
     function getRandomInt(min, max) {
         return Math.floor(Math.random() * (max - min + 1)) + min;
+    }
+
+    // Backoff state for one queue.
+    //
+    // The queues used to share a single module-level counter that only the inventory price
+    // queue ever incremented. The other three based their backoff on a number they could not
+    // raise, and reset it out from under the queue that could. Each queue now keeps its own.
+    function createFailureCounter() {
+        return { failures: 0 };
+    }
+
+    // Records a failed item and returns how long that queue waits before the next one.
+    // Back off hard after more than one failure in a row, then start counting again after
+    // more than three so a queue does not stay in the long delay forever.
+    function nextRetryDelay(counter) {
+        counter.failures += 1;
+
+        const delay = counter.failures > 1
+            ? getRandomInt(RETRY_DELAY_LONG_MIN, RETRY_DELAY_LONG_MAX)
+            : getRandomInt(RETRY_DELAY_SHORT_MIN, RETRY_DELAY_SHORT_MAX);
+
+        if (counter.failures > RETRY_FAILURES_BEFORE_RESET) {
+            counter.failures = 0;
+        }
+
+        return delay;
     }
 
     function getNumberOfDigits(x) {
@@ -1571,6 +1602,7 @@
             });
         }
 
+        const scrapFailures = createFailureCounter();
         const scrapQueue = async.queue((item, next) => {
             scrapQueueWorker(item, (success) => {
                 if (success) {
@@ -1578,13 +1610,7 @@
                         next();
                     }, 250);
                 } else {
-                    const delay = numberOfFailedRequests > 1
-                        ? getRandomInt(30000, 45000)
-                        : getRandomInt(1000, 1500);
-
-                    if (numberOfFailedRequests > 3) {
-                        numberOfFailedRequests = 0;
-                    }
+                    const delay = nextRetryDelay(scrapFailures);
 
                     setTimeout(() => {
                         next();
@@ -1646,6 +1672,7 @@
             );
         }
 
+        const boosterFailures = createFailureCounter();
         const boosterQueue = async.queue((item, next) => {
             boosterQueueWorker(item, (success) => {
                 if (success) {
@@ -1653,13 +1680,7 @@
                         next();
                     }, 250);
                 } else {
-                    const delay = numberOfFailedRequests > 1
-                        ? getRandomInt(30000, 45000)
-                        : getRandomInt(1000, 1500);
-
-                    if (numberOfFailedRequests > 3) {
-                        numberOfFailedRequests = 0;
-                    }
+                    const delay = nextRetryDelay(boosterFailures);
 
                     setTimeout(() => {
                         next();
@@ -1921,6 +1942,7 @@
             }
         }
 
+        const itemFailures = createFailureCounter();
         const itemQueue = async.queue((item, next) => {
             itemQueueWorker(
                 item,
@@ -1934,8 +1956,7 @@
                             itemQueue.push(item);
                         }
 
-                        const delay = numberOfFailedRequests > 1 ? getRandomInt(30000, 45000) : getRandomInt(1000, 1500);
-                        numberOfFailedRequests = numberOfFailedRequests > 3 ? 0 : numberOfFailedRequests;
+                        const delay = nextRetryDelay(itemFailures);
 
                         setTimeout(() => next(), cached ? 0 : delay);
                     }
@@ -2577,6 +2598,7 @@
             });
         }
 
+        const inventoryPriceFailures = createFailureCounter();
         const inventoryPriceQueue = async.queue(
             (item, next) => {
                 inventoryPriceQueueWorker(
@@ -2591,10 +2613,7 @@
                                 inventoryPriceQueue.push(item);
                             }
 
-                            numberOfFailedRequests++;
-
-                            const delay = numberOfFailedRequests > 1 ? getRandomInt(30000, 45000) : getRandomInt(1000, 1500);
-                            numberOfFailedRequests = numberOfFailedRequests > 3 ? 0 : numberOfFailedRequests;
+                            const delay = nextRetryDelay(inventoryPriceFailures);
 
                             setTimeout(() => next(), cached ? 0 : delay);
                         }
@@ -4369,6 +4388,7 @@
             CalculateFeeAmount,
             buildOrderBook,
             clamp,
+            createFailureCounter,
             getIsCrate,
             getIsFoilTradingCard,
             getIsTradingCard,
@@ -4387,6 +4407,7 @@
                 REQUEST_DELAY_MARKET
             },
             isRetryMessage,
+            nextRetryDelay,
             padLeftZero,
             replaceNonNumbers
         };
