@@ -529,7 +529,9 @@
     }
 
     function calculateBuyOrderPriceBeforeFees(orderbook) {
-        if (typeof orderbook === 'undefined') {
+        // buildOrderBook returns null for an unsuccessful response, so null reaches here as
+        // readily as undefined. calculateListingPriceBeforeFees has always guarded both.
+        if (typeof orderbook === 'undefined' || orderbook == null) {
             return 0;
         }
 
@@ -4387,6 +4389,10 @@
             CalculateAmountToSendForDesiredReceivedAmount,
             CalculateFeeAmount,
             buildOrderBook,
+            calculateAverageHistoryPriceBeforeFees,
+            calculateBuyOrderPriceBeforeFees,
+            calculateListingPriceBeforeFees,
+            calculateSellPriceBeforeFees,
             clamp,
             createFailureCounter,
             getIsCrate,
