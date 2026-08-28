@@ -2165,32 +2165,18 @@
             }
         }
 
-        const itemFailures = createFailureCounter();
-        const itemQueue = async.queue((item, next) => {
-            itemQueueWorker(
-                item,
-                item.ignoreErrors,
-                (success, cached) => {
-                    // An item answered from the cache never reached Steam, and its delay is
-                    // discarded, so it says nothing about the connection either way. Leave the
-                    // backoff to the items that actually made a request.
-                    if (success) {
-                        if (!cached) {
-                            resetRetryDelay(itemFailures);
-                        }
+        // A cached answer never reached Steam, and its delay is discarded, so it says
+        // nothing about the connection either way - see nextQueueStep. A failed item gets
+        // one more try with ignoreErrors forced true before it is dropped.
+        const itemQueue = runQueue(itemQueueWorker, { retryOnFailure: true });
 
-                        setTimeout(() => next(), cached ? 0 : getRandomInt(RETRY_DELAY_SHORT_MIN, RETRY_DELAY_SHORT_MAX));
-                    } else {
-                        if (!item.ignoreErrors) {
-                            item.ignoreErrors = true;
-                            itemQueue.push(item);
-                        }
-
-                        setTimeout(() => next(), cached ? 0 : nextRetryDelay(itemFailures));
-                    }
-                }
-            );
-        }, 1);
+        // itemQueue feeds sellQueue but never triggered onQueueDrain itself; only sellQueue
+        // finishing did, relying on it always draining after the last item itemQueue produced.
+        // True in practice, but only by luck of the two queues' relative timing. Registered
+        // directly now, like the other three queues onQueueDrain checks.
+        itemQueue.drain(() => {
+            onQueueDrain();
+        });
 
         function itemQueueWorker(item, ignoreErrors, callback) {
             const priceInfo = getPriceInformationFromItem(item);
@@ -2827,33 +2813,12 @@
             });
         }
 
-        const inventoryPriceFailures = createFailureCounter();
-        const inventoryPriceQueue = async.queue(
-            (item, next) => {
-                inventoryPriceQueueWorker(
-                    item,
-                    false,
-                    (success, cached) => {
-                        // Cached items are left out of the backoff, see the item queue above.
-                        if (success) {
-                            if (!cached) {
-                                resetRetryDelay(inventoryPriceFailures);
-                            }
-
-                            setTimeout(() => next(), cached ? 0 : getRandomInt(RETRY_DELAY_SHORT_MIN, RETRY_DELAY_SHORT_MAX));
-                        } else {
-                            if (!item.ignoreErrors) {
-                                item.ignoreErrors = true;
-                                inventoryPriceQueue.push(item);
-                            }
-
-                            setTimeout(() => next(), cached ? 0 : nextRetryDelay(inventoryPriceFailures));
-                        }
-                    }
-                );
-            },
-            1
-        );
+        // Bug fixed here: this queue's worker used to always be called with ignoreErrors
+        // hardcoded to false, even on the forced retry, so a persistently failing item's
+        // price label silently never appeared - unlike itemQueue, whose retry actually forces
+        // past the failure. runQueue passes the item's real ignoreErrors flag, matching
+        // itemQueue's behaviour.
+        const inventoryPriceQueue = runQueue(inventoryPriceQueueWorker, { retryOnFailure: true });
 
         function inventoryPriceQueueWorker(item, ignoreErrors, callback) {
             let failed = 0;
