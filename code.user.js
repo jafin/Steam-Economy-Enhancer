@@ -3721,10 +3721,17 @@
             // Sell orders.
             // Steam prepends a "listings awaiting confirmation" block whenever a confirmation is pending,
             // so the sell listings are not always the first header. Anchor to the sell listings table itself.
-            const sellListingsHeader = $('#tabContentsMyActiveMarketListingsRows').
+            //
+            // Fall back to the first header if that table cannot be found. An empty set here is worse
+            // than a wrong guess: the buttons below would go nowhere, and the .not() further down would
+            // then match every header and give the sell listings the two button block instead.
+            const anchoredHeader = $('#tabContentsMyActiveMarketListingsRows').
                 closest('.market_home_listing_table').
                 find('.my_market_header').
                 first();
+            const sellListingsHeader = anchoredHeader.length > 0
+                ? anchoredHeader
+                : $('.my_market_header').first();
 
             sellListingsHeader.append(`<div class="market_listing_buttons">
                 <a class="item_market_action_button item_market_action_button_green select_all market_listing_button">
