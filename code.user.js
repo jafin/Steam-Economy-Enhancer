@@ -737,6 +737,62 @@
         return delay;
     }
 
+    // What a queue does after one task finishes: how long to wait before the next one, and
+    // whether this task gets one more try with ignoreErrors forced on before it is dropped.
+    //
+    // Pure given an explicit failure counter, so the backoff/retry decision itself is
+    // testable without async.queue, a worker or a real clock - the same reason
+    // nextRetryDelay/resetRetryDelay above take their counter as a parameter rather than
+    // closing over one.
+    function nextQueueStep(success, cached, failures, alreadyRetried, options = {}) {
+        if (success) {
+            if (!cached) {
+                resetRetryDelay(failures);
+            }
+
+            const configured = options.successDelayMs ??
+                (() => getRandomInt(RETRY_DELAY_SHORT_MIN, RETRY_DELAY_SHORT_MAX));
+            const delay = typeof configured === 'function' ? configured() : configured;
+
+            return { delay: cached ? 0 : delay, retry: false };
+        }
+
+        const retry = (options.retryOnFailure ?? false) && !alreadyRetried;
+
+        return { delay: cached ? 0 : nextRetryDelay(failures), retry };
+    }
+
+    // Wraps an async.queue with the escalating per-queue backoff every retrying queue in this
+    // file needs, and optionally a single forced-through retry: a task that failed once is
+    // pushed back onto the queue exactly once more with ignoreErrors forced true, matching
+    // the pattern the item and inventory-price queues already used by hand.
+    //
+    // worker(task, ignoreErrors, callback) does the actual work and reports back
+    // callback(success, cached). A cached answer never reached Steam, so - like the delay -
+    // it is left out of the failure count entirely.
+    //
+    // Returns the async.queue itself. push/kill/drain/length/idle all still work exactly as
+    // they did on a hand-rolled queue, so call sites that manage a queue's lifecycle do not
+    // need to change.
+    function runQueue(worker, options = {}) {
+        const failures = createFailureCounter();
+
+        const queue = async.queue((task, next) => {
+            worker(task, task.ignoreErrors === true, (success, cached) => {
+                const step = nextQueueStep(success, cached, failures, task.ignoreErrors === true, options);
+
+                if (step.retry) {
+                    task.ignoreErrors = true;
+                    queue.push(task);
+                }
+
+                setTimeout(() => next(), step.delay);
+            });
+        }, options.concurrency ?? 1);
+
+        return queue;
+    }
+
     function getNumberOfDigits(x) {
         return (Math.log10((x ^ x >> 31) - (x >> 31)) | 0) + 1;
     }
@@ -4675,12 +4731,14 @@
             },
             isRetryMessage,
             NO_LISTING_PRICE_SENTINEL,
+            nextQueueStep,
             nextRetryDelay,
             padLeftZero,
             priceBeforeFees,
             priceIncludingFees,
             replaceNonNumbers,
-            resetRetryDelay
+            resetRetryDelay,
+            runQueue
         };
     }
     //#endregion
