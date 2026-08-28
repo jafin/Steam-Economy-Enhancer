@@ -4308,4 +4308,27 @@
         iterator(0);
     };
     //#endregion
+
+    //#region Test seam
+    // In a browser `module` is undefined, so this is dead code there. Under `node --test`
+    // it is the only way to reach these functions, because the script is a single IIFE
+    // that exports nothing. Pure functions only: anything listed here must be callable
+    // without a page, a network or a logged-in Steam session.
+    if (typeof module !== 'undefined' && module.exports) {
+        module.exports = {
+            CalculateAmountToSendForDesiredReceivedAmount,
+            CalculateFeeAmount,
+            buildOrderBook,
+            clamp,
+            getIsCrate,
+            getIsFoilTradingCard,
+            getIsTradingCard,
+            getMarketHashName,
+            getNumberOfDigits,
+            isRetryMessage,
+            padLeftZero,
+            replaceNonNumbers
+        };
+    }
+    //#endregion
 }(jQuery, async));
