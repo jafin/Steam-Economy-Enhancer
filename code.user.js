@@ -2837,7 +2837,7 @@
                     const element = $(elementName);
 
                     $('.inventory_item_price', element).remove();
-                    element.append(`<span class="inventory_item_price price_${priceWithFees}">${itemPrice}</span>`);
+                    element.append(`<span class="inventory_item_price">${itemPrice}</span>`);
 
                     return callback(true, cachedListings);
                 }
@@ -3089,10 +3089,9 @@
                                 verdict: verdict
                             });
 
-                            // The classes are still written. They style the listing and they
-                            // are what the selection buttons match on, they are just no longer
-                            // where the price is kept.
-                            listingUI.addClass(`price_${sellPriceWithOffset}`);
+                            // The verdict is still a class. It styles the listing and it is
+                            // what the selection buttons match on. The price is not: nothing
+                            // can style `price_1234` and nothing reads it back any more.
                             listingUI.addClass(verdict);
 
                             $('.market_listing_my_price', listingUI).last().prop(
