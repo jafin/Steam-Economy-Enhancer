@@ -2745,6 +2745,31 @@
             marketProgressBar.removeAttribute('hidden');
         }
 
+        // Refreshing the buttons walks every listing of every list, so calling it once per
+        // listing makes a pass over N listings cost N squared. Listings answered from the cache
+        // are processed with no delay between them, which turns a full page of them into one
+        // burst, so coalesce whatever arrives before the next frame into a single refresh.
+        let marketOverpricedButtonsQueued = false;
+
+        function refreshMarketOverpricedButtons() {
+            if (marketOverpricedButtonsQueued) {
+                return;
+            }
+
+            marketOverpricedButtonsQueued = true;
+
+            const refresh = () => {
+                marketOverpricedButtonsQueued = false;
+                updateMarketOverpricedButtons();
+            };
+
+            if (typeof window.requestAnimationFrame === 'function') {
+                window.requestAnimationFrame(refresh);
+            } else {
+                setTimeout(refresh, 0);
+            }
+        }
+
         function increaseMarketProgress() {
             marketProgressBar.value += 1;
 
@@ -2753,7 +2778,7 @@
             }
 
             // A listing was just priced, relisted or removed, so the overpriced count may have changed.
-            updateMarketOverpricedButtons();
+            refreshMarketOverpricedButtons();
         }
 
         // Match number part from any currency format
@@ -3407,7 +3432,7 @@
             try {
                 const list = new List(market_listing_see.parent().get(0), options);
                 list.on('searchComplete', updateMarketSelectAllButton);
-                list.on('searchComplete', updateMarketOverpricedButtons);
+                list.on('searchComplete', refreshMarketOverpricedButtons);
                 marketLists.push(list);
             } catch (e) {
                 console.error(e);
@@ -3710,7 +3735,7 @@
 
             // Listings are removed from the lists a few seconds after they are relisted or removed,
             // which can be after the queue drained, so refresh the counts here as well.
-            updateMarketOverpricedButtons();
+            refreshMarketOverpricedButtons();
         }
 
         // Initialize the market UI.
