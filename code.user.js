@@ -1855,30 +1855,13 @@
             });
         }
 
-        const scrapFailures = createFailureCounter();
-        const scrapQueue = async.queue((item, next) => {
-            scrapQueueWorker(item, (success) => {
-                if (success) {
-                    resetRetryDelay(scrapFailures);
-
-                    setTimeout(() => {
-                        next();
-                    }, 250);
-                } else {
-                    const delay = nextRetryDelay(scrapFailures);
-
-                    setTimeout(() => {
-                        next();
-                    }, delay);
-                }
-            });
-        }, 1);
+        const scrapQueue = runQueue(scrapQueueWorker, { successDelayMs: 250 });
 
         scrapQueue.drain(() => {
             onQueueDrain();
         });
 
-        function scrapQueueWorker(item, callback) {
+        function scrapQueueWorker(item, ignoreErrors, callback) {
             const itemName = item.name || item.description.name;
             const itemId = item.assetid || item.id;
 
@@ -1927,30 +1910,13 @@
             );
         }
 
-        const boosterFailures = createFailureCounter();
-        const boosterQueue = async.queue((item, next) => {
-            boosterQueueWorker(item, (success) => {
-                if (success) {
-                    resetRetryDelay(boosterFailures);
-
-                    setTimeout(() => {
-                        next();
-                    }, 250);
-                } else {
-                    const delay = nextRetryDelay(boosterFailures);
-
-                    setTimeout(() => {
-                        next();
-                    }, delay);
-                }
-            });
-        }, 1);
+        const boosterQueue = runQueue(boosterQueueWorker, { successDelayMs: 250 });
 
         boosterQueue.drain(() => {
             onQueueDrain();
         });
 
-        function boosterQueueWorker(item, callback) {
+        function boosterQueueWorker(item, ignoreErrors, callback) {
             const itemName = item.name || item.description.name;
             const itemId = item.assetid || item.id;
 
