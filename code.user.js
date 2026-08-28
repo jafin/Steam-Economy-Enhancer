@@ -2728,9 +2728,15 @@
         let marketProgressBar;
 
         // Progress of the current relist run, shown on the relist overpriced button.
-        // Both are reset when the relist queue drains.
+        // Both are reset once nothing is queueing relists any more, see resetMarketRelistProgress.
         let marketRelistTotal = 0;
         let marketRelistDone = 0;
+
+        // Listings already queued for relisting. Relisting one twice is pointless work: the
+        // second attempt looks up a listing that the first one already removed. This replaces
+        // disabling the buttons for the duration of the run, which also blocked relisting a
+        // hand-picked selection while automatic relisting was working through another one.
+        const marketRelistQueuedListings = new Set();
 
         function increaseMarketProgressMax() {
             let value = marketProgressBar.max;
@@ -3012,12 +3018,37 @@
             1
         );
 
-        // The relist run finished, put the buttons back to showing the (now lower) overpriced count.
-        marketOverpricedQueue.drain(() => {
+        // The relist run is over, put the buttons back to showing the (now lower) overpriced count.
+        function resetMarketRelistProgress() {
             marketRelistTotal = 0;
             marketRelistDone = 0;
+            marketRelistQueuedListings.clear();
 
-            updateMarketOverpricedButtons();
+            refreshMarketOverpricedButtons();
+        }
+
+        // Automatic relisting feeds this queue while the pricing pass is still finding
+        // overpriced listings, so it drains every time it happens to catch up with the pass.
+        // Clearing the progress there restarts the count from zero halfway through the run,
+        // so the queue that finishes last is the one that clears it.
+        marketOverpricedQueue.drain(() => {
+            if (!marketListingsQueue.idle()) {
+                refreshMarketOverpricedButtons();
+
+                return;
+            }
+
+            resetMarketRelistProgress();
+        });
+
+        // The other half of the same rule: the pricing pass can finish after the last relist
+        // it queued is already done, and then nothing else is left to clear the progress.
+        marketListingsQueue.drain(() => {
+            if (!marketOverpricedQueue.idle()) {
+                return;
+            }
+
+            resetMarketRelistProgress();
         });
 
         function marketOverpricedQueueWorker(item, ignoreErrors, callback) {
@@ -3098,7 +3129,13 @@
         }
 
         // Queue an overpriced item listing to be relisted.
+        // A listing is only queued once, however it was picked: automatic relisting, relist
+        // overpriced and relist selected all end up here and can well name the same listing.
         function queueOverpricedItemListing(listingid) {
+            if (marketRelistQueuedListings.has(listingid)) {
+                return;
+            }
+
             const assetInfo = getAssetInfoFromListingId(listingid);
             const listingUI = $(getListingFromLists(listingid).elm);
             let price = -1;
@@ -3119,10 +3156,11 @@
                     sellPrice: price
                 });
 
+                marketRelistQueuedListings.add(listingid);
                 marketRelistTotal += 1;
 
                 increaseMarketProgressMax();
-                updateMarketOverpricedButtons();
+                refreshMarketOverpricedButtons();
             }
         }
 
@@ -3552,9 +3590,10 @@
         // The count is taken from the matching items so it reflects exactly what the buttons act on,
         // which means it follows the search filter.
         //
-        // While a relist run is in progress the relist button shows its progress instead of the count,
-        // and is marked busy so it cannot queue the same listings twice. Relist selected and the
-        // automatic relist share this queue, so they show their progress here as well.
+        // While a relist run is in progress the relist overpriced button shows the progress of the
+        // shared relist queue instead of the count, and is marked busy because everything it would
+        // queue is already queued. Relist selected is left alone: it acts on a hand-picked
+        // selection, which is not what a run started somewhere else is working through.
         function updateMarketOverpricedButtons() {
             const isRelisting = marketRelistTotal > 0;
 
@@ -3572,7 +3611,7 @@
                     ? `Relisting ${marketRelistDone}/${marketRelistTotal}`
                     : `Relist overpriced (${count})`);
 
-                $('.relist_overpriced, .relist_selected', selectionGroup).toggleClass('see_button_busy', isRelisting);
+                $('.relist_overpriced', selectionGroup).toggleClass('see_button_busy', isRelisting);
 
                 $('.select_overpriced > span', selectionGroup).text(`Select overpriced (${count})`);
             });
@@ -3934,10 +3973,6 @@
             });
 
             $('.relist_selected').on('click', '*', function () {
-                if ($(this).closest('.relist_selected').hasClass('see_button_busy')) {
-                    return;
-                }
-
                 const selectionGroup = $(this).parent().parent().parent().parent();
                 const marketList = getListFromContainer(selectionGroup);
 
