@@ -528,7 +528,7 @@
         // If the highest average price is lower than the first listing, return the offset + that listing.
         // Otherwise, use the highest average price instead.
         let calculatedPrice = 0;
-        if (shouldUseBuyOrder && buyPrice !== -2) {
+        if (shouldUseBuyOrder) {
             calculatedPrice = buyPrice;
         } else if ((historyPrice < listingPrice || !shouldUseAverage) && !shouldUseHistory) {
             calculatedPrice = listingPrice;
