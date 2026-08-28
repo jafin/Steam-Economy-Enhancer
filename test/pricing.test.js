@@ -145,6 +145,70 @@ test('the result is clamped to the configured minimum and maximum', () => {
     assert.ok(aboveMaximum >= 100);
 });
 
+test('rules can be passed in, so pricing needs no stored settings at all', () => {
+    // The point of the rules parameter. Nothing is read from localStorage here, and the same
+    // inputs give the same answer every time.
+    clearSettings();
+
+    const rules = {
+        algorithm: 3,
+        offsetCents: 0,
+        historyHours: 12,
+        ignoreLowestOnLowQuantity: false
+    };
+
+    const price = see.calculateSellPriceBeforeFees(
+        history(),
+        orderbook(),
+        false,
+        0,
+        65535,
+        rules
+    );
+
+    assert.strictEqual(price, see.calculateBuyOrderPriceBeforeFees(orderbook()));
+});
+
+test('the same market data prices differently under different rules', () => {
+    clearSettings();
+
+    const base = {
+        offsetCents: 0,
+        historyHours: 12,
+        ignoreLowestOnLowQuantity: false
+    };
+
+    const priceUnder = (algorithm) => see.calculateSellPriceBeforeFees(
+        history(),
+        orderbook(),
+        false,
+        0,
+        65535,
+        { ...base, algorithm }
+    );
+
+    const byBuyOrder = priceUnder(3);
+    const byHistory = priceUnder(4);
+    const byListing = priceUnder(2);
+
+    assert.ok(byBuyOrder < byListing, 'the buy order is below the lowest listing');
+    assert.ok(byHistory > byListing, 'the history average is above the lowest listing');
+});
+
+test('createPricingRules reads every setting the calculation needs', () => {
+    clearSettings();
+    globalThis.localStorage.setItem('SETTING_PRICE_ALGORITHM', '3');
+    globalThis.localStorage.setItem('SETTING_PRICE_OFFSET', '2');
+    globalThis.localStorage.setItem('SETTING_PRICE_IGNORE_LOWEST_Q', '1');
+
+    const rules = see.createPricingRules();
+
+    assert.strictEqual(rules.algorithm, 3);
+    assert.strictEqual(rules.offsetCents, 200, 'the offset is stored in currency, used in cents');
+    assert.strictEqual(rules.ignoreLowestOnLowQuantity, true);
+    assert.strictEqual(typeof rules.historyHours, 'number');
+});
+
 test('the ignore-lowest-quantity ladder reaches every one of its six branches', () => {
     // The architecture review claimed four of these six were unreachable. They are not.
     // Each branch pairs a decreasing quantity bound with an increasing percentage bound, so

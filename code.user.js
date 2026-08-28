@@ -461,13 +461,35 @@
     }
 
     // Calculates the average history price, before the fee.
-    function calculateAverageHistoryPriceBeforeFees(history) {
+    // The four pricing algorithms offered by the settings dialog. Lowest listing is the
+    // fallback the calculation lands on when none of the other three are selected, so it is
+    // named here for completeness rather than tested for.
+    const ALGORITHM_MAX_OF_HISTORY_AND_LISTING = 1;
+    const ALGORITHM_LOWEST_LISTING = 2;
+    const ALGORITHM_HIGHEST_BUY_ORDER = 3;
+    const ALGORITHM_AVERAGE_HISTORY = 4;
+
+    // Everything the price calculation takes from settings, read in one place.
+    //
+    // The calculation used to reach for these itself, four settings across three functions,
+    // one synchronous localStorage read per item priced. Passing them in means the same
+    // inputs always give the same answer, which is what makes the calculation testable.
+    function createPricingRules() {
+        return {
+            algorithm: Number(getSettingWithDefault(SETTING_PRICE_ALGORITHM)),
+            offsetCents: Number(getSettingWithDefault(SETTING_PRICE_OFFSET)) * 100,
+            historyHours: Number(getSettingWithDefault(SETTING_PRICE_HISTORY_HOURS)),
+            ignoreLowestOnLowQuantity: getSettingWithDefault(SETTING_PRICE_IGNORE_LOWEST_Q) == 1
+        };
+    }
+
+    function calculateAverageHistoryPriceBeforeFees(history, rules = createPricingRules()) {
         let highest = 0;
         let total = 0;
 
         if (history != null) {
             // Highest average price in the last xx hours.
-            const timeAgo = Date.now() - getSettingWithDefault(SETTING_PRICE_HISTORY_HOURS) * 60 * 60 * 1000;
+            const timeAgo = Date.now() - rules.historyHours * 60 * 60 * 1000;
 
             history.forEach((historyItem) => {
                 const d = new Date(historyItem[0]);
@@ -487,7 +509,7 @@
     }
 
     // Calculates the listing price, before the fee.
-    function calculateListingPriceBeforeFees(orderbook) {
+    function calculateListingPriceBeforeFees(orderbook, rules = createPricingRules()) {
         if (typeof orderbook === 'undefined' ||
             orderbook == null ||
             orderbook.lowest_sell_order == null ||
@@ -497,9 +519,7 @@
 
         let listingPrice = market.getPriceBeforeFees(orderbook.lowest_sell_order);
 
-        const shouldIgnoreLowestListingOnLowQuantity = getSettingWithDefault(SETTING_PRICE_IGNORE_LOWEST_Q) == 1;
-
-        if (shouldIgnoreLowestListingOnLowQuantity && orderbook.sell_order_graph.length >= 2) {
+        if (rules.ignoreLowestOnLowQuantity && orderbook.sell_order_graph.length >= 2) {
             const listingPrice2ndLowest = market.getPriceBeforeFees(orderbook.sell_order_graph[1][0] * 100);
 
             if (listingPrice2ndLowest > listingPrice) {
@@ -540,14 +560,21 @@
 
     // Calculate the sell price based on the history and listings.
     // applyOffset specifies whether the price offset should be applied when the listings are used to determine the price.
-    function calculateSellPriceBeforeFees(history, orderbook, applyOffset, minPriceBeforeFees, maxPriceBeforeFees) {
-        const historyPrice = calculateAverageHistoryPriceBeforeFees(history);
-        const listingPrice = calculateListingPriceBeforeFees(orderbook);
+    function calculateSellPriceBeforeFees(
+        history,
+        orderbook,
+        applyOffset,
+        minPriceBeforeFees,
+        maxPriceBeforeFees,
+        rules = createPricingRules()
+    ) {
+        const historyPrice = calculateAverageHistoryPriceBeforeFees(history, rules);
+        const listingPrice = calculateListingPriceBeforeFees(orderbook, rules);
         const buyPrice = calculateBuyOrderPriceBeforeFees(orderbook);
 
-        const shouldUseAverage = getSettingWithDefault(SETTING_PRICE_ALGORITHM) == 1;
-        const shouldUseBuyOrder = getSettingWithDefault(SETTING_PRICE_ALGORITHM) == 3;
-        const shouldUseHistory = getSettingWithDefault(SETTING_PRICE_ALGORITHM) == 4;
+        const shouldUseAverage = rules.algorithm === ALGORITHM_MAX_OF_HISTORY_AND_LISTING;
+        const shouldUseBuyOrder = rules.algorithm === ALGORITHM_HIGHEST_BUY_ORDER;
+        const shouldUseHistory = rules.algorithm === ALGORITHM_AVERAGE_HISTORY;
 
         // If the highest average price is lower than the first listing, return the offset + that listing.
         // Otherwise, use the highest average price instead.
@@ -570,7 +597,7 @@
 
         // Apply the offset to the calculated price, but only if the price wasn't changed to the max (as otherwise it's impossible to list for this price).
         if (!changedToMax && applyOffset) {
-            calculatedPrice = calculatedPrice + getSettingWithDefault(SETTING_PRICE_OFFSET) * 100;
+            calculatedPrice = calculatedPrice + rules.offsetCents;
         }
 
 
@@ -4395,6 +4422,7 @@
             calculateSellPriceBeforeFees,
             clamp,
             createFailureCounter,
+            createPricingRules,
             getIsCrate,
             getIsFoilTradingCard,
             getIsTradingCard,
