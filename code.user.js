@@ -3535,7 +3535,14 @@
             marketProgressBar = document.getElementById('see_market_progress');
 
             // Sell orders.
-            $('.my_market_header').first().append(`<div class="market_listing_buttons">
+            // Steam prepends a "listings awaiting confirmation" block whenever a confirmation is pending,
+            // so the sell listings are not always the first header. Anchor to the sell listings table itself.
+            const sellListingsHeader = $('#tabContentsMyActiveMarketListingsRows').
+                closest('.market_home_listing_table').
+                find('.my_market_header').
+                first();
+
+            sellListingsHeader.append(`<div class="market_listing_buttons">
                 <a class="item_market_action_button item_market_action_button_green select_all market_listing_button">
                     <span class="item_market_action_button_contents">Select all</span>
                 </a>
@@ -3560,7 +3567,7 @@
             </div>`);
 
             // Listings confirmations and buy orders.
-            $('.my_market_header').slice(1).append(`<div class="market_listing_buttons">
+            $('.my_market_header').not(sellListingsHeader).append(`<div class="market_listing_buttons">
                 <a class="item_market_action_button item_market_action_button_green select_all market_listing_button">
                     <span class="item_market_action_button_contents">Select all</span>
                 </a>
