@@ -1390,11 +1390,20 @@
     const logger = document.createElement('div');
     logger.setAttribute('id', 'logger');
 
+    // The logger is only attached to the page on the inventory page, so on every other page
+    // there is nothing to scroll. logDOM is reachable from those pages, most importantly from
+    // the request breaker, and throwing here would abandon whatever called it.
     function updateScroll() {
-        if (!userScrolled) {
-            const element = document.getElementById('logger');
-            element.scrollTop = element.scrollHeight;
+        if (userScrolled) {
+            return;
         }
+
+        const element = document.getElementById('logger');
+        if (element == null) {
+            return;
+        }
+
+        element.scrollTop = element.scrollHeight;
     }
 
     function logDOM(text) {

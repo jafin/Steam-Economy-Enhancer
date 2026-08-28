@@ -97,7 +97,10 @@ test('tripping the breaker announces itself and tells callers why', (t) => {
 
     assert.strictEqual(see.request.stopped, false, 'starts un-tripped');
 
-    see.stopRequests();
+    // The announcement goes to the on-page log, which only exists on the inventory page.
+    // Anywhere else there is nothing to write to, and the breaker used to throw on the way
+    // out: the caller never rescheduled the queue and the request stayed pending forever.
+    assert.doesNotThrow(() => see.stopRequests(), 'announcing works without the page log');
 
     assert.strictEqual(see.request.stopped, true, 'stays stopped, by design');
     assert.strictEqual(see.request.errors, 0);

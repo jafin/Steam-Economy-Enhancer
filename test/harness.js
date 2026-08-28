@@ -112,8 +112,10 @@ function fakeElement() {
 function fakeDocument() {
     return {
         createElement: () => fakeElement(),
-        // The logger scrolls itself by looking itself up by id, so this must not be null.
-        getElementById: () => fakeElement(),
+        // Nothing is in the document. The harness loads the script as the market page, where
+        // the logger element is built but never attached, so looking it up finds nothing.
+        // Returning an element here would hide every missing null check behind the fake.
+        getElementById: () => null,
         querySelector: () => null,
         querySelectorAll: () => [],
         getElementsByTagName: () => [fakeElement()],
