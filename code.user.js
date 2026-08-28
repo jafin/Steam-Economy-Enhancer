@@ -630,6 +630,15 @@
         return { failures: 0 };
     }
 
+    // Records an item that came back from Steam without failing.
+    //
+    // Only a run of failures says anything about the connection, so a success ends the run.
+    // Without this the count only ever fell back to zero by overflowing the reset threshold,
+    // and two failures a hundred successful items apart still produced the long backoff.
+    function resetRetryDelay(counter) {
+        counter.failures = 0;
+    }
+
     // Records a failed item and returns how long that queue waits before the next one.
     // Back off hard after more than one failure in a row, then start counting again after
     // more than three so a queue does not stay in the long delay forever.
@@ -1644,6 +1653,8 @@
         const scrapQueue = async.queue((item, next) => {
             scrapQueueWorker(item, (success) => {
                 if (success) {
+                    resetRetryDelay(scrapFailures);
+
                     setTimeout(() => {
                         next();
                     }, 250);
@@ -1714,6 +1725,8 @@
         const boosterQueue = async.queue((item, next) => {
             boosterQueueWorker(item, (success) => {
                 if (success) {
+                    resetRetryDelay(boosterFailures);
+
                     setTimeout(() => {
                         next();
                     }, 250);
@@ -1986,7 +1999,14 @@
                 item,
                 item.ignoreErrors,
                 (success, cached) => {
+                    // An item answered from the cache never reached Steam, and its delay is
+                    // discarded, so it says nothing about the connection either way. Leave the
+                    // backoff to the items that actually made a request.
                     if (success) {
+                        if (!cached) {
+                            resetRetryDelay(itemFailures);
+                        }
+
                         setTimeout(() => next(), cached ? 0 : getRandomInt(1000, 1500));
                     } else {
                         if (!item.ignoreErrors) {
@@ -1994,9 +2014,7 @@
                             itemQueue.push(item);
                         }
 
-                        const delay = nextRetryDelay(itemFailures);
-
-                        setTimeout(() => next(), cached ? 0 : delay);
+                        setTimeout(() => next(), cached ? 0 : nextRetryDelay(itemFailures));
                     }
                 }
             );
@@ -2643,7 +2661,12 @@
                     item,
                     false,
                     (success, cached) => {
+                        // Cached items are left out of the backoff, see the item queue above.
                         if (success) {
+                            if (!cached) {
+                                resetRetryDelay(inventoryPriceFailures);
+                            }
+
                             setTimeout(() => next(), cached ? 0 : getRandomInt(1000, 1500));
                         } else {
                             if (!item.ignoreErrors) {
@@ -2651,9 +2674,7 @@
                                 inventoryPriceQueue.push(item);
                             }
 
-                            const delay = nextRetryDelay(inventoryPriceFailures);
-
-                            setTimeout(() => next(), cached ? 0 : delay);
+                            setTimeout(() => next(), cached ? 0 : nextRetryDelay(inventoryPriceFailures));
                         }
                     }
                 );
@@ -4452,7 +4473,8 @@
             isRetryMessage,
             nextRetryDelay,
             padLeftZero,
-            replaceNonNumbers
+            replaceNonNumbers,
+            resetRetryDelay
         };
     }
     //#endregion

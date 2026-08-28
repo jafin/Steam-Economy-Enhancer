@@ -49,6 +49,30 @@ test('the count restarts after more than three failures', () => {
     assertWithin(see.nextRetryDelay(counter), SHORT, 'first failure after the reset');
 });
 
+test('a success ends the run, so the next failure is a first failure again', () => {
+    // The backoff is for failures in a row. The count used to fall back to zero only by
+    // overflowing the reset threshold, so two failures a hundred good items apart still
+    // waited 30-45 seconds.
+    const counter = see.createFailureCounter();
+
+    see.nextRetryDelay(counter);
+    see.resetRetryDelay(counter);
+
+    assert.strictEqual(counter.failures, 0);
+    assertWithin(see.nextRetryDelay(counter), SHORT, 'first failure after a success');
+});
+
+test('a success part way through a run stops the hard backoff', () => {
+    const counter = see.createFailureCounter();
+
+    see.nextRetryDelay(counter);
+    assertWithin(see.nextRetryDelay(counter), LONG, 'two in a row');
+
+    see.resetRetryDelay(counter);
+
+    assertWithin(see.nextRetryDelay(counter), SHORT, 'the run was broken by a success');
+});
+
 test('counters are independent, so one queue cannot back off another', () => {
     // This is the defect this change fixes. numberOfFailedRequests was a single
     // module-level counter incremented only by the inventory price queue, while the scrap,
