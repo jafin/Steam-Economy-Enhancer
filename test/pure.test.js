@@ -103,7 +103,7 @@ test('buildOrderBook pairs the compact orders into price and quantity', () => {
 });
 
 test('CalculateFeeAmount splits a price into steam and publisher fees', () => {
-    const fee = see.CalculateFeeAmount(1000, 0.10, wallet);
+    const fee = see.CalculateFeeAmount(1000, 0.10, wallet, false);
 
     assert.strictEqual(fee.amount, 1000);
     assert.strictEqual(fee.steam_fee, 43);
@@ -111,11 +111,55 @@ test('CalculateFeeAmount splits a price into steam and publisher fees', () => {
     assert.strictEqual(fee.fees, fee.steam_fee + fee.publisher_fee);
 });
 
-test('CalculateAmountToSendForDesiredReceivedAmount rounds up to a payable amount', () => {
-    const sent = see.CalculateAmountToSendForDesiredReceivedAmount(87, 0.10, wallet);
+test('CalculateAmountToSendForDesiredReceivedAmount floors the fee by default', () => {
+    const sent = see.CalculateAmountToSendForDesiredReceivedAmount(87, 0.10, wallet, false);
 
     assert.strictEqual(sent.amount, 99);
     assert.strictEqual(sent.fees, 12);
+});
+
+test('CalculateAmountToSendForDesiredReceivedAmount rounds instead of floors when useRound is set', () => {
+    // useRound used to be a module-level closure fixed by GetCurrencyCode() at load time, so
+    // the round branch could never be reached from a test. It is a parameter now: the eleven
+    // currencies Steam rounds for (JPY, KRW, ...) are exercised the same way any other rule
+    // input is, by passing the value in.
+    const floored = see.CalculateAmountToSendForDesiredReceivedAmount(87, 0.10, wallet, false);
+    const rounded = see.CalculateAmountToSendForDesiredReceivedAmount(87, 0.10, wallet, true);
+
+    assert.strictEqual(floored.amount, 99);
+    assert.strictEqual(rounded.amount, 100, 'the publisher fee half-cent rounds up instead of down');
+});
+
+test('priceBeforeFees and priceIncludingFees answer from `rules` alone', () => {
+    // priceBeforeFees/priceIncludingFees used to be SteamMarket prototype methods, reaching
+    // for `this.walletInfo` and the module-level `useRound`. A wallet and a rounding rule
+    // the harness's `market` singleton has never seen still produce the right answer, which
+    // is the point: nothing here comes from a page.
+    const otherWallet = {
+        wallet_fee: 1,
+        wallet_fee_base: 0,
+        wallet_fee_percent: 0.10,
+        wallet_fee_minimum: 1,
+        wallet_publisher_fee_percent_default: 0.05
+    };
+
+    const before = see.priceBeforeFees(1000, null, { walletInfo: otherWallet, useRound: true });
+    const after = see.priceIncludingFees(before, null, { walletInfo: otherWallet, useRound: true });
+
+    assert.ok(before < 1000, 'fees were taken out');
+    // CalculateFeeAmount's own comment admits it: "we could be off a cent or two". Not an
+    // exact round trip, just close, which is the existing, deliberate behaviour.
+    assert.ok(Math.abs(after - 1000) <= 1, 'and the round trip lands back within a cent');
+});
+
+test('priceBeforeFees prefers an item-specific fee over the wallet default', () => {
+    const rules = { walletInfo: wallet, useRound: false };
+    const item = { market_fee: 0 };
+
+    const withDefaultFee = see.priceBeforeFees(1000, null, rules);
+    const withItemFee = see.priceBeforeFees(1000, item, rules);
+
+    assert.ok(withItemFee > withDefaultFee, 'a zero publisher fee takes less out of the price');
 });
 
 test('getIsTradingCard detects a card by its item_class tag', () => {

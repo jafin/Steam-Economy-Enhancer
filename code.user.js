@@ -487,18 +487,81 @@
     const ALGORITHM_HIGHEST_BUY_ORDER = 3;
     const ALGORITHM_AVERAGE_HISTORY = 4;
 
+    // Passed as the max to calculateSellPriceBeforeFees when there is nobody to undercut and
+    // no minimum/maximum should clamp the result: an unreachably high ceiling that reads back
+    // as "unpriced" rather than a real price. Nobody is selling this item, so there is nothing
+    // to show and nothing to add to a trade offer total.
+    const NO_LISTING_PRICE_SENTINEL = 65535;
+
     // Everything the price calculation takes from settings, read in one place.
     //
     // The calculation used to reach for these itself, four settings across three functions,
-    // one synchronous localStorage read per item priced. Passing them in means the same
-    // inputs always give the same answer, which is what makes the calculation testable.
+    // one synchronous localStorage read per item priced, plus the wall clock, the wallet's
+    // fee schedule and the round-vs-floor currency rule, both taken from a module-level
+    // `market`/`useRound` closure. Passing them in means the same inputs always give the
+    // same answer, which is what makes the calculation testable.
     function createPricingRules() {
         return {
             algorithm: Number(getSettingWithDefault(SETTING_PRICE_ALGORITHM)),
             offsetCents: Number(getSettingWithDefault(SETTING_PRICE_OFFSET)) * 100,
             historyHours: Number(getSettingWithDefault(SETTING_PRICE_HISTORY_HOURS)),
-            ignoreLowestOnLowQuantity: getSettingWithDefault(SETTING_PRICE_IGNORE_LOWEST_Q) == 1
+            ignoreLowestOnLowQuantity: getSettingWithDefault(SETTING_PRICE_IGNORE_LOWEST_Q) == 1,
+            walletInfo: market.walletInfo,
+            useRound,
+            now: Date.now()
         };
+    }
+
+    // Calculate the price before fees (seller price) from the buyer price.
+    //
+    // Pure: the fee schedule and rounding rule come from `rules` rather than from the
+    // `market` singleton or the module-level `useRound`. SteamMarket.prototype.getPriceBeforeFees
+    // is a thin adapter over this for the call sites that use the market instance directly.
+    function priceBeforeFees(price, item, rules) {
+        let publisherFee = -1;
+
+        if (item != null) {
+            if (item.market_fee != null) {
+                publisherFee = item.market_fee;
+            } else if (item.description != null && item.description.market_fee != null) {
+                publisherFee = item.description.market_fee;
+            }
+        }
+
+        if (publisherFee == -1) {
+            publisherFee = rules.walletInfo != null
+                ? rules.walletInfo['wallet_publisher_fee_percent_default']
+                : 0.10;
+        }
+
+        price = Math.round(price);
+        const feeInfo = CalculateFeeAmount(price, publisherFee, rules.walletInfo, rules.useRound);
+
+        return (price > feeInfo.fees) ? price - feeInfo.fees : 1;
+    }
+
+    // Calculate the buyer price from the seller price. See priceBeforeFees.
+    function priceIncludingFees(price, item, rules) {
+        let publisherFee = -1;
+
+        if (item != null) {
+            if (item.market_fee != null) {
+                publisherFee = item.market_fee;
+            } else if (item.description != null && item.description.market_fee != null) {
+                publisherFee = item.description.market_fee;
+            }
+        }
+
+        if (publisherFee == -1) {
+            publisherFee = rules.walletInfo != null
+                ? rules.walletInfo['wallet_publisher_fee_percent_default']
+                : 0.10;
+        }
+
+        price = Math.round(price);
+        const feeInfo = CalculateAmountToSendForDesiredReceivedAmount(price, publisherFee, rules.walletInfo, rules.useRound);
+
+        return feeInfo.amount;
     }
 
     function calculateAverageHistoryPriceBeforeFees(history, rules = createPricingRules()) {
@@ -507,7 +570,7 @@
 
         if (history != null) {
             // Highest average price in the last xx hours.
-            const timeAgo = Date.now() - rules.historyHours * 60 * 60 * 1000;
+            const timeAgo = rules.now - rules.historyHours * 60 * 60 * 1000;
 
             history.forEach((historyItem) => {
                 const d = new Date(historyItem[0]);
@@ -523,7 +586,7 @@
         }
 
         highest = Math.floor(highest / total);
-        return market.getPriceBeforeFees(highest);
+        return priceBeforeFees(highest, null, rules);
     }
 
     // Calculates the listing price, before the fee.
@@ -535,10 +598,10 @@
             return 0;
         }
 
-        let listingPrice = market.getPriceBeforeFees(orderbook.lowest_sell_order);
+        let listingPrice = priceBeforeFees(orderbook.lowest_sell_order, null, rules);
 
         if (rules.ignoreLowestOnLowQuantity && orderbook.sell_order_graph.length >= 2) {
-            const listingPrice2ndLowest = market.getPriceBeforeFees(orderbook.sell_order_graph[1][0] * 100);
+            const listingPrice2ndLowest = priceBeforeFees(orderbook.sell_order_graph[1][0] * 100, null, rules);
 
             if (listingPrice2ndLowest > listingPrice) {
                 const numberOfListingsLowest = orderbook.sell_order_graph[0][1];
@@ -566,14 +629,14 @@
         return listingPrice;
     }
 
-    function calculateBuyOrderPriceBeforeFees(orderbook) {
+    function calculateBuyOrderPriceBeforeFees(orderbook, rules = createPricingRules()) {
         // buildOrderBook returns null for an unsuccessful response, so null reaches here as
         // readily as undefined. calculateListingPriceBeforeFees has always guarded both.
         if (typeof orderbook === 'undefined' || orderbook == null) {
             return 0;
         }
 
-        return market.getPriceBeforeFees(orderbook.highest_buy_order);
+        return priceBeforeFees(orderbook.highest_buy_order, null, rules);
     }
 
     // Calculate the sell price based on the history and listings.
@@ -588,7 +651,7 @@
     ) {
         const historyPrice = calculateAverageHistoryPriceBeforeFees(history, rules);
         const listingPrice = calculateListingPriceBeforeFees(orderbook, rules);
-        const buyPrice = calculateBuyOrderPriceBeforeFees(orderbook);
+        const buyPrice = calculateBuyOrderPriceBeforeFees(orderbook, rules);
 
         const shouldUseAverage = rules.algorithm === ALGORITHM_MAX_OF_HISTORY_AND_LISTING;
         const shouldUseBuyOrder = rules.algorithm === ALGORITHM_HIGHEST_BUY_ORDER;
@@ -624,7 +687,7 @@
 
         // In case there's a buy order higher than the calculated price.
         if (!shouldUseHistory && typeof orderbook !== 'undefined' && orderbook != null && orderbook.highest_buy_order != null) {
-            const buyOrderPrice = market.getPriceBeforeFees(orderbook.highest_buy_order);
+            const buyOrderPrice = priceBeforeFees(orderbook.highest_buy_order, null, rules);
             if (buyOrderPrice > calculatedPrice) {
                 calculatedPrice = buyOrderPrice;
             }
@@ -1181,53 +1244,16 @@
         );
     };
 
-    // Calculate the price before fees (seller price) from the buyer price
+    // Calculate the price before fees (seller price) from the buyer price.
+    // A thin adapter over the pure priceBeforeFees: this instance's wallet and the page's
+    // round-vs-floor rule are the `rules` every other caller has to pass in explicitly.
     SteamMarket.prototype.getPriceBeforeFees = function (price, item) {
-        let publisherFee = -1;
-
-        if (item != null) {
-            if (item.market_fee != null) {
-                publisherFee = item.market_fee;
-            } else if (item.description != null && item.description.market_fee != null) {
-                publisherFee = item.description.market_fee;
-            }
-        }
-
-        if (publisherFee == -1) {
-            if (this.walletInfo != null) {
-                publisherFee = this.walletInfo['wallet_publisher_fee_percent_default'];
-            } else {
-                publisherFee = 0.10;
-            }
-        }
-
-        price = Math.round(price);
-        const feeInfo = CalculateFeeAmount(price, publisherFee, this.walletInfo);
-
-        return (price > feeInfo.fees) ? price - feeInfo.fees : 1;
+        return priceBeforeFees(price, item, { walletInfo: this.walletInfo, useRound });
     };
 
-    // Calculate the buyer price from the seller price
+    // Calculate the buyer price from the seller price. See getPriceBeforeFees.
     SteamMarket.prototype.getPriceIncludingFees = function (price, item) {
-        let publisherFee = -1;
-        if (item != null) {
-            if (item.market_fee != null) {
-                publisherFee = item.market_fee;
-            } else if (item.description != null && item.description.market_fee != null) {
-                publisherFee = item.description.market_fee;
-            }
-        }
-        if (publisherFee == -1) {
-            if (this.walletInfo != null) {
-                publisherFee = this.walletInfo['wallet_publisher_fee_percent_default'];
-            } else {
-                publisherFee = 0.10;
-            }
-        }
-
-        price = Math.round(price);
-        const feeInfo = CalculateAmountToSendForDesiredReceivedAmount(price, publisherFee, this.walletInfo);
-        return feeInfo.amount;
+        return priceIncludingFees(price, item, { walletInfo: this.walletInfo, useRound });
     };
     //#endregion
 
@@ -1379,7 +1405,7 @@
         return false;
     }
 
-    function CalculateFeeAmount(amount, publisherFee, walletInfo) {
+    function CalculateFeeAmount(amount, publisherFee, walletInfo, useRound) {
         if (walletInfo == null || !walletInfo['wallet_fee']) {
             return {
                 fees: 0
@@ -1396,7 +1422,8 @@
         let fees = CalculateAmountToSendForDesiredReceivedAmount(
             nEstimatedAmountOfWalletFundsReceivedByOtherParty,
             publisherFee,
-            walletInfo
+            walletInfo,
+            useRound
         );
         while (fees.amount != amount && iterations < 10) {
             if (fees.amount > amount) {
@@ -1404,7 +1431,8 @@
                     fees = CalculateAmountToSendForDesiredReceivedAmount(
                         nEstimatedAmountOfWalletFundsReceivedByOtherParty - 1,
                         publisherFee,
-                        walletInfo
+                        walletInfo,
+                        useRound
                     );
                     fees.steam_fee += amount - fees.amount;
                     fees.fees += amount - fees.amount;
@@ -1420,7 +1448,8 @@
             fees = CalculateAmountToSendForDesiredReceivedAmount(
                 nEstimatedAmountOfWalletFundsReceivedByOtherParty,
                 publisherFee,
-                walletInfo
+                walletInfo,
+                useRound
             );
             iterations++;
         }
@@ -1446,7 +1475,7 @@
     // - 12 specific currencies now use round instead of floor for fees
     // - Global minimum fee increased to $0.01 for both Steam fee and publisher fee
     // Reference: https://steamcommunity.com/groups/community_market/discussions/0/682988196226679356/
-    function CalculateAmountToSendForDesiredReceivedAmount(receivedAmount, publisherFee, walletInfo) {
+    function CalculateAmountToSendForDesiredReceivedAmount(receivedAmount, publisherFee, walletInfo, useRound) {
         if (walletInfo == null || !walletInfo['wallet_fee']) {
             return {
                 amount: receivedAmount
@@ -2183,7 +2212,8 @@
                                 orderbook,
                                 true,
                                 priceInfo.minPriceBeforeFees,
-                                priceInfo.maxPriceBeforeFees
+                                priceInfo.maxPriceBeforeFees,
+                                createPricingRules()
                             );
 
 
@@ -2824,12 +2854,19 @@
                         return callback(false, cachedListings);
                     }
 
-                    const sellPrice = calculateSellPriceBeforeFees(null, orderbook, false, 0, 65535);
+                    const sellPrice = calculateSellPriceBeforeFees(
+                        null,
+                        orderbook,
+                        false,
+                        0,
+                        NO_LISTING_PRICE_SENTINEL,
+                        createPricingRules()
+                    );
 
                     // Nobody is selling this one, so there is no price to show and nothing to
                     // add to a trade offer total.
-                    const priceWithFees = sellPrice == 65535 ? 0 : market.getPriceIncludingFees(sellPrice);
-                    const itemPrice = sellPrice == 65535 ? '∞' : formatPrice(priceWithFees);
+                    const priceWithFees = sellPrice == NO_LISTING_PRICE_SENTINEL ? 0 : market.getPriceIncludingFees(sellPrice);
+                    const itemPrice = sellPrice == NO_LISTING_PRICE_SENTINEL ? '∞' : formatPrice(priceWithFees);
 
                     listingState.set(getAssetKey(item), { sellPrice: priceWithFees });
 
@@ -3062,20 +3099,27 @@
                             // Calculate two prices here, one without the offset and one with the offset.
                             // The price without the offset is required to not relist the item constantly when you have the lowest price (i.e., with a negative offset).
                             // The price with the offset should be used for relisting so it will still apply the user-set offset.
+                            //
+                            // Built once and passed to both calls: two independent
+                            // createPricingRules() calls could in principle read the settings
+                            // or the wall clock a moment apart and disagree on this one item.
+                            const rules = createPricingRules();
 
                             const sellPriceWithoutOffset = calculateSellPriceBeforeFees(
                                 history,
                                 orderbook,
                                 false,
                                 priceInfo.minPriceBeforeFees,
-                                priceInfo.maxPriceBeforeFees
+                                priceInfo.maxPriceBeforeFees,
+                                rules
                             );
                             const sellPriceWithOffset = calculateSellPriceBeforeFees(
                                 history,
                                 orderbook,
                                 true,
                                 priceInfo.minPriceBeforeFees,
-                                priceInfo.maxPriceBeforeFees
+                                priceInfo.maxPriceBeforeFees,
+                                rules
                             );
 
                             const sellPriceWithoutOffsetWithFees = market.getPriceIncludingFees(sellPriceWithoutOffset);
@@ -4630,8 +4674,11 @@
                 REQUEST_DELAY_MARKET
             },
             isRetryMessage,
+            NO_LISTING_PRICE_SENTINEL,
             nextRetryDelay,
             padLeftZero,
+            priceBeforeFees,
+            priceIncludingFees,
             replaceNonNumbers,
             resetRetryDelay
         };

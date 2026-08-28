@@ -207,6 +207,29 @@ test('createPricingRules reads every setting the calculation needs', () => {
     assert.strictEqual(rules.offsetCents, 200, 'the offset is stored in currency, used in cents');
     assert.strictEqual(rules.ignoreLowestOnLowQuantity, true);
     assert.strictEqual(typeof rules.historyHours, 'number');
+    assert.strictEqual(typeof rules.now, 'number', 'the wall clock is read once, not per item');
+    assert.strictEqual(typeof rules.useRound, 'boolean');
+});
+
+test('the history window is judged against rules.now, not the wall clock', () => {
+    // calculateAverageHistoryPriceBeforeFees used to call Date.now() itself. A sale timed
+    // relative to an explicit `now` gives the same answer however long the test takes to
+    // run, and a fixed instant can place a sale on either side of the window on purpose.
+    const now = Date.UTC(2024, 0, 2, 12, 0, 0);
+    const rules = { historyHours: 12, now };
+
+    const insideWindow = [[new Date(now - 6 * 60 * 60 * 1000).toString(), 2000, 5]];
+    const outsideWindow = [[new Date(now - 18 * 60 * 60 * 1000).toString(), 2000, 5]];
+
+    assert.ok(
+        see.calculateAverageHistoryPriceBeforeFees(insideWindow, rules) > 0,
+        'a sale 6 hours before `now` is inside a 12 hour window'
+    );
+    assert.strictEqual(
+        see.calculateAverageHistoryPriceBeforeFees(outsideWindow, rules),
+        0,
+        'a sale 18 hours before `now` is outside a 12 hour window, whatever time it actually is'
+    );
 });
 
 test('the ignore-lowest-quantity ladder reaches every one of its six branches', () => {
