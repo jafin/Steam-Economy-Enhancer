@@ -174,13 +174,11 @@ test('CHARACTERISATION: a wallet with no wallet_fee produces fee-free prices', (
     assert.deepStrictEqual(see.CalculateFeeAmount(100, 0.10, {}), { fees: 0 });
 });
 
-test('CHARACTERISATION: getIsCrate returns undefined for anything that is not a crate', () => {
-    // getIsCrate has no terminal `return false`, so every non-crate item falls off the end.
-    // Only a null item returns an actual boolean. Compare getIsTradingCard, which returns
-    // false correctly. Owner: AGENT-6.
+test('getIsCrate returns a boolean on every path', () => {
+    // It used to fall off the end and return undefined for every non-crate item, because
+    // it had no terminal `return false`. Only a null item yielded an actual boolean.
     assert.strictEqual(see.getIsCrate(null), false);
-
-    assert.strictEqual(see.getIsCrate({ name: 'no tags at all' }), undefined);
+    assert.strictEqual(see.getIsCrate({ name: 'no tags at all' }), false);
     assert.strictEqual(
         see.getIsCrate({
             tags: [
@@ -190,7 +188,7 @@ test('CHARACTERISATION: getIsCrate returns undefined for anything that is not a 
                 }
             ]
         }),
-        undefined
+        false
     );
 
     assert.strictEqual(

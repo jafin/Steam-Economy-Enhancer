@@ -1072,6 +1072,8 @@
                 return true;
             }
         }
+
+        return false;
     }
 
     function getIsTradingCard(item) {
