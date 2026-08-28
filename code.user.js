@@ -65,6 +65,24 @@
         [VERDICT_FAIR]: 'Sell price is fair.'
     };
 
+    // What a queue is doing with one inventory row, as a value rather than a colour picked
+    // at each of nine call sites: excluded from checking, waiting on a network call,
+    // finished, or failed.
+    const ROW_STATUS_COLORS = {
+        notChecked: COLOR_PRICE_NOT_CHECKED,
+        pending: COLOR_PENDING,
+        success: COLOR_SUCCESS,
+        error: COLOR_ERROR
+    };
+
+    // Colours an inventory row by asset key - the same `appid_contextid_assetid` id every
+    // inventory item element carries (see getAssetKey, below). Replaces nine identical
+    // `$('#'+appid+'_'+contextid+'_'+itemId).css('background', COLOR_X)` sites that only
+    // ever differed in which COLOR_* they painted.
+    function markRow(assetKey, status) {
+        $(`#${assetKey}`).css('background', ROW_STATUS_COLORS[status]);
+    }
+
     const ERROR_SUCCESS = null;
     const ERROR_FAILED = 1;
     const ERROR_DATA = 2;
@@ -1671,7 +1689,7 @@
 
                 if (getSettingWithDefault(SETTING_PRICE_MIN_LIST_PRICE) * 100 >= market.getPriceIncludingFees(task.sellPrice)) {
                     logDOM(`${padLeft} - ${itemNameWithAmount} is not listed due to ignoring price settings.`);
-                    $(`#${task.item.appid}_${task.item.contextid}_${itemId}`).css('background', COLOR_PRICE_NOT_CHECKED);
+                    markRow(`${task.item.appid}_${task.item.contextid}_${itemId}`, 'notChecked');
                     next();
                     return;
                 }
@@ -1687,7 +1705,7 @@
 
                         if (success) {
                             logDOM(`${padLeft} - ${itemNameWithAmount} listed for ${formatPrice(market.getPriceIncludingFees(task.sellPrice) * task.item.amount)}, you will receive ${formatPrice(task.sellPrice * task.item.amount)}.`);
-                            $(`#${task.item.appid}_${task.item.contextid}_${itemId}`).css('background', COLOR_SUCCESS);
+                            markRow(`${task.item.appid}_${task.item.contextid}_${itemId}`, 'success');
 
                             totalPriceWithoutFeesOnMarket += task.sellPrice * task.item.amount;
                             totalPriceWithFeesOnMarket += market.getPriceIncludingFees(task.sellPrice) * task.item.amount;
@@ -1712,7 +1730,7 @@
                         }
 
                         logDOM(`${padLeft} - ${itemNameWithAmount} not added to market${message ? ` because:  ${message.charAt(0).toLowerCase()}${message.slice(1)}` : '.'}`);
-                        $(`#${task.item.appid}_${task.item.contextid}_${itemId}`).css('background', COLOR_ERROR);
+                        markRow(`${task.item.appid}_${task.item.contextid}_${itemId}`, 'error');
 
                         callback();
                     }
@@ -1877,7 +1895,7 @@
                         logConsole(`Failed to get gems value for ${itemName}`);
                         logDOM(`${padLeft} - ${itemName} not turned into gems due to missing gems value.`);
 
-                        $(`#${item.appid}_${item.contextid}_${itemId}`).css('background', COLOR_ERROR);
+                        markRow(`${item.appid}_${item.contextid}_${itemId}`, 'error');
                         return callback(false);
                     }
 
@@ -1890,7 +1908,7 @@
                                 logConsole(`Failed to turn item into gems for ${itemName}`);
                                 logDOM(`${padLeft} - ${itemName} not turned into gems due to unknown error.`);
 
-                                $(`#${item.appid}_${item.contextid}_${itemId}`).css('background', COLOR_ERROR);
+                                markRow(`${item.appid}_${item.contextid}_${itemId}`, 'error');
                                 return callback(false);
                             }
 
@@ -1898,7 +1916,7 @@
                             logConsole(itemName);
                             logConsole(`Turned into ${goo.goo_value} gems`);
                             logDOM(`${padLeft} - ${itemName} turned into ${item.goo_value_expected} gems.`);
-                            $(`#${item.appid}_${item.contextid}_${itemId}`).css('background', COLOR_SUCCESS);
+                            markRow(`${item.appid}_${item.contextid}_${itemId}`, 'success');
 
                             totalScrap += item.goo_value_expected;
                             updateTotals();
@@ -1932,12 +1950,12 @@
                         logConsole(`Failed to unpack booster pack ${itemName}`);
                         logDOM(`${padLeft} - ${itemName} not unpacked.`);
 
-                        $(`#${item.appid}_${item.contextid}_${itemId}`).css('background', COLOR_ERROR);
+                        markRow(`${item.appid}_${item.contextid}_${itemId}`, 'error');
                         return callback(false);
                     }
 
                     logDOM(`${padLeft} - ${itemName} unpacked.`);
-                    $(`#${item.appid}_${item.contextid}_${itemId}`).css('background', COLOR_SUCCESS);
+                    markRow(`${item.appid}_${item.contextid}_${itemId}`, 'success');
 
                     callback(true);
                 }
@@ -2131,7 +2149,7 @@
                 dialog.OnDismiss(() => {
                     items.forEach((item) => {
                         const itemId = item.assetid || item.id;
-                        $(`#${item.appid}_${item.contextid}_${itemId}`).css('background', COLOR_PENDING);
+                        markRow(`${item.appid}_${item.contextid}_${itemId}`, 'pending');
                     });
                 });
             });
@@ -4661,6 +4679,7 @@
                 REQUEST_DELAY_MARKET
             },
             isRetryMessage,
+            markRow,
             NO_LISTING_PRICE_SENTINEL,
             nextQueueStep,
             nextRetryDelay,
@@ -4669,6 +4688,7 @@
             priceIncludingFees,
             replaceNonNumbers,
             resetRetryDelay,
+            ROW_STATUS_COLORS,
             runQueue
         };
     }
