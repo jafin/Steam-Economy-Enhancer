@@ -133,6 +133,40 @@
     request.pending = false;
     request.stopped = false;
 
+    // Rate policy. Market requests are slowed down to stay under Steam's rate limits, and
+    // anything that failed waits longer still.
+    const REQUEST_DELAY_DEFAULT = 300;
+    const REQUEST_DELAY_MARKET = 1000;
+    const REQUEST_DELAY_ERROR = 5000;
+    const REQUEST_MARKET_PREFIX = 'https://steamcommunity.com/market/';
+
+    // Breaker policy. These statuses mean something is broken rather than busy, so after
+    // enough of them within the window the script stops sending anything at all.
+    const REQUEST_BREAKER_STATUSES = [
+        400,
+        401,
+        403,
+        404,
+        405,
+        429
+    ];
+    const REQUEST_BREAKER_THRESHOLD = 5;
+    const REQUEST_BREAKER_WINDOW_MS = 5 * 60 * 1000;
+
+    // How long to wait before releasing the next queued request.
+    // A failure outranks the market delay, which outranks the default.
+    function getRequestDelay(url, status, statusText) {
+        if (status === 0 || status >= 400 || statusText === 'error') {
+            return REQUEST_DELAY_ERROR;
+        }
+
+        if (url.startsWith(REQUEST_MARKET_PREFIX)) {
+            return REQUEST_DELAY_MARKET;
+        }
+
+        return REQUEST_DELAY_DEFAULT;
+    }
+
     function request(url, options, callback) {
         callback = callback || function () { };
 
@@ -199,25 +233,15 @@
              * @param {string} statusText - one of `success`, `notmodified`, `nocontent`, `error`, `timeout`, `abort`, or `parsererror`.
              */
             complete: (xhr, statusText) => {
-                let delay = 300; // Short delay to avoid hammering the server.
-
-                // Slow down market requests to avoid hitting the rate limits.
-                if (url.startsWith('https://steamcommunity.com/market/')) {
-                    delay = 1000;
-                }
-
-                // Better to wait for a bit longer if we hit an error.
-                if (xhr.status === 0 || xhr.status >= 400 || statusText === 'error') {
-                    delay = 5000;
-                }
+                const delay = getRequestDelay(url, xhr.status, statusText);
 
                 // Probably something broken, better to stop here.
-                if ([400, 401, 403, 404, 405, 429].includes(xhr.status)) {
+                if (REQUEST_BREAKER_STATUSES.includes(xhr.status)) {
                     if (request.errors++ === 0) {
-                        setTimeout(() => request.errors = 0, 5 * 60 * 1000);
+                        setTimeout(() => request.errors = 0, REQUEST_BREAKER_WINDOW_MS);
                     }
 
-                    if (request.errors >= 5) {
+                    if (request.errors >= REQUEST_BREAKER_THRESHOLD) {
                         request.stopped = true;
                         request.errors = 0;
                     }
@@ -4325,6 +4349,15 @@
             getIsTradingCard,
             getMarketHashName,
             getNumberOfDigits,
+            getRequestDelay,
+            requestPolicy: {
+                REQUEST_BREAKER_STATUSES,
+                REQUEST_BREAKER_THRESHOLD,
+                REQUEST_BREAKER_WINDOW_MS,
+                REQUEST_DELAY_DEFAULT,
+                REQUEST_DELAY_ERROR,
+                REQUEST_DELAY_MARKET
+            },
             isRetryMessage,
             padLeftZero,
             replaceNonNumbers
