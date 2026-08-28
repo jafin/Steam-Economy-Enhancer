@@ -1627,7 +1627,7 @@
                         const success = Boolean(data?.success);
                         const message = data?.message || '';
 
-                        const callback = () => setTimeout(() => next(), getRandomInt(1000, 1500));
+                        const callback = () => setTimeout(() => next(), getRandomInt(RETRY_DELAY_SHORT_MIN, RETRY_DELAY_SHORT_MAX));
 
                         if (success) {
                             logDOM(`${padLeft} - ${itemNameWithAmount} listed for ${formatPrice(market.getPriceIncludingFees(task.sellPrice) * task.item.amount)}, you will receive ${formatPrice(task.sellPrice * task.item.amount)}.`);
@@ -1649,7 +1649,7 @@
                             sellQueue.unshift(task);
                             sellQueue.pause();
 
-                            setTimeout(() => sellQueue.resume(), getRandomInt(30000, 45000));
+                            setTimeout(() => sellQueue.resume(), getRandomInt(RETRY_DELAY_LONG_MIN, RETRY_DELAY_LONG_MAX));
                             callback();
 
                             return;
@@ -2157,7 +2157,7 @@
                             resetRetryDelay(itemFailures);
                         }
 
-                        setTimeout(() => next(), cached ? 0 : getRandomInt(1000, 1500));
+                        setTimeout(() => next(), cached ? 0 : getRandomInt(RETRY_DELAY_SHORT_MIN, RETRY_DELAY_SHORT_MAX));
                     } else {
                         if (!item.ignoreErrors) {
                             item.ignoreErrors = true;
@@ -2818,7 +2818,7 @@
                                 resetRetryDelay(inventoryPriceFailures);
                             }
 
-                            setTimeout(() => next(), cached ? 0 : getRandomInt(1000, 1500));
+                            setTimeout(() => next(), cached ? 0 : getRandomInt(RETRY_DELAY_SHORT_MIN, RETRY_DELAY_SHORT_MAX));
                         } else {
                             if (!item.ignoreErrors) {
                                 item.ignoreErrors = true;
@@ -2965,9 +2965,9 @@
                     };
 
                     if (success) {
-                        setTimeout(callback, cached ? 0 : getRandomInt(1000, 1500));
+                        setTimeout(callback, cached ? 0 : getRandomInt(RETRY_DELAY_SHORT_MIN, RETRY_DELAY_SHORT_MAX));
                     } else {
-                        setTimeout(() => marketListingsQueueWorker(listing, true, callback), cached ? 0 : getRandomInt(30000, 45000));
+                        setTimeout(() => marketListingsQueueWorker(listing, true, callback), cached ? 0 : getRandomInt(RETRY_DELAY_LONG_MIN, RETRY_DELAY_LONG_MAX));
                     }
                 }
             );
@@ -3174,9 +3174,9 @@
                         };
 
                         if (success) {
-                            setTimeout(callback, getRandomInt(1000, 1500));
+                            setTimeout(callback, getRandomInt(RETRY_DELAY_SHORT_MIN, RETRY_DELAY_SHORT_MAX));
                         } else {
-                            setTimeout(() => marketOverpricedQueueWorker(item, true, callback), getRandomInt(30000, 45000));
+                            setTimeout(() => marketOverpricedQueueWorker(item, true, callback), getRandomInt(RETRY_DELAY_LONG_MIN, RETRY_DELAY_LONG_MAX));
                         }
                     }
                 );
@@ -3339,7 +3339,7 @@
                         if (success) {
                             setTimeout(callback, getRandomInt(50, 100));
                         } else {
-                            setTimeout(() => marketRemoveQueueWorker(listingid, true, callback), getRandomInt(30000, 45000));
+                            setTimeout(() => marketRemoveQueueWorker(listingid, true, callback), getRandomInt(RETRY_DELAY_LONG_MIN, RETRY_DELAY_LONG_MAX));
                         }
                     }
                 );
@@ -3386,7 +3386,7 @@
             (listing, next) => {
                 const callback = () => {
                     increaseMarketProgress();
-                    setTimeout(() => next(), getRandomInt(1000, 1500));
+                    setTimeout(() => next(), getRandomInt(RETRY_DELAY_SHORT_MIN, RETRY_DELAY_SHORT_MAX));
                 };
 
                 const url = `${window.location.origin}/market/mylistings`
