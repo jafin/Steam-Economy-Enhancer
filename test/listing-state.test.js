@@ -47,3 +47,15 @@ test('a listing id is the same key whether it arrives as a number or a string', 
 
     assert.strictEqual(state.get('123').sellPrice, 250);
 });
+
+test('a listing asking more than the best price is overpriced', () => {
+    assert.strictEqual(see.getListingVerdict(100, 150), 'overpriced');
+});
+
+test('a listing asking less than the best price is underpriced', () => {
+    assert.strictEqual(see.getListingVerdict(150, 100), 'underpriced');
+});
+
+test('a listing asking the best price is fair', () => {
+    assert.strictEqual(see.getListingVerdict(100, 100), 'fair');
+});

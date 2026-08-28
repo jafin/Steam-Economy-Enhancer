@@ -47,6 +47,24 @@
     const COLOR_PRICE_EXPENSIVE = '#813030';
     const COLOR_PRICE_NOT_CHECKED = '#26566c';
 
+    // A listing is asking more than the best price, less than it, or exactly it. The names
+    // double as the class names the listings have always carried.
+    const VERDICT_OVERPRICED = 'overpriced';
+    const VERDICT_UNDERPRICED = 'underpriced';
+    const VERDICT_FAIR = 'fair';
+
+    const VERDICT_COLORS = {
+        [VERDICT_OVERPRICED]: COLOR_PRICE_EXPENSIVE,
+        [VERDICT_UNDERPRICED]: COLOR_PRICE_CHEAP,
+        [VERDICT_FAIR]: COLOR_PRICE_FAIR
+    };
+
+    const VERDICT_MESSAGES = {
+        [VERDICT_OVERPRICED]: 'Sell price is too high.',
+        [VERDICT_UNDERPRICED]: 'Sell price is too low.',
+        [VERDICT_FAIR]: 'Sell price is fair.'
+    };
+
     const ERROR_SUCCESS = null;
     const ERROR_FAILED = 1;
     const ERROR_DATA = 2;
@@ -694,6 +712,24 @@
             }
         };
     }
+
+    // What the script thinks of the price a listing is asking, as a value rather than as a
+    // colour and a class name. `bestPrice` and `listedPrice` are both prices including fees.
+    function getListingVerdict(bestPrice, listedPrice) {
+        if (bestPrice < listedPrice) {
+            return VERDICT_OVERPRICED;
+        }
+
+        if (bestPrice > listedPrice) {
+            return VERDICT_UNDERPRICED;
+        }
+
+        return VERDICT_FAIR;
+    }
+
+    // One store for the page. The market listings and the trade offer inventory are never
+    // both on screen, so they cannot collide, and the keys differ anyway.
+    const listingState = createListingState();
     //#endregion
 
     //#region Steam Market
@@ -2984,33 +3020,32 @@
 
                             logConsole(`Calculated price: ${sellPriceWithoutOffsetWithFees / 100.0} (${sellPriceWithoutOffset / 100.0})`);
 
+                            const verdict = getListingVerdict(sellPriceWithoutOffsetWithFees, price);
+
+                            listingState.set(listing.listingid, {
+                                sellPrice: sellPriceWithOffset,
+                                verdict: verdict
+                            });
+
+                            // The classes are still written. They style the listing and they
+                            // are what the selection buttons match on, they are just no longer
+                            // where the price is kept.
                             listingUI.addClass(`price_${sellPriceWithOffset}`);
+                            listingUI.addClass(verdict);
 
                             $('.market_listing_my_price', listingUI).last().prop(
                                 'title',
                                 `The best price is ${formatPrice(sellPriceWithoutOffsetWithFees)}.`
                             );
 
-                            if (sellPriceWithoutOffsetWithFees < price) {
-                                logConsole('Sell price is too high.');
+                            $('.market_listing_my_price', listingUI).last().
+                                css('background', VERDICT_COLORS[verdict]);
 
-                                $('.market_listing_my_price', listingUI).last().
-                                    css('background', COLOR_PRICE_EXPENSIVE);
-                                listingUI.addClass('overpriced');
+                            logConsole(VERDICT_MESSAGES[verdict]);
 
-                                if (getSettingWithDefault(SETTING_RELIST_AUTOMATICALLY) == 1) {
-                                    queueOverpricedItemListing(listing.listingid);
-                                }
-                            } else if (sellPriceWithoutOffsetWithFees > price) {
-                                logConsole('Sell price is too low.');
-
-                                $('.market_listing_my_price', listingUI).last().css('background', COLOR_PRICE_CHEAP);
-                                listingUI.addClass('underpriced');
-                            } else {
-                                logConsole('Sell price is fair.');
-
-                                $('.market_listing_my_price', listingUI).last().css('background', COLOR_PRICE_FAIR);
-                                listingUI.addClass('fair');
+                            if (verdict == VERDICT_OVERPRICED &&
+                                getSettingWithDefault(SETTING_RELIST_AUTOMATICALLY) == 1) {
+                                queueOverpricedItemListing(listing.listingid);
                             }
 
                             return callback(true, cachedHistory && cachedListings);
@@ -3163,15 +3198,10 @@
             }
 
             const assetInfo = getAssetInfoFromListingId(listingid);
-            const listingUI = $(getListingFromLists(listingid).elm);
-            let price = -1;
 
-            const items = $(listingUI).attr('class').split(' ');
-            for (const i in items) {
-                if (items[i].toString().includes('price_')) {
-                    price = parseInt(items[i].toString().replace('price_', ''));
-                }
-            }
+            // A listing with no state has not been priced yet, so there is nothing to relist at.
+            const state = listingState.get(listingid);
+            const price = state == null ? -1 : state.sellPrice;
 
             if (price > 0) {
                 marketOverpricedQueue.push({
@@ -4548,6 +4578,7 @@
             createListingState,
             createPricingRules,
             getIsCrate,
+            getListingVerdict,
             getIsFoilTradingCard,
             getIsTradingCard,
             getMarketHashName,
