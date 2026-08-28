@@ -2619,6 +2619,9 @@
             if (marketProgressBar.value === marketProgressBar.max) {
                 marketProgressBar.setAttribute('hidden', 'true');
             }
+
+            // A listing was just priced, relisted or removed, so the overpriced count may have changed.
+            updateMarketOverpricedButtons();
         }
 
         // Match number part from any currency format
@@ -3258,6 +3261,7 @@
             try {
                 const list = new List(market_listing_see.parent().get(0), options);
                 list.on('searchComplete', updateMarketSelectAllButton);
+                list.on('searchComplete', updateMarketOverpricedButtons);
                 marketLists.push(list);
             } catch (e) {
                 console.error(e);
@@ -3370,6 +3374,25 @@
                     invert = false;
                 }
                 $('.select_all > span', selectionGroup).text(invert ? 'Deselect all' : 'Select all');
+            });
+        }
+
+        // Shows the number of overpriced listings on the overpriced buttons.
+        // The count is taken from the matching items so it reflects exactly what the buttons act on,
+        // which means it follows the search filter.
+        function updateMarketOverpricedButtons() {
+            $('.market_listing_buttons').each(function () {
+                const selectionGroup = $(this).parent().parent();
+                const marketList = getListFromContainer(selectionGroup);
+
+                if (marketList == null) {
+                    return;
+                }
+
+                const count = marketList.matchingItems.filter(item => $(item.elm).hasClass('overpriced')).length;
+
+                $('.relist_overpriced > span', selectionGroup).text(`Relist overpriced (${count})`);
+                $('.select_overpriced > span', selectionGroup).text(`Select overpriced (${count})`);
             });
         }
 
@@ -3559,10 +3582,10 @@
                     <span class="item_market_action_button_contents">Relist selected</span>
                 </a>
                 <a class="item_market_action_button item_market_action_button_green relist_overpriced market_listing_button">
-                    <span class="item_market_action_button_contents">Relist overpriced</span>
+                    <span class="item_market_action_button_contents">Relist overpriced (0)</span>
                 </a>
                 <a class="item_market_action_button item_market_action_button_green select_overpriced market_listing_button">
-                    <span class="item_market_action_button_contents">Select overpriced</span>
+                    <span class="item_market_action_button_contents">Select overpriced (0)</span>
                 </a>
             </div>`);
 
