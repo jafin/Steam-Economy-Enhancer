@@ -153,6 +153,24 @@
     const REQUEST_BREAKER_THRESHOLD = 5;
     const REQUEST_BREAKER_WINDOW_MS = 5 * 60 * 1000;
 
+    function getRequestStoppedMessage() {
+        return `Steam Economy Enhancer stopped sending requests after ${REQUEST_BREAKER_THRESHOLD
+            } failed requests within ${REQUEST_BREAKER_WINDOW_MS / 60000
+            } minutes. Reload the page to start again.`;
+    }
+
+    // Trips once and stays tripped. Repeated 400/401/403/404/405/429 responses mean something
+    // is wrong that retrying will not fix, and hammering Steam after a rate limit makes it
+    // worse, so the stop is deliberate. Going quiet without saying so is not: announce it,
+    // because otherwise the script simply appears to stop working.
+    function stopRequests() {
+        request.stopped = true;
+        request.errors = 0;
+
+        console.error(getRequestStoppedMessage());
+        logDOM(getRequestStoppedMessage());
+    }
+
     // How long to wait before releasing the next queued request.
     // A failure outranks the market delay, which outranks the default.
     function getRequestDelay(url, status, statusText) {
@@ -172,7 +190,7 @@
 
         // If the request was stopped, we don't want to send it to the server and continue other requests.
         if (request.stopped) {
-            const error = new Error('Request was not sent to the server, something went wrong');
+            const error = new Error(getRequestStoppedMessage());
 
             setTimeout(() => request.queue.shift()?.(), 1);
             setTimeout(() => callback(error, null), 0);
@@ -242,8 +260,7 @@
                     }
 
                     if (request.errors >= REQUEST_BREAKER_THRESHOLD) {
-                        request.stopped = true;
-                        request.errors = 0;
+                        stopRequests();
                     }
                 }
 
@@ -4358,6 +4375,9 @@
             getMarketHashName,
             getNumberOfDigits,
             getRequestDelay,
+            getRequestStoppedMessage,
+            request,
+            stopRequests,
             requestPolicy: {
                 REQUEST_BREAKER_STATUSES,
                 REQUEST_BREAKER_THRESHOLD,

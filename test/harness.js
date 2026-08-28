@@ -112,7 +112,8 @@ function fakeElement() {
 function fakeDocument() {
     return {
         createElement: () => fakeElement(),
-        getElementById: () => null,
+        // The logger scrolls itself by looking itself up by id, so this must not be null.
+        getElementById: () => fakeElement(),
         querySelector: () => null,
         querySelectorAll: () => [],
         getElementsByTagName: () => [fakeElement()],
