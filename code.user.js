@@ -3722,7 +3722,7 @@
                     return;
                 }
 
-                const count = marketList.matchingItems.filter(item => $(item.elm).hasClass('overpriced')).length;
+                const count = marketList.matchingItems.filter(item => $(item.elm).hasClass(VERDICT_OVERPRICED)).length;
 
                 $('.relist_overpriced > span', selectionGroup).text(isRelisting
                     ? `Relisting ${marketRelistDone}/${marketRelistTotal}`
@@ -4030,13 +4030,13 @@
                 }
 
                 for (let i = 0; i < marketList.matchingItems.length; i++) {
-                    if ($(marketList.matchingItems[i].elm).hasClass('overpriced')) {
+                    if ($(marketList.matchingItems[i].elm).hasClass(VERDICT_OVERPRICED)) {
                         $('.market_select_item', marketList.matchingItems[i].elm).prop('checked', true);
                     }
                 }
 
                 $('.market_listing_row', selectionGroup).each(function () {
-                    if ($(this).hasClass('overpriced')) {
+                    if ($(this).hasClass(VERDICT_OVERPRICED)) {
                         $('.market_select_item', $(this)).prop('checked', true);
                     }
                 });
@@ -4082,7 +4082,7 @@
                 }
 
                 for (let i = 0; i < marketList.matchingItems.length; i++) {
-                    if ($(marketList.matchingItems[i].elm).hasClass('overpriced')) {
+                    if ($(marketList.matchingItems[i].elm).hasClass(VERDICT_OVERPRICED)) {
                         const listingid = replaceNonNumbers(marketList.matchingItems[i].values().market_listing_item_name);
                         queueOverpricedItemListing(listingid);
                     }
