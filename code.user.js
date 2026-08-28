@@ -670,6 +670,32 @@
     }
     //#endregion
 
+    //#region Listing state
+    // What the script worked out about a listing, kept as a value.
+    //
+    // The price and the verdict used to live in the class attribute of the listing element:
+    // the price was written as `price_1234` and read back by splitting the class list and
+    // parsing the number out of it. That made a CSS class the data model, so renaming one
+    // silently lost the price instead of failing. The classes are still written for styling
+    // and for the selector-based selection, but this is the source of truth.
+    //
+    // Keyed by listing id on the market page and by `appid_contextid_assetid` on the trade
+    // offer page. `set` merges, because the price is known before the verdict is.
+    function createListingState() {
+        const states = new Map();
+
+        return {
+            get(id) {
+                return states.get(String(id));
+            },
+            set(id, state) {
+                const key = String(id);
+                states.set(key, Object.assign({}, states.get(key), state));
+            }
+        };
+    }
+    //#endregion
+
     //#region Steam Market
 
     // Sell an item with a price in cents.
@@ -4519,6 +4545,7 @@
             calculateSellPriceBeforeFees,
             clamp,
             createFailureCounter,
+            createListingState,
             createPricingRules,
             getIsCrate,
             getIsFoilTradingCard,
