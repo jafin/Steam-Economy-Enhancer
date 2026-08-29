@@ -1,6 +1,7 @@
 import { test } from 'vitest';
 import assert from 'node:assert';
 import * as see from '../src/main.ts';
+import { getPriceInformationFromItem } from '../src/pricing/algorithms.ts';
 
 // Characterisation tests. They pin what the price calculation does today, before it is given
 // an honest interface. If a refactor changes any number here, that is a real change to what
@@ -38,7 +39,85 @@ function history() {
     return [[new Date().toString(), 2000, 5]];
 }
 
+// Card-class fixtures for the bounds characterisation below. Tags are what getIsTradingCard
+// and getIsFoilTradingCard read on the inventory page.
+const normalCardItem = { tags: [{ category: 'item_class', internal_name: 'item_class_2' }] };
+const foilCardItem = {
+    tags: [
+        { category: 'item_class', internal_name: 'item_class_2' },
+        { category: 'cardborder', internal_name: 'cardborder_1' },
+    ],
+};
+const nonCardItem = {};
+
+// A single, thin listing with no buy order: calculateSellPriceBeforeFees has nothing to
+// calculate from, so the result is exactly the clamped minimum. That is what makes it a
+// clean probe for the bounds specifically, independent of the pricing algorithm.
+function thinOrderbook() {
+    return { highest_buy_order: 0, lowest_sell_order: 1, sell_order_graph: [[0.01, 1, '']] };
+}
+
 test.beforeEach(() => clearSettings());
+
+test('CHARACTERISATION: a normal trading card is priced within its own min/max settings', () => {
+    setAlgorithm(ALGORITHM_LOWEST_LISTING);
+    globalThis.localStorage.setItem('SETTING_MIN_NORMAL_PRICE', '1.00');
+    globalThis.localStorage.setItem('SETTING_MAX_NORMAL_PRICE', '3.00');
+
+    const priceInfo = getPriceInformationFromItem(normalCardItem);
+    assert.strictEqual(priceInfo.minPriceBeforeFees, 100);
+    assert.strictEqual(priceInfo.maxPriceBeforeFees, 300);
+
+    const price = see.calculateSellPriceBeforeFees(
+        null,
+        thinOrderbook(),
+        false,
+        priceInfo.minPriceBeforeFees,
+        priceInfo.maxPriceBeforeFees,
+    );
+
+    assert.strictEqual(price, 100, 'clamped up to the normal card minimum');
+});
+
+test('CHARACTERISATION: a foil trading card is priced within its own min/max settings', () => {
+    setAlgorithm(ALGORITHM_LOWEST_LISTING);
+    globalThis.localStorage.setItem('SETTING_MIN_FOIL_PRICE', '2.00');
+    globalThis.localStorage.setItem('SETTING_MAX_FOIL_PRICE', '5.00');
+
+    const priceInfo = getPriceInformationFromItem(foilCardItem);
+    assert.strictEqual(priceInfo.minPriceBeforeFees, 200);
+    assert.strictEqual(priceInfo.maxPriceBeforeFees, 500);
+
+    const price = see.calculateSellPriceBeforeFees(
+        null,
+        thinOrderbook(),
+        false,
+        priceInfo.minPriceBeforeFees,
+        priceInfo.maxPriceBeforeFees,
+    );
+
+    assert.strictEqual(price, 200, 'clamped up to the foil card minimum');
+});
+
+test('CHARACTERISATION: a non-card item is priced within the misc min/max settings', () => {
+    setAlgorithm(ALGORITHM_LOWEST_LISTING);
+    globalThis.localStorage.setItem('SETTING_MIN_MISC_PRICE', '0.50');
+    globalThis.localStorage.setItem('SETTING_MAX_MISC_PRICE', '8.00');
+
+    const priceInfo = getPriceInformationFromItem(nonCardItem);
+    assert.strictEqual(priceInfo.minPriceBeforeFees, 50);
+    assert.strictEqual(priceInfo.maxPriceBeforeFees, 800);
+
+    const price = see.calculateSellPriceBeforeFees(
+        null,
+        thinOrderbook(),
+        false,
+        priceInfo.minPriceBeforeFees,
+        priceInfo.maxPriceBeforeFees,
+    );
+
+    assert.strictEqual(price, 50, 'clamped up to the misc minimum');
+});
 
 test('algorithm 2, lowest sell listing, follows the lowest listing', () => {
     setAlgorithm(ALGORITHM_LOWEST_LISTING);
