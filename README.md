@@ -69,7 +69,7 @@ pnpm format      # prettier
 pnpm dev         # vite in watch mode
 ```
 
-The six CDN libraries the script depends on stay as `@require` entries rather than being
+The five CDN libraries the script depends on stay as `@require` entries rather than being
 bundled — `userscript.config.ts` holds that list, and `vite.config.ts` maps the matching
 imports back to the globals they define. Two small unmaintained jQuery plugins are vendored
 instead; see `src/vendor/README.md`.

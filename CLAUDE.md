@@ -39,8 +39,8 @@ lint:dist. All of them pass locally; keep it that way.
 `userscript.config.ts` holds the `// ==UserScript==` metadata. `vite.config.ts` feeds it to
 `vite-plugin-monkey`, which generates the header and bundles `src/main.ts`.
 
-Six libraries — jQuery, jQuery UI, async, localforage, luxon, list.js — are **`@require`d from
-a CDN, not bundled**. Source imports them normally (`import $ from 'jquery'`); `externalGlobals`
+Five libraries — jQuery, async, localforage, luxon, list.js — are **`@require`d from a CDN,
+not bundled**. Source imports them normally (`import $ from 'jquery'`); `externalGlobals`
 in `userscript.config.ts` maps each specifier back to the window global its `@require` defines.
 The packages are installed as devDependencies only so TypeScript can type them and
 vite-plugin-monkey can resolve them — their versions are pinned to match the CDN URLs.
@@ -48,6 +48,14 @@ vite-plugin-monkey can resolve them — their versions are pinned to match the C
 That mapping is also what makes `$.noConflict(true)` in `src/main.ts` safe: Rollup emits an
 IIFE taking the globals as parameters, so jQuery is captured into a local binding before the
 body runs, exactly as the original IIFE parameter did.
+
+jQuery UI used to be a sixth. The script called exactly one of its widgets, `selectable`, and
+paid 250KB over the wire for it; the inventory's click/Ctrl/Shift selection is now ~40 lines of
+plain DOM code in `src/inventory/ui.ts` and no library at all. `@viselect/vanilla` was tried in
+between and rejected: it put its listeners on `document`, where they competed with Steam's own,
+and it does not cancel the default mousedown, so dragging the grid dragged the item icons. Both
+were the cost of a rubber-band lasso this page does not need — and never showed, since jQuery
+UI's stylesheet was never `@require`d either.
 
 Two small unmaintained jQuery plugins are vendored under `src/vendor/` instead of `@require`d.
 Do not edit those files; see `src/vendor/README.md`.

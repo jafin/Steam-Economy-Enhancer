@@ -43,7 +43,6 @@ import {
 // Initialize the inventory UI.
 export function initializeInventoryUI() {
     const isOwnInventory = steamPage.activeUser().strSteamId == steamPage.steamId();
-    let previousSelection = -1; // To store the index of the previous selection.
     updateInventoryUI(isOwnInventory);
 
     $('.games_list_tabs').on('click', '*', () => {
@@ -55,35 +54,7 @@ export function initializeInventoryUI() {
         return;
     }
 
-    // Steam adds 'display:none' to items while searching. These should not be selected while using shift/ctrl.
-    const filter = '.itemHolder:not([style*=none])';
-    $('#inventories').selectable({
-        filter: filter,
-        selecting: function (e, ui) {
-            // Get selected item index.
-            const selectedIndex = $(ui.selecting.tagName, e.target).index(ui.selecting);
-
-            // If shift key was pressed and there is previous - select them all.
-            if (e.shiftKey && previousSelection > -1) {
-                $(ui.selecting.tagName, e.target)
-                    .slice(
-                        Math.min(previousSelection, selectedIndex),
-                        1 + Math.max(previousSelection, selectedIndex),
-                    )
-                    .each(function () {
-                        if ($(this).is(filter)) {
-                            $(this).addClass('ui-selected');
-                        }
-                    });
-                previousSelection = -1; // Reset previous.
-            } else {
-                previousSelection = selectedIndex; // Save previous.
-            }
-        },
-        selected: function () {
-            updateButtons();
-        },
-    });
+    initializeInventorySelection();
 
     // Not torn down: initializeInventoryUI runs exactly once, on page load. The
     // teardown exists for whoever calls this a second time - a test, or a future
@@ -96,6 +67,84 @@ export function initializeInventoryUI() {
         // longer mutates Steam's own objects, so this used to be the one path that
         // quietly depended on some earlier, unrelated call having done so already.
         updateInventorySelection(flattenItem(rgItem, rgItem.assetid || rgItem.id));
+    });
+}
+
+// Click, Ctrl-click and Shift-click selection over the inventory grid.
+//
+// This was jQuery UI's `selectable` widget -- the only jQuery UI method the script ever
+// called, for which the whole 250KB library was @require'd. It was briefly @viselect/vanilla
+// instead, which is 18KB rather than 250KB but brought two problems with it on this page: its
+// listeners sit on `document` and competed with Steam's own, and unlike jQuery UI it does not
+// cancel the default mousedown, so dragging across the grid started a native image-drag of the
+// item icons and highlighted text.
+//
+// Both were the price of the rubber-band lasso, which nothing here needs -- and once the lasso
+// goes, so does the reason to have a selection library at all. What is left is the code below.
+// Note that the lasso was invisible for years anyway: jQuery UI's script was @require'd but
+// never its stylesheet, so nobody could see the band they were dragging.
+//
+// Behaviour, which is jQuery UI's and therefore what people already have muscle memory for:
+//
+//   - plain click clears the selection and selects one item;
+//   - Ctrl (or Cmd) click toggles one item and leaves the rest alone;
+//   - Shift click clears, then selects the range from the anchor to the clicked item. The
+//     anchor persists, so a second Shift-click re-extends from it rather than resetting --
+//     the one deliberate change, agreed when the widget was replaced, and what every file
+//     manager does.
+//
+// Exported so the tests can wire it to their own markup; only initializeInventoryUI calls it.
+export function initializeInventorySelection() {
+    // Steam adds 'display:none' to items while searching. These should not be selected while
+    // using shift/ctrl.
+    const filter = '.itemHolder:not([style*=none])';
+    const inventories = $('#inventories');
+
+    // Where a Shift-click measures its range from: the last item picked without Shift. Held as
+    // the element rather than an index because Steam re-renders the inventory pages when you
+    // page through them or switch game, which would silently invalidate an index. If the
+    // anchor is gone from the grid by the time it is used, the Shift-click falls back to
+    // behaving like a plain one.
+    let anchor: HTMLElement | null = null;
+
+    // What jQuery UI's mouse widget did on mousedown, and the reason it is back: without it the
+    // browser's own defaults take over a drag across the grid -- item icons are <img>, so they
+    // get dragged as ghost images, and Shift-click extends a text selection across the page
+    // instead of a range of items.
+    inventories.on('mousedown', filter, (event) => {
+        event.preventDefault();
+    });
+
+    inventories.on('click', filter, function (this: HTMLElement, event) {
+        // Resolved per click rather than once, because Steam re-renders these as you page
+        // through the inventory and hides them as you type in the search box. jQuery UI's
+        // `refresh` option did the same thing on every mousedown.
+        const items = inventories.find(filter).toArray();
+        const anchored = anchor !== null && items.includes(anchor);
+
+        // classList rather than jQuery, and deliberately: jQuery 4 does not wrap a plain array
+        // of elements correctly here -- $([a, b]) yields a three-entry collection with an
+        // undefined in the middle, and removeClass on it silently does nothing. It fails quiet,
+        // so do not "tidy" these loops back into $(items).removeClass(...).
+        const select = (element: HTMLElement) => element.classList.add('ui-selected');
+        const clear = () => items.forEach((item) => item.classList.remove('ui-selected'));
+
+        if (event.shiftKey && anchored) {
+            const from = items.indexOf(anchor!);
+            const to = items.indexOf(this);
+
+            clear();
+            items.slice(Math.min(from, to), 1 + Math.max(from, to)).forEach(select);
+        } else if (event.ctrlKey || event.metaKey) {
+            this.classList.toggle('ui-selected');
+            anchor = this;
+        } else {
+            clear();
+            select(this);
+            anchor = this;
+        }
+
+        updateButtons();
     });
 }
 
