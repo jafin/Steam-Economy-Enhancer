@@ -29,6 +29,7 @@ import {
     getInventorySelectedBoosterPackItems,
     getInventorySelectedGemsItems,
     getInventorySelectedMarketableItems,
+    selectAllCards,
 } from './selection.ts';
 import {
     canSellSelectedItemsManually,
@@ -406,6 +407,7 @@ export function updateInventoryUI(isOwnInventory) {
     if (showMiscOptions) {
         buttonsHtml += `
             <a class="btn_green_white_innerfade btn_medium_wide sell_all_cards"><span>Sell All Cards</span></a>
+            <a class="btn_darkblue_white_innerfade btn_medium_wide select_all_cards"><span>Select All Cards</span></a>
             <div class="see_inventory_buttons">
                 <a class="btn_darkblue_white_innerfade btn_medium_wide turn_into_gems" style="display:none"><span>Turn Selected Items Into Gems</span></a>
                 <a class="btn_darkblue_white_innerfade btn_medium_wide unpack_all_booster_packs"><span>Unpack All Booster Packs</span></a>
@@ -453,6 +455,10 @@ export function updateInventoryUI(isOwnInventory) {
         $('.gem_all_duplicates').on('click', '*', gemAllDuplicateItems);
         $('.sell_manual').on('click', '*', sellSelectedItemsManually);
         $('.sell_all_cards').on('click', '*', sellAllCards);
+        $('.select_all_cards').on('click', '*', () => {
+            selectAllCards();
+            updateButtons();
+        });
         $('.sell_all_crates').on('click', '*', sellAllCrates);
         $('.turn_into_gems').on('click', '*', turnSelectedItemsIntoGems);
         $('.unpack_all_booster_packs').on('click', '*', unpackAllBoosterPacks);

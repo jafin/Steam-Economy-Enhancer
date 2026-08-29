@@ -13,7 +13,7 @@ import { beforeEach, test } from 'vitest';
 import assert from 'node:assert';
 import $ from 'jquery';
 import { initializeInventorySelection } from '../src/inventory/ui.ts';
-import { getSelectedItems } from '../src/inventory/selection.ts';
+import { getSelectedItems, selectAllCards } from '../src/inventory/selection.ts';
 
 // Steam's inventory markup, cut down to the parts both modules look for: getSelectedItems()
 // walks .inventory_ctn -> .inventory_page -> .itemHolder -> .item, and reads the asset id off
@@ -131,4 +131,67 @@ test('mousedown is cancelled, so dragging does not drag the item icons', () => {
     holderFor('111').trigger(event);
 
     assert.strictEqual(event.isDefaultPrevented(), true);
+});
+
+// "Select All Cards" writes the same class the clicks above do, from the other end. What is
+// worth guarding is which items it writes it to: it reads what counts as a card from Steam's
+// inventory data but has to find the elements in the DOM, so the two halves have to agree on
+// the asset id, exactly as getSelectedItems() and the click handlers do.
+
+// Steam's assets, keyed by asset id -- that key is what readInventoryItems() carries through
+// as the item's assetid, and so what the .item element's id has to end with.
+function setInventoryAssets(assets: Record<string, unknown>) {
+    (globalThis as any).unsafeWindow.g_ActiveInventory.m_rgAssets = assets;
+}
+
+function card(marketable = 1) {
+    return { marketable, tags: [{ category: 'item_class', internal_name: 'item_class_2' }] };
+}
+
+function emoticon() {
+    return { marketable: 1, tags: [{ category: 'item_class', internal_name: 'item_class_4' }] };
+}
+
+test('Select All Cards selects the cards and leaves everything else alone', () => {
+    setInventoryAssets({ 111: card(), 222: emoticon(), 333: card(), 444: emoticon() });
+
+    selectAllCards();
+
+    assert.deepStrictEqual(getSelectedItems(), ['111', '333']);
+});
+
+test('Select All Cards skips cards that cannot be sold', () => {
+    // A card still on its market cooldown. Selecting it would show a selection the sell
+    // buttons then silently drop, since they filter on marketable themselves.
+    setInventoryAssets({ 111: card(), 222: card(0), 333: card() });
+
+    selectAllCards();
+
+    assert.deepStrictEqual(getSelectedItems(), ['111', '333']);
+});
+
+test('Select All Cards skips cards Steam has hidden while searching', () => {
+    setInventoryAssets({ 111: card(), 222: card(), 333: card() });
+    holderFor('222').attr('style', 'display: none;');
+
+    selectAllCards();
+
+    assert.deepStrictEqual(getSelectedItems(), ['111', '333']);
+});
+
+test('Select All Cards replaces whatever was selected before, on every page', () => {
+    // The selection the sell buttons read spans the pages, so clearing only the page on
+    // screen would leave items selected that the user cannot see and did not ask for.
+    setInventoryAssets({ 111: card(), 222: card(), 555: card() });
+
+    $('.inventory_ctn').append(
+        '<div class="inventory_page" style="display: none;">' +
+            '<div class="itemHolder ui-selected"><div id="730_2_555" class="item"></div></div>' +
+            '</div>',
+    );
+    click('444');
+
+    selectAllCards();
+
+    assert.deepStrictEqual(getSelectedItems(), ['111', '222']);
 });
