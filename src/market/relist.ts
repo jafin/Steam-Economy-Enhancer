@@ -98,12 +98,12 @@ export function marketOverpricedQueueWorker(item, ignoreErrors, callback) {
                     const itemName = $('.market_listing_item_name_link', listingUI)
                         .first()
                         .attr('href');
-                    const marketHashNameIndex = itemName.lastIndexOf('/') + 1;
-                    const marketHashName = itemName.substring(marketHashNameIndex);
+                    const marketHashNameIndex = itemName!.lastIndexOf('/') + 1;
+                    const marketHashName = itemName!.substring(marketHashNameIndex);
                     const decodedMarketHashName = decodeURIComponent(
-                        itemName.substring(marketHashNameIndex),
+                        itemName!.substring(marketHashNameIndex),
                     );
-                    let newAssetId = -1;
+                    let newAssetId: any = -1;
 
                     steamPage.requestFullInventory(
                         `${market.inventoryUrl + item.appid}/${item.contextid}/`,

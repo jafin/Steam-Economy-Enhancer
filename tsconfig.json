@@ -7,6 +7,13 @@
         // Deliberately off for the port: this codebase is array-heavy and the rule
         // generates a large volume of low-value churn. Turn it on as its own commit.
         "noUncheckedIndexedAccess": false,
+        // Also off, and for a similar reason. What remains under it is 255 parameters
+        // carrying Steam-shaped data -- items, order books, price histories. Their real
+        // shape is the open question .docs/AGENT-6-item-shape.md was written about, and
+        // writing `: any` on all 255 would add no information while making it impossible to
+        // tell a deliberate boundary annotation from one that simply has not been done.
+        // Turn it on a module at a time as those shapes get named.
+        "noImplicitAny": false,
         "esModuleInterop": true,
         "skipLibCheck": true,
         "forceConsistentCasingInFileNames": true,

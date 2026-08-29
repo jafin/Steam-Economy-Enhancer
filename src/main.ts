@@ -181,9 +181,9 @@ marketListingsItemsQueue.drain(() => {
     myMarketListings.checkboxes('range', true);
 
     // Sometimes the Steam API is returning duplicate entries (especially during item listing), filter these.
-    const seen = {};
+    const seen: Record<string, boolean> = {};
     $('.market_listing_row', myMarketListings).each(function () {
-        const item_id = $(this).attr('id');
+        const item_id = String($(this).attr('id'));
         if (seen[item_id]) {
             $(this).remove();
         } else {
@@ -193,7 +193,7 @@ marketListingsItemsQueue.drain(() => {
         // Remove listings awaiting confirmations, they are already listed separately.
         if (
             $('.item_market_action_button', this)
-                .attr('href')
+                .attr('href')!
                 .toLowerCase()
                 .includes('CancelMarketListingConfirmation'.toLowerCase())
         ) {
@@ -203,7 +203,7 @@ marketListingsItemsQueue.drain(() => {
         // Remove buy order listings, they are already listed separately.
         if (
             $('.item_market_action_button', this)
-                .attr('href')
+                .attr('href')!
                 .toLowerCase()
                 .includes('CancelMarketBuyOrder'.toLowerCase())
         ) {

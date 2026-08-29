@@ -266,7 +266,7 @@ export function marketListingsQueueWorker(listing, ignoreErrors, callback) {
     });
 }
 
-export const marketListingsItemsQueue = async.queue((listing: QueueTask, next) => {
+export const marketListingsItemsQueue = async.queue((listing: any, next) => {
     const callback = () => {
         increaseMarketProgress();
         setTimeout(() => next(), getRandomInt(RETRY_DELAY_SHORT_MIN, RETRY_DELAY_SHORT_MAX));
@@ -352,13 +352,13 @@ export function fillMarketListingsQueue() {
                     return;
                 }
 
-                totalSellOrderAmount += assetInfo.amount;
+                totalSellOrderAmount += assetInfo.amount!;
 
                 if (!isNaN(assetInfo.priceBuyer)) {
-                    totalSellOrderPriceBuyer += assetInfo.priceBuyer * assetInfo.amount;
+                    totalSellOrderPriceBuyer += assetInfo.priceBuyer * assetInfo.amount!;
                 }
                 if (!isNaN(assetInfo.priceSeller)) {
-                    totalSellOrderPriceSeller += assetInfo.priceSeller * assetInfo.amount;
+                    totalSellOrderPriceSeller += assetInfo.priceSeller * assetInfo.amount!;
                 }
 
                 marketListingsQueue.push({
@@ -518,7 +518,7 @@ export function processMarketListings() {
 
         $('#tabContentsMyActiveMarketListingsRows > .market_listing_row').each(function () {
             const listingid = $(this)
-                .attr('id')
+                .attr('id')!
                 .replace('mylisting_', '')
                 .replace('mybuyorder_', '')
                 .replace('mbuyorder_', '');

@@ -305,7 +305,7 @@ export async function updateInventorySelection(selectedItem) {
             </div>`);
 
         $('.quick_sell').on('click', function () {
-            let price = $(this).attr('id').replace('quick_sell', '');
+            let price = $(this).attr('id')!.replace('quick_sell', '');
             price = market.getPriceBeforeFees(price);
 
             totals.queuedItems++;
@@ -317,7 +317,7 @@ export async function updateInventorySelection(selectedItem) {
         });
 
         $('.quick_sell_custom').on('click', () => {
-            let price = $('#quick_sell_input', ownerActions).val() * 100;
+            let price = Number($('#quick_sell_input', ownerActions).val()) * 100;
             price = market.getPriceBeforeFees(price);
 
             totals.queuedItems++;

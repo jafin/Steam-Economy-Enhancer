@@ -105,7 +105,7 @@ export function calculateAverageHistoryPriceBeforeFees(
 
     if (history != null) {
         // Highest average price in the last xx hours.
-        const timeAgo = rules.now - rules.historyHours * 60 * 60 * 1000;
+        const timeAgo = rules.now! - rules.historyHours! * 60 * 60 * 1000;
 
         history.forEach((historyItem) => {
             const d = new Date(historyItem[0]);
@@ -224,7 +224,7 @@ export function calculateSellPriceBeforeFees(
 
     // Apply the offset to the calculated price, but only if the price wasn't changed to the max (as otherwise it's impossible to list for this price).
     if (!changedToMax && applyOffset) {
-        calculatedPrice = calculatedPrice + rules.offsetCents;
+        calculatedPrice = calculatedPrice + rules.offsetCents!;
     }
 
     // Keep our minimum and maximum in mind.

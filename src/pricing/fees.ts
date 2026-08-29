@@ -19,6 +19,17 @@ import type { PricingRules } from './rules.ts';
  * when the wallet has no fee schedule at all, which is why the callers below can assert
  * the field they read -- they are behind the same guard.
  */
+/**
+ * What CalculateAmountToSendForDesiredReceivedAmount returns.
+ *
+ * Narrower than FeeAmount in one respect: both of its return paths set `amount`, including
+ * the wallet-less short circuit, so callers reading it -- priceIncludingFees does -- get a
+ * number rather than a maybe-number.
+ */
+export interface AmountToSend extends FeeAmount {
+    amount: number;
+}
+
 export interface FeeAmount {
     fees?: number;
     steam_fee?: number;
@@ -168,7 +179,7 @@ export function CalculateAmountToSendForDesiredReceivedAmount(
     publisherFee: number,
     walletInfo: any,
     useRound?: boolean,
-): FeeAmount {
+): AmountToSend {
     if (walletInfo == null || !walletInfo['wallet_fee']) {
         return {
             amount: receivedAmount,

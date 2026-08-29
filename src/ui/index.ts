@@ -59,8 +59,10 @@ export function removeSpinner() {
 }
 
 export function getSpinnerContext() {
-    let container = null;
-    let spinnerid = null;
+    // Typed rather than inferred from the initialiser: `null` on its own would infer `null`
+    // and reject the assignments in the switch below.
+    let container: JQuery<HTMLElement> | null = null;
+    let spinnerid: string | null = null;
 
     switch (currentPage) {
         case PAGE_MARKET:

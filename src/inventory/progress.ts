@@ -30,7 +30,11 @@ export function updateTotals() {
 
     // Named for the element it holds. `totals` is now the imported run totals object, and
     // the two were previously the same identifier in this function.
-    const totalsElement = document.getElementById('loggerTotal');
+    //
+    // Asserted non-null because the block above has just created it if it was missing. That
+    // guard is the reason this has never thrown; the assertion states it rather than adding
+    // a second check that could never fire.
+    const totalsElement = document.getElementById('loggerTotal')!;
     totalsElement.innerHTML = '';
 
     if (totals.priceWithFeesOnMarket > 0) {

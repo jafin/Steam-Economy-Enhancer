@@ -1286,7 +1286,7 @@
 				jumpContainer.append(input).append(btn);
 				controlsDiv.append(jumpContainer);
 				btn.on("click", () => {
-					const targetPage = parseInt(input.val());
+					const targetPage = parseInt(String(input.val()));
 					if (isNaN(targetPage) || targetPage < 1) return;
 					const targetIndex = targetPage - 1;
 					steamPage.goToHistoryPage(targetIndex);
@@ -2429,7 +2429,7 @@
 				});
 			});
 			(0, jquery.default)(".quick_sell_custom").on("click", () => {
-				let price = (0, jquery.default)("#quick_sell_input", ownerActions).val() * 100;
+				let price = Number((0, jquery.default)("#quick_sell_input", ownerActions).val()) * 100;
 				price = market.getPriceBeforeFees(price);
 				totals.queuedItems++;
 				sellQueue.push({
@@ -2927,7 +2927,7 @@
 		myMarketListings.checkboxes("range", true);
 		const seen = {};
 		(0, jquery.default)(".market_listing_row", myMarketListings).each(function() {
-			const item_id = (0, jquery.default)(this).attr("id");
+			const item_id = String((0, jquery.default)(this).attr("id"));
 			if (seen[item_id]) (0, jquery.default)(this).remove();
 			else seen[item_id] = true;
 			if ((0, jquery.default)(".item_market_action_button", this).attr("href").toLowerCase().includes("CancelMarketListingConfirmation".toLowerCase())) (0, jquery.default)(this).remove();

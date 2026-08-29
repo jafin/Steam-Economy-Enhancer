@@ -23,7 +23,7 @@ export function initializeMarketHistoryUI() {
             controlsDiv.append(jumpContainer);
 
             btn.on('click', () => {
-                const targetPage = parseInt(input.val());
+                const targetPage = parseInt(String(input.val()));
                 if (isNaN(targetPage) || targetPage < 1) {
                     return; // Fail silently
                 }

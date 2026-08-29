@@ -103,7 +103,7 @@ export function request(
         // eslint-disable-next-line prefer-rest-params
         const args = Array.prototype.slice.call(arguments);
 
-        request.queue.push(() => request(...args));
+        request.queue.push(() => (request as (...a: any[]) => void)(...args));
 
         return;
     }

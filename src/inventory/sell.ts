@@ -130,7 +130,7 @@ export function sellAllDuplicateItems() {
 
         const items = getInventoryItems();
         const marketableItems: any[] = [];
-        let filteredItems = [];
+        let filteredItems: any[] = [];
 
         items.forEach((item) => {
             if (!item.marketable) {

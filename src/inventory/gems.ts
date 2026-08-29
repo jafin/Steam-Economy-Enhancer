@@ -22,7 +22,7 @@ export function gemAllDuplicateItems() {
         removeSpinner();
 
         const items = getInventoryItems();
-        let filteredItems = [];
+        let filteredItems: any[] = [];
         let numberOfQueuedItems = 0;
 
         filteredItems = items.filter(
