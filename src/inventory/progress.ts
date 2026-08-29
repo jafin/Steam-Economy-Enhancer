@@ -6,7 +6,7 @@
 
 import $ from 'jquery';
 import { formatPrice } from '../pricing/algorithms.ts';
-import { runTotals } from '../totals.ts';
+import { endRun, runTotals } from '../totals.ts';
 import { removeSpinner } from '../ui/index.ts';
 import { logger } from '../ui/logger.ts';
 import { boosterQueue } from './boosters.ts';
@@ -20,6 +20,7 @@ export function onQueueDrain() {
         boosterQueue.length() == 0
     ) {
         removeSpinner();
+        endRun();
     }
 }
 
