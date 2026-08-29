@@ -45,6 +45,35 @@ import {
     VERDICT_OVERPRICED,
     VERDICT_UNDERPRICED,
 } from './constants.ts';
+import {
+    request,
+    stopRequests,
+    getRequestDelay,
+    getRequestStoppedMessage,
+    isRetryMessage,
+} from './net/request.ts';
+import {
+    SETTING_MIN_NORMAL_PRICE,
+    SETTING_MAX_NORMAL_PRICE,
+    SETTING_MIN_FOIL_PRICE,
+    SETTING_MAX_FOIL_PRICE,
+    SETTING_MIN_MISC_PRICE,
+    SETTING_MAX_MISC_PRICE,
+    SETTING_PRICE_OFFSET,
+    SETTING_PRICE_MIN_CHECK_PRICE,
+    SETTING_PRICE_MIN_LIST_PRICE,
+    SETTING_PRICE_ALGORITHM,
+    SETTING_PRICE_IGNORE_LOWEST_Q,
+    SETTING_PRICE_HISTORY_HOURS,
+    SETTING_INVENTORY_PRICE_LABELS,
+    SETTING_TRADEOFFER_PRICE_LABELS,
+    SETTING_QUICK_SELL_BUTTONS,
+    SETTING_LAST_CACHE,
+    SETTING_RELIST_AUTOMATICALLY,
+    settingDefaults,
+    getSettingWithDefault,
+    setSetting,
+} from './settings/index.ts';
 import { aggregateTradeOfferAssets, getTradeOfferAssetText } from './tradeoffer/totals.ts';
 import { createListingState, getListingVerdict } from './market/listingState.ts';
 import {
@@ -59,6 +88,14 @@ import {
     markItemQueued,
 } from './items/index.ts';
 import type { PricingRules } from './pricing/rules.ts';
+import {
+    REQUEST_BREAKER_STATUSES,
+    REQUEST_BREAKER_THRESHOLD,
+    REQUEST_BREAKER_WINDOW_MS,
+    REQUEST_DELAY_DEFAULT,
+    REQUEST_DELAY_ERROR,
+    REQUEST_DELAY_MARKET,
+} from './net/request.ts';
 import type { QueueTask } from './queue/index.ts';
 import {
     getLocalStorageItem,
@@ -187,68 +224,6 @@ function SteamMarket(this: any, appContext, inventoryUrl, walletInfo) {
     }
 }
 
-request.queue = [] as (() => void)[];
-request.errors = 0;
-request.pending = false;
-request.stopped = false;
-
-// Rate policy. Market requests are slowed down to stay under Steam's rate limits, and
-// anything that failed waits longer still.
-const REQUEST_DELAY_DEFAULT = 300;
-const REQUEST_DELAY_MARKET = 1000;
-const REQUEST_DELAY_ERROR = 5000;
-const REQUEST_MARKET_PREFIX = 'https://steamcommunity.com/market/';
-
-// Breaker policy. These statuses mean something is broken rather than busy, so after
-// enough of them within the window the script stops sending anything at all.
-const REQUEST_BREAKER_STATUSES = [400, 401, 403, 404, 405, 429];
-const REQUEST_BREAKER_THRESHOLD = 5;
-const REQUEST_BREAKER_WINDOW_MS = 5 * 60 * 1000;
-
-// The Error request() passes to its callback on failure. The response detail is attached
-// to the Error rather than passed alongside it, which is how every caller already reads it.
-interface RequestError extends Error {
-    url: string;
-    method?: string;
-    errorText: string;
-    statusCode: number;
-    responseText: string;
-}
-
-function getRequestStoppedMessage() {
-    return `Steam Economy Enhancer stopped sending requests after ${
-        REQUEST_BREAKER_THRESHOLD
-    } failed requests within ${
-        REQUEST_BREAKER_WINDOW_MS / 60000
-    } minutes. Reload the page to start again.`;
-}
-
-// Trips once and stays tripped. Repeated 400/401/403/404/405/429 responses mean something
-// is wrong that retrying will not fix, and hammering Steam after a rate limit makes it
-// worse, so the stop is deliberate. Going quiet without saying so is not: announce it,
-// because otherwise the script simply appears to stop working.
-function stopRequests() {
-    request.stopped = true;
-    request.errors = 0;
-
-    console.error(getRequestStoppedMessage());
-    logDOM(getRequestStoppedMessage());
-}
-
-// How long to wait before releasing the next queued request.
-// A failure outranks the market delay, which outranks the default.
-function getRequestDelay(url, status, statusText) {
-    if (status === 0 || status >= 400 || statusText === 'error') {
-        return REQUEST_DELAY_ERROR;
-    }
-
-    if (url.startsWith(REQUEST_MARKET_PREFIX)) {
-        return REQUEST_DELAY_MARKET;
-    }
-
-    return REQUEST_DELAY_DEFAULT;
-}
-
 // transport is the one adapter this function needed to become testable: everything else
 // - the delay policy (getRequestDelay), the breaker policy (REQUEST_BREAKER_*,
 // stopRequests) - was already a plain value or a pure function, not something request()
@@ -257,108 +232,6 @@ function getRequestDelay(url, status, statusText) {
 // takes the same jQuery-ajax-shaped settings object and answers success/error/complete
 // itself, so request()'s own queueing, pending flag and breaker can be exercised with a
 // fake clock and no network - see test/request.test.js.
-// The single call request() makes to reach the network, injectable so tests can supply
-// their own. Typed as "something that takes a jQuery-ajax-shaped settings object" rather
-// than as $.ajax itself: inferring it from the default would demand jQuery's whole
-// overloaded signature from every test double, which is precisely what the seam exists to
-// avoid.
-type RequestTransport = (settings: any) => unknown;
-
-function request(
-    url,
-    options,
-    callback,
-    { transport = $.ajax }: { transport?: RequestTransport } = {},
-) {
-    callback = callback || function () {};
-
-    // If the request was stopped, we don't want to send it to the server and continue other requests.
-    if (request.stopped) {
-        const error = new Error(getRequestStoppedMessage());
-
-        setTimeout(() => request.queue.shift()?.(), 1);
-        setTimeout(() => callback(error, null), 0);
-
-        return;
-    }
-
-    // Add the request to the queue if another one is processing.
-    if (request.pending) {
-        const args = Array.prototype.slice.call(arguments);
-
-        request.queue.push(() => request(...args));
-
-        return;
-    }
-
-    request.pending = true;
-
-    transport({
-        url: url,
-
-        type: options.method,
-
-        data: options.data,
-
-        dataType: options.responseType,
-
-        /**
-         *
-         * @param {*} data - parsed response data, if the request was successful.
-         * @param {string} statusText - one of `success`, `notmodified`, `nocontent`.
-         * @param {XMLHttpRequest} xhr - XMLHttpRequest object with additional jQuery properties.
-         */
-        success: function (data, statusText, xhr) {
-            setTimeout(() => callback(null, data), 0);
-        },
-
-        /**
-         *
-         * @param {XMLHttpRequest} xhr - XMLHttpRequest object with additional jQuery properties.
-         * @param {string} statusText - one of `error`, `abort`, `timeout` or `parsererror`.
-         * @param {string} httpErrorText - textual portion of the HTTP status, in context of HTTP/2 it may be empty string.
-         */
-        error: (xhr, statusText, httpErrorText) => {
-            const error = new Error(
-                `Request failed with status ${xhr.status || 0} (${statusText === 'error' ? 'http error' : statusText})`,
-            ) as RequestError;
-
-            error.url = url;
-            error.method = options.method;
-            error.errorText = statusText || '';
-            error.statusCode = xhr.status || 0;
-            error.responseText = xhr.responseText || '';
-
-            setTimeout(() => callback(error, null), 0);
-        },
-
-        /**
-         * @param {XMLHttpRequest} xhr - XMLHttpRequest object with additional jQuery properties.
-         * @param {string} statusText - one of `success`, `notmodified`, `nocontent`, `error`, `timeout`, `abort`, or `parsererror`.
-         */
-        complete: (xhr, statusText) => {
-            const delay = getRequestDelay(url, xhr.status, statusText);
-
-            // Probably something broken, better to stop here.
-            if (REQUEST_BREAKER_STATUSES.includes(xhr.status)) {
-                if (request.errors++ === 0) {
-                    setTimeout(() => (request.errors = 0), REQUEST_BREAKER_WINDOW_MS);
-                }
-
-                if (request.errors >= REQUEST_BREAKER_THRESHOLD) {
-                    stopRequests();
-                }
-            }
-
-            const next = () => {
-                request.pending = false;
-                request.queue.shift()?.();
-            };
-
-            setTimeout(next, delay);
-        },
-    });
-}
 
 function getInventoryUrl() {
     const inventoryLoadUrl = steamPage.inventoryLoadUrl();
@@ -382,52 +255,6 @@ function getInventoryUrl() {
     return `${profileUrl.replace(/\/$/, '')}/inventory/json/`;
 }
 
-//#region Settings
-const SETTING_MIN_NORMAL_PRICE = 'SETTING_MIN_NORMAL_PRICE';
-const SETTING_MAX_NORMAL_PRICE = 'SETTING_MAX_NORMAL_PRICE';
-const SETTING_MIN_FOIL_PRICE = 'SETTING_MIN_FOIL_PRICE';
-const SETTING_MAX_FOIL_PRICE = 'SETTING_MAX_FOIL_PRICE';
-const SETTING_MIN_MISC_PRICE = 'SETTING_MIN_MISC_PRICE';
-const SETTING_MAX_MISC_PRICE = 'SETTING_MAX_MISC_PRICE';
-const SETTING_PRICE_OFFSET = 'SETTING_PRICE_OFFSET';
-const SETTING_PRICE_MIN_CHECK_PRICE = 'SETTING_PRICE_MIN_CHECK_PRICE';
-const SETTING_PRICE_MIN_LIST_PRICE = 'SETTING_PRICE_MIN_LIST_PRICE';
-const SETTING_PRICE_ALGORITHM = 'SETTING_PRICE_ALGORITHM';
-const SETTING_PRICE_IGNORE_LOWEST_Q = 'SETTING_PRICE_IGNORE_LOWEST_Q';
-const SETTING_PRICE_HISTORY_HOURS = 'SETTING_PRICE_HISTORY_HOURS';
-const SETTING_INVENTORY_PRICE_LABELS = 'SETTING_INVENTORY_PRICE_LABELS';
-const SETTING_TRADEOFFER_PRICE_LABELS = 'SETTING_TRADEOFFER_PRICE_LABELS';
-const SETTING_QUICK_SELL_BUTTONS = 'SETTING_QUICK_SELL_BUTTONS';
-const SETTING_LAST_CACHE = 'SETTING_LAST_CACHE';
-const SETTING_RELIST_AUTOMATICALLY = 'SETTING_RELIST_AUTOMATICALLY';
-
-const settingDefaults = {
-    SETTING_MIN_NORMAL_PRICE: 0.05,
-    SETTING_MAX_NORMAL_PRICE: 2.5,
-    SETTING_MIN_FOIL_PRICE: 0.15,
-    SETTING_MAX_FOIL_PRICE: 10,
-    SETTING_MIN_MISC_PRICE: 0.05,
-    SETTING_MAX_MISC_PRICE: 10,
-    SETTING_PRICE_OFFSET: 0.0,
-    SETTING_PRICE_MIN_CHECK_PRICE: 0.0,
-    SETTING_PRICE_MIN_LIST_PRICE: 0.03,
-    SETTING_PRICE_ALGORITHM: 1,
-    SETTING_PRICE_IGNORE_LOWEST_Q: 1,
-    SETTING_PRICE_HISTORY_HOURS: 12,
-    SETTING_INVENTORY_PRICE_LABELS: 1,
-    SETTING_TRADEOFFER_PRICE_LABELS: 1,
-    SETTING_QUICK_SELL_BUTTONS: 1,
-    SETTING_LAST_CACHE: 0,
-    SETTING_RELIST_AUTOMATICALLY: 0,
-};
-
-function getSettingWithDefault(name) {
-    return getLocalStorageItem(name) || (name in settingDefaults ? settingDefaults[name] : null);
-}
-
-function setSetting(name, value) {
-    setLocalStorageItem(name, value);
-}
 //#endregion
 
 //#region Storage
@@ -1092,15 +919,6 @@ function readCookie(name) {
     return null;
 }
 
-function isRetryMessage(message) {
-    const messageList = [
-        'You cannot sell any items until your previous action completes.',
-        'There was a problem listing your item. Refresh the page and try again.',
-        "We were unable to contact the game's item server. The game's item server may be down or Steam may be experiencing temporary connectivity issues. Your listing has not been created. Refresh the page and try again.",
-    ];
-
-    return messageList.indexOf(message) !== -1;
-}
 //#endregion
 
 //#region Inventory
@@ -4164,7 +3982,7 @@ $.fn.delayedEach = function (timeout, callback, continuous) {
 //#region Exports
 // The shape request() attaches to the Error it hands callers. Exported as a type so tests
 // can assert on .statusCode/.responseText without casting the contract away.
-export type { RequestError };
+export type { RequestError } from './net/request.ts';
 
 // Real ES exports replacing the old `typeof module !== 'undefined'` test seam. Same names,
 // same contract: anything listed here must be callable without a page, a network or a
@@ -4186,11 +4004,6 @@ export {
     calculateListingPriceBeforeFees,
     calculateSellPriceBeforeFees,
     createPricingRules,
-    getRequestDelay,
-    getRequestStoppedMessage,
-    request,
-    stopRequests,
-    isRetryMessage,
     markRow,
     NO_LISTING_PRICE_SENTINEL,
 };
@@ -4212,6 +4025,14 @@ export {
 } from './items/index.ts';
 
 export { createListingState, getListingVerdict } from './market/listingState.ts';
+
+export {
+    getRequestDelay,
+    getRequestStoppedMessage,
+    isRetryMessage,
+    request,
+    stopRequests,
+} from './net/request.ts';
 
 export {
     CalculateAmountToSendForDesiredReceivedAmount,

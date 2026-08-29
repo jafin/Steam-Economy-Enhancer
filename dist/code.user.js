@@ -81,6 +81,179 @@
 	var RETRY_DELAY_SHORT_MAX = 1500;
 	var RETRY_DELAY_LONG_MIN = 3e4;
 	var RETRY_DELAY_LONG_MAX = 45e3;
+	var logger = document.createElement("div");
+	logger.setAttribute("id", "logger");
+	var userScrolled = false;
+	function setUserScrolled(value) {
+		userScrolled = value;
+	}
+	function updateScroll() {
+		if (userScrolled) return;
+		const element = document.getElementById("logger");
+		if (element == null) return;
+		element.scrollTop = element.scrollHeight;
+	}
+	function logDOM(text) {
+		logger.innerHTML += `${text}<br/>`;
+		updateScroll();
+	}
+	var REQUEST_DELAY_MARKET = 1e3;
+	var REQUEST_DELAY_ERROR = 5e3;
+	var REQUEST_BREAKER_STATUSES = [
+		400,
+		401,
+		403,
+		404,
+		405,
+		429
+	];
+	var REQUEST_BREAKER_WINDOW_MS = 3e5;
+	function getRequestStoppedMessage() {
+		return `Steam Economy Enhancer stopped sending requests after 5 failed requests within ${REQUEST_BREAKER_WINDOW_MS / 6e4} minutes. Reload the page to start again.`;
+	}
+	function stopRequests() {
+		request.stopped = true;
+		request.errors = 0;
+		console.error(getRequestStoppedMessage());
+		logDOM(getRequestStoppedMessage());
+	}
+	function getRequestDelay(url, status, statusText) {
+		if (status === 0 || status >= 400 || statusText === "error") return REQUEST_DELAY_ERROR;
+		if (url.startsWith("https://steamcommunity.com/market/")) return REQUEST_DELAY_MARKET;
+		return 300;
+	}
+	function request(url, options, callback, { transport = jquery.default.ajax } = {}) {
+		callback = callback || function() {};
+		if (request.stopped) {
+			const error = new Error(getRequestStoppedMessage());
+			setTimeout(() => request.queue.shift()?.(), 1);
+			setTimeout(() => callback(error, null), 0);
+			return;
+		}
+		if (request.pending) {
+			const args = Array.prototype.slice.call(arguments);
+			request.queue.push(() => request(...args));
+			return;
+		}
+		request.pending = true;
+		transport({
+			url,
+			type: options.method,
+			data: options.data,
+			dataType: options.responseType,
+			success: function(data, statusText, xhr) {
+				setTimeout(() => callback(null, data), 0);
+			},
+			error: (xhr, statusText, httpErrorText) => {
+				const error = new Error(`Request failed with status ${xhr.status || 0} (${statusText === "error" ? "http error" : statusText})`);
+				error.url = url;
+				error.method = options.method;
+				error.errorText = statusText || "";
+				error.statusCode = xhr.status || 0;
+				error.responseText = xhr.responseText || "";
+				setTimeout(() => callback(error, null), 0);
+			},
+			complete: (xhr, statusText) => {
+				const delay = getRequestDelay(url, xhr.status, statusText);
+				if (REQUEST_BREAKER_STATUSES.includes(xhr.status)) {
+					if (request.errors++ === 0) setTimeout(() => request.errors = 0, REQUEST_BREAKER_WINDOW_MS);
+					if (request.errors >= 5) stopRequests();
+				}
+				const next = () => {
+					request.pending = false;
+					request.queue.shift()?.();
+				};
+				setTimeout(next, delay);
+			}
+		});
+	}
+	function isRetryMessage(message) {
+		return [
+			"You cannot sell any items until your previous action completes.",
+			"There was a problem listing your item. Refresh the page and try again.",
+			"We were unable to contact the game's item server. The game's item server may be down or Steam may be experiencing temporary connectivity issues. Your listing has not been created. Refresh the page and try again."
+		].indexOf(message) !== -1;
+	}
+	request.queue = [];
+	request.errors = 0;
+	request.pending = false;
+	request.stopped = false;
+	function getLocalStorageItem(name) {
+		try {
+			return localStorage.getItem(name);
+		} catch (e) {
+			`${name}${e}`;
+			return null;
+		}
+	}
+	function setLocalStorageItem(name, value) {
+		try {
+			localStorage.setItem(name, value);
+			return true;
+		} catch (e) {
+			`${name}${e}`;
+			return false;
+		}
+	}
+	function getSessionStorageItem(name) {
+		try {
+			return sessionStorage.getItem(name);
+		} catch (e) {
+			`${name}${e}`;
+			return null;
+		}
+	}
+	function setSessionStorageItem(name, value) {
+		try {
+			sessionStorage.setItem(name, value);
+			return true;
+		} catch (e) {
+			`${name}${e}`;
+			return false;
+		}
+	}
+	var SETTING_MIN_NORMAL_PRICE = "SETTING_MIN_NORMAL_PRICE";
+	var SETTING_MAX_NORMAL_PRICE = "SETTING_MAX_NORMAL_PRICE";
+	var SETTING_MIN_FOIL_PRICE = "SETTING_MIN_FOIL_PRICE";
+	var SETTING_MAX_FOIL_PRICE = "SETTING_MAX_FOIL_PRICE";
+	var SETTING_MIN_MISC_PRICE = "SETTING_MIN_MISC_PRICE";
+	var SETTING_MAX_MISC_PRICE = "SETTING_MAX_MISC_PRICE";
+	var SETTING_PRICE_OFFSET = "SETTING_PRICE_OFFSET";
+	var SETTING_PRICE_MIN_CHECK_PRICE = "SETTING_PRICE_MIN_CHECK_PRICE";
+	var SETTING_PRICE_MIN_LIST_PRICE = "SETTING_PRICE_MIN_LIST_PRICE";
+	var SETTING_PRICE_ALGORITHM = "SETTING_PRICE_ALGORITHM";
+	var SETTING_PRICE_IGNORE_LOWEST_Q = "SETTING_PRICE_IGNORE_LOWEST_Q";
+	var SETTING_PRICE_HISTORY_HOURS = "SETTING_PRICE_HISTORY_HOURS";
+	var SETTING_INVENTORY_PRICE_LABELS = "SETTING_INVENTORY_PRICE_LABELS";
+	var SETTING_TRADEOFFER_PRICE_LABELS = "SETTING_TRADEOFFER_PRICE_LABELS";
+	var SETTING_QUICK_SELL_BUTTONS = "SETTING_QUICK_SELL_BUTTONS";
+	var SETTING_LAST_CACHE = "SETTING_LAST_CACHE";
+	var SETTING_RELIST_AUTOMATICALLY = "SETTING_RELIST_AUTOMATICALLY";
+	var settingDefaults = {
+		SETTING_MIN_NORMAL_PRICE: .05,
+		SETTING_MAX_NORMAL_PRICE: 2.5,
+		SETTING_MIN_FOIL_PRICE: .15,
+		SETTING_MAX_FOIL_PRICE: 10,
+		SETTING_MIN_MISC_PRICE: .05,
+		SETTING_MAX_MISC_PRICE: 10,
+		SETTING_PRICE_OFFSET: 0,
+		SETTING_PRICE_MIN_CHECK_PRICE: 0,
+		SETTING_PRICE_MIN_LIST_PRICE: .03,
+		SETTING_PRICE_ALGORITHM: 1,
+		SETTING_PRICE_IGNORE_LOWEST_Q: 1,
+		SETTING_PRICE_HISTORY_HOURS: 12,
+		SETTING_INVENTORY_PRICE_LABELS: 1,
+		SETTING_TRADEOFFER_PRICE_LABELS: 1,
+		SETTING_QUICK_SELL_BUTTONS: 1,
+		SETTING_LAST_CACHE: 0,
+		SETTING_RELIST_AUTOMATICALLY: 0
+	};
+	function getSettingWithDefault(name) {
+		return getLocalStorageItem(name) || (name in settingDefaults ? settingDefaults[name] : null);
+	}
+	function setSetting(name, value) {
+		setLocalStorageItem(name, value);
+	}
 	function aggregateTradeOfferAssets(assets, resolve) {
 		const counts = new Map();
 		let totalPrice = 0;
@@ -216,56 +389,6 @@
 		}
 		if (item.type != null && item.type.toLowerCase().includes("foil trading card")) return true;
 		return false;
-	}
-	var logger = document.createElement("div");
-	logger.setAttribute("id", "logger");
-	var userScrolled = false;
-	function setUserScrolled(value) {
-		userScrolled = value;
-	}
-	function updateScroll() {
-		if (userScrolled) return;
-		const element = document.getElementById("logger");
-		if (element == null) return;
-		element.scrollTop = element.scrollHeight;
-	}
-	function logDOM(text) {
-		logger.innerHTML += `${text}<br/>`;
-		updateScroll();
-	}
-	function getLocalStorageItem(name) {
-		try {
-			return localStorage.getItem(name);
-		} catch (e) {
-			`${name}${e}`;
-			return null;
-		}
-	}
-	function setLocalStorageItem(name, value) {
-		try {
-			localStorage.setItem(name, value);
-			return true;
-		} catch (e) {
-			`${name}${e}`;
-			return false;
-		}
-	}
-	function getSessionStorageItem(name) {
-		try {
-			return sessionStorage.getItem(name);
-		} catch (e) {
-			`${name}${e}`;
-			return null;
-		}
-	}
-	function setSessionStorageItem(name, value) {
-		try {
-			sessionStorage.setItem(name, value);
-			return true;
-		} catch (e) {
-			`${name}${e}`;
-			return false;
-		}
 	}
 	function priceBeforeFees(price, item, rules) {
 		let publisherFee = -1;
@@ -877,83 +1000,6 @@
 		this.inventoryUrlBase = inventoryUrl.replace("/inventory/json", "");
 		if (!this.inventoryUrlBase.endsWith("/")) this.inventoryUrlBase += "/";
 	}
-	request.queue = [];
-	request.errors = 0;
-	request.pending = false;
-	request.stopped = false;
-	var REQUEST_DELAY_DEFAULT = 300;
-	var REQUEST_DELAY_MARKET = 1e3;
-	var REQUEST_DELAY_ERROR = 5e3;
-	var REQUEST_MARKET_PREFIX = "https://steamcommunity.com/market/";
-	var REQUEST_BREAKER_STATUSES = [
-		400,
-		401,
-		403,
-		404,
-		405,
-		429
-	];
-	var REQUEST_BREAKER_THRESHOLD = 5;
-	var REQUEST_BREAKER_WINDOW_MS = 3e5;
-	function getRequestStoppedMessage() {
-		return `Steam Economy Enhancer stopped sending requests after ${REQUEST_BREAKER_THRESHOLD} failed requests within ${REQUEST_BREAKER_WINDOW_MS / 6e4} minutes. Reload the page to start again.`;
-	}
-	function stopRequests() {
-		request.stopped = true;
-		request.errors = 0;
-		console.error(getRequestStoppedMessage());
-		logDOM(getRequestStoppedMessage());
-	}
-	function getRequestDelay(url, status, statusText) {
-		if (status === 0 || status >= 400 || statusText === "error") return REQUEST_DELAY_ERROR;
-		if (url.startsWith(REQUEST_MARKET_PREFIX)) return REQUEST_DELAY_MARKET;
-		return REQUEST_DELAY_DEFAULT;
-	}
-	function request(url, options, callback, { transport = jquery.default.ajax } = {}) {
-		callback = callback || function() {};
-		if (request.stopped) {
-			const error = new Error(getRequestStoppedMessage());
-			setTimeout(() => request.queue.shift()?.(), 1);
-			setTimeout(() => callback(error, null), 0);
-			return;
-		}
-		if (request.pending) {
-			const args = Array.prototype.slice.call(arguments);
-			request.queue.push(() => request(...args));
-			return;
-		}
-		request.pending = true;
-		transport({
-			url,
-			type: options.method,
-			data: options.data,
-			dataType: options.responseType,
-			success: function(data, statusText, xhr) {
-				setTimeout(() => callback(null, data), 0);
-			},
-			error: (xhr, statusText, httpErrorText) => {
-				const error = new Error(`Request failed with status ${xhr.status || 0} (${statusText === "error" ? "http error" : statusText})`);
-				error.url = url;
-				error.method = options.method;
-				error.errorText = statusText || "";
-				error.statusCode = xhr.status || 0;
-				error.responseText = xhr.responseText || "";
-				setTimeout(() => callback(error, null), 0);
-			},
-			complete: (xhr, statusText) => {
-				const delay = getRequestDelay(url, xhr.status, statusText);
-				if (REQUEST_BREAKER_STATUSES.includes(xhr.status)) {
-					if (request.errors++ === 0) setTimeout(() => request.errors = 0, REQUEST_BREAKER_WINDOW_MS);
-					if (request.errors >= REQUEST_BREAKER_THRESHOLD) stopRequests();
-				}
-				const next = () => {
-					request.pending = false;
-					request.queue.shift()?.();
-				};
-				setTimeout(next, delay);
-			}
-		});
-	}
 	function getInventoryUrl() {
 		const inventoryLoadUrl = steamPage.inventoryLoadUrl();
 		if (inventoryLoadUrl) return inventoryLoadUrl;
@@ -965,48 +1011,6 @@
 			if (avatar) profileUrl = avatar.href;
 		}
 		return `${profileUrl.replace(/\/$/, "")}/inventory/json/`;
-	}
-	var SETTING_MIN_NORMAL_PRICE = "SETTING_MIN_NORMAL_PRICE";
-	var SETTING_MAX_NORMAL_PRICE = "SETTING_MAX_NORMAL_PRICE";
-	var SETTING_MIN_FOIL_PRICE = "SETTING_MIN_FOIL_PRICE";
-	var SETTING_MAX_FOIL_PRICE = "SETTING_MAX_FOIL_PRICE";
-	var SETTING_MIN_MISC_PRICE = "SETTING_MIN_MISC_PRICE";
-	var SETTING_MAX_MISC_PRICE = "SETTING_MAX_MISC_PRICE";
-	var SETTING_PRICE_OFFSET = "SETTING_PRICE_OFFSET";
-	var SETTING_PRICE_MIN_CHECK_PRICE = "SETTING_PRICE_MIN_CHECK_PRICE";
-	var SETTING_PRICE_MIN_LIST_PRICE = "SETTING_PRICE_MIN_LIST_PRICE";
-	var SETTING_PRICE_ALGORITHM = "SETTING_PRICE_ALGORITHM";
-	var SETTING_PRICE_IGNORE_LOWEST_Q = "SETTING_PRICE_IGNORE_LOWEST_Q";
-	var SETTING_PRICE_HISTORY_HOURS = "SETTING_PRICE_HISTORY_HOURS";
-	var SETTING_INVENTORY_PRICE_LABELS = "SETTING_INVENTORY_PRICE_LABELS";
-	var SETTING_TRADEOFFER_PRICE_LABELS = "SETTING_TRADEOFFER_PRICE_LABELS";
-	var SETTING_QUICK_SELL_BUTTONS = "SETTING_QUICK_SELL_BUTTONS";
-	var SETTING_LAST_CACHE = "SETTING_LAST_CACHE";
-	var SETTING_RELIST_AUTOMATICALLY = "SETTING_RELIST_AUTOMATICALLY";
-	var settingDefaults = {
-		SETTING_MIN_NORMAL_PRICE: .05,
-		SETTING_MAX_NORMAL_PRICE: 2.5,
-		SETTING_MIN_FOIL_PRICE: .15,
-		SETTING_MAX_FOIL_PRICE: 10,
-		SETTING_MIN_MISC_PRICE: .05,
-		SETTING_MAX_MISC_PRICE: 10,
-		SETTING_PRICE_OFFSET: 0,
-		SETTING_PRICE_MIN_CHECK_PRICE: 0,
-		SETTING_PRICE_MIN_LIST_PRICE: .03,
-		SETTING_PRICE_ALGORITHM: 1,
-		SETTING_PRICE_IGNORE_LOWEST_Q: 1,
-		SETTING_PRICE_HISTORY_HOURS: 12,
-		SETTING_INVENTORY_PRICE_LABELS: 1,
-		SETTING_TRADEOFFER_PRICE_LABELS: 1,
-		SETTING_QUICK_SELL_BUTTONS: 1,
-		SETTING_LAST_CACHE: 0,
-		SETTING_RELIST_AUTOMATICALLY: 0
-	};
-	function getSettingWithDefault(name) {
-		return getLocalStorageItem(name) || (name in settingDefaults ? settingDefaults[name] : null);
-	}
-	function setSetting(name, value) {
-		setLocalStorageItem(name, value);
 	}
 	localforage.default.createInstance({ name: "see_persistent" });
 	var storageSession;
@@ -1156,7 +1160,7 @@
 		});
 	};
 	SteamMarket.prototype.getPriceHistory = function(item, cache, callback) {
-		if (!(getSettingWithDefault(SETTING_PRICE_ALGORITHM) == 1 || getSettingWithDefault(SETTING_PRICE_ALGORITHM) == 4)) return callback(null, null, true);
+		if (!(getSettingWithDefault("SETTING_PRICE_ALGORITHM") == 1 || getSettingWithDefault("SETTING_PRICE_ALGORITHM") == 4)) return callback(null, null, true);
 		try {
 			const market_name = getMarketHashName(item);
 			if (market_name == null) {
@@ -1372,13 +1376,6 @@
 		}
 		return null;
 	}
-	function isRetryMessage(message) {
-		return [
-			"You cannot sell any items until your previous action completes.",
-			"There was a problem listing your item. Refresh the page and try again.",
-			"We were unable to contact the game's item server. The game's item server may be down or Steam may be experiencing temporary connectivity issues. Your listing has not been created. Refresh the page and try again."
-		].indexOf(message) !== -1;
-	}
 	function onQueueDrain() {
 		if (itemQueue.length() == 0 && sellQueue.length() == 0 && scrapQueue.length() == 0 && boosterQueue.length() == 0) removeSpinner();
 	}
@@ -1396,7 +1393,7 @@
 		const itemName = task.item.name || task.item.description.name;
 		const itemNameWithAmount = task.item.amount == 1 ? itemName : `${task.item.amount}x ${itemName}`;
 		const padLeft = `${padLeftZero(`${totalNumberOfProcessedQueueItems}`, digits)} / ${totalNumberOfQueuedItems}`;
-		if (getSettingWithDefault(SETTING_PRICE_MIN_LIST_PRICE) * 100 >= market.getPriceIncludingFees(task.sellPrice)) {
+		if (getSettingWithDefault("SETTING_PRICE_MIN_LIST_PRICE") * 100 >= market.getPriceIncludingFees(task.sellPrice)) {
 			logDOM(`${padLeft} - ${itemNameWithAmount} is not listed due to ignoring price settings.`);
 			markRow(`${task.item.appid}_${task.item.contextid}_${itemId}`, "notChecked");
 			next();
@@ -1850,7 +1847,7 @@
 		return new Promise((resolve) => setTimeout(resolve, ms));
 	}
 	async function updateInventorySelection(selectedItem) {
-		if (getSettingWithDefault(SETTING_QUICK_SELL_BUTTONS) != 1) return;
+		if (getSettingWithDefault("SETTING_QUICK_SELL_BUTTONS") != 1) return;
 		const item_info = (0, jquery.default)(`#iteminfo${steamPage.activeSelectView()}`);
 		if (!item_info.length) return;
 		if (item_info.html().indexOf("checkout/sendgift/") > -1) return;
@@ -1999,7 +1996,7 @@
 		});
 		loadAllInventories().then(() => {
 			const updateInventoryPrices = function() {
-				if (getSettingWithDefault(SETTING_INVENTORY_PRICE_LABELS) == 1) setInventoryPrices(getInventoryItems());
+				if (getSettingWithDefault("SETTING_INVENTORY_PRICE_LABELS") == 1) setInventoryPrices(getInventoryItems());
 			};
 			updateInventoryPrices();
 			(0, jquery.default)("#pagecontrol_cur").observe("childlist", () => {
@@ -2101,7 +2098,7 @@
 		listingUI = (0, jquery.default)(listingUI.elm);
 		const game_name = asset.type;
 		const price = getPriceValueAsInt((0, jquery.default)(".market_listing_price > span:nth-child(1) > span:nth-child(1)", listingUI).text());
-		if (price <= getSettingWithDefault(SETTING_PRICE_MIN_CHECK_PRICE) * 100 || listingUI.hasClass("removing")) {
+		if (price <= getSettingWithDefault("SETTING_PRICE_MIN_CHECK_PRICE") * 100 || listingUI.hasClass("removing")) {
 			(0, jquery.default)(".market_listing_my_price", listingUI).last().css("background", COLOR_PRICE_NOT_CHECKED);
 			(0, jquery.default)(".market_listing_my_price", listingUI).last().prop("title", "The price is not checked.");
 			listingUI.addClass("not_checked");
@@ -2143,7 +2140,7 @@
 				(0, jquery.default)(".market_listing_my_price", listingUI).last().prop("title", `The best price is ${formatPrice(sellPriceWithoutOffsetWithFees)}.`);
 				(0, jquery.default)(".market_listing_my_price", listingUI).last().css("background", VERDICT_COLORS[verdict]);
 				VERDICT_MESSAGES[verdict];
-				if (verdict == "overpriced" && getSettingWithDefault(SETTING_RELIST_AUTOMATICALLY) == 1) queueOverpricedItemListing(listing.listingid);
+				if (verdict == "overpriced" && getSettingWithDefault("SETTING_RELIST_AUTOMATICALLY") == 1) queueOverpricedItemListing(listing.listingid);
 				return callback(true, cachedHistory && cachedListings);
 			});
 		});
@@ -2758,7 +2755,7 @@
 		return TRADE_SIDES.every((side) => tradeItemsFor(side).every((asset) => asset != null));
 	}
 	function initializeTradeOfferUI() {
-		if (getSettingWithDefault(SETTING_TRADEOFFER_PRICE_LABELS) == 1) {
+		if (getSettingWithDefault("SETTING_TRADEOFFER_PRICE_LABELS") == 1) {
 			const updateInventoryPrices = function() {
 				setInventoryPrices(getTradeOfferInventoryItems());
 			};
@@ -2807,10 +2804,10 @@
         <div>
             Calculate prices as the:&nbsp;
             <select id="${SETTING_PRICE_ALGORITHM}">
-                <option value="1"${getSettingWithDefault(SETTING_PRICE_ALGORITHM) == 1 ? "selected=\"selected\"" : ""}>Maximum of the average history and lowest sell listing</option>
-                <option value="2" ${getSettingWithDefault(SETTING_PRICE_ALGORITHM) == 2 ? "selected=\"selected\"" : ""}>Lowest sell listing</option>
-                <option value="3" ${getSettingWithDefault(SETTING_PRICE_ALGORITHM) == 3 ? "selected=\"selected\"" : ""}>Highest current buy order or lowest sell listing</option>
-                <option value="4" ${getSettingWithDefault(SETTING_PRICE_ALGORITHM) == 4 ? "selected=\"selected\"" : ""}>Average history only</option>
+                <option value="1"${getSettingWithDefault("SETTING_PRICE_ALGORITHM") == 1 ? "selected=\"selected\"" : ""}>Maximum of the average history and lowest sell listing</option>
+                <option value="2" ${getSettingWithDefault("SETTING_PRICE_ALGORITHM") == 2 ? "selected=\"selected\"" : ""}>Lowest sell listing</option>
+                <option value="3" ${getSettingWithDefault("SETTING_PRICE_ALGORITHM") == 3 ? "selected=\"selected\"" : ""}>Highest current buy order or lowest sell listing</option>
+                <option value="4" ${getSettingWithDefault("SETTING_PRICE_ALGORITHM") == 4 ? "selected=\"selected\"" : ""}>Average history only</option>
             </select>
         </div>
         <div style="margin-top:6px;">
@@ -2823,7 +2820,7 @@
         </div>
         <div style="margin-top:6px">
             Use the second lowest sell listing when the lowest sell listing has a low quantity:&nbsp;
-            <input type="checkbox" id="${SETTING_PRICE_IGNORE_LOWEST_Q}" ${getSettingWithDefault(SETTING_PRICE_IGNORE_LOWEST_Q) == 1 ? "checked" : ""}>
+            <input type="checkbox" id="${SETTING_PRICE_IGNORE_LOWEST_Q}" ${getSettingWithDefault("SETTING_PRICE_IGNORE_LOWEST_Q") == 1 ? "checked" : ""}>
         </div>
         <div style="margin-top:6px;">
             Don't check market listings with prices of and below:&nbsp;
@@ -2835,15 +2832,15 @@
         </div>
         <div style="margin-top:24px">
             Show price labels in inventory:&nbsp;
-            <input type="checkbox" id="${SETTING_INVENTORY_PRICE_LABELS}" ${getSettingWithDefault(SETTING_INVENTORY_PRICE_LABELS) == 1 ? "checked" : ""}>
+            <input type="checkbox" id="${SETTING_INVENTORY_PRICE_LABELS}" ${getSettingWithDefault("SETTING_INVENTORY_PRICE_LABELS") == 1 ? "checked" : ""}>
         </div>
         <div style="margin-top:6px">
             Show price labels in trade offers:&nbsp;
-            <input type="checkbox" id="${SETTING_TRADEOFFER_PRICE_LABELS}" ${getSettingWithDefault(SETTING_TRADEOFFER_PRICE_LABELS) == 1 ? "checked" : ""}>
+            <input type="checkbox" id="${SETTING_TRADEOFFER_PRICE_LABELS}" ${getSettingWithDefault("SETTING_TRADEOFFER_PRICE_LABELS") == 1 ? "checked" : ""}>
         </div>
         <div style="margin-top:6px">
             Show quick sell info and buttons:&nbsp;
-            <input type="checkbox" id="${SETTING_QUICK_SELL_BUTTONS}" ${getSettingWithDefault(SETTING_QUICK_SELL_BUTTONS) == 1 ? "checked" : ""}>
+            <input type="checkbox" id="${SETTING_QUICK_SELL_BUTTONS}" ${getSettingWithDefault("SETTING_QUICK_SELL_BUTTONS") == 1 ? "checked" : ""}>
         </div>
         <div style="margin-top:24px;">
             Minimum:&nbsp;
@@ -2868,7 +2865,7 @@
         </div>
         <div style="margin-top:6px;">
             Automatically relist overpriced market listings (slow on large inventories):&nbsp;
-            <input id="${SETTING_RELIST_AUTOMATICALLY}" class="market_relist_auto" type="checkbox" ${getSettingWithDefault(SETTING_RELIST_AUTOMATICALLY) == 1 ? "checked" : ""}>
+            <input id="${SETTING_RELIST_AUTOMATICALLY}" class="market_relist_auto" type="checkbox" ${getSettingWithDefault("SETTING_RELIST_AUTOMATICALLY") == 1 ? "checked" : ""}>
         </div>
     </div>`);
 		steamPage.showConfirmDialog("Steam Economy Enhancer", price_options).done(() => {
@@ -2882,12 +2879,12 @@
 			setSetting(SETTING_PRICE_MIN_CHECK_PRICE, (0, jquery.default)(`#${SETTING_PRICE_MIN_CHECK_PRICE}`, price_options).val());
 			setSetting(SETTING_PRICE_MIN_LIST_PRICE, (0, jquery.default)(`#${SETTING_PRICE_MIN_LIST_PRICE}`, price_options).val());
 			setSetting(SETTING_PRICE_ALGORITHM, (0, jquery.default)(`#${SETTING_PRICE_ALGORITHM}`, price_options).val());
-			setSetting(SETTING_PRICE_IGNORE_LOWEST_Q, (0, jquery.default)(`#${SETTING_PRICE_IGNORE_LOWEST_Q}`, price_options).prop("checked") ? 1 : 0);
+			setSetting(SETTING_PRICE_IGNORE_LOWEST_Q, (0, jquery.default)(`#SETTING_PRICE_IGNORE_LOWEST_Q`, price_options).prop("checked") ? 1 : 0);
 			setSetting(SETTING_PRICE_HISTORY_HOURS, (0, jquery.default)(`#${SETTING_PRICE_HISTORY_HOURS}`, price_options).val());
-			setSetting(SETTING_RELIST_AUTOMATICALLY, (0, jquery.default)(`#${SETTING_RELIST_AUTOMATICALLY}`, price_options).prop("checked") ? 1 : 0);
-			setSetting(SETTING_INVENTORY_PRICE_LABELS, (0, jquery.default)(`#${SETTING_INVENTORY_PRICE_LABELS}`, price_options).prop("checked") ? 1 : 0);
-			setSetting(SETTING_TRADEOFFER_PRICE_LABELS, (0, jquery.default)(`#${SETTING_TRADEOFFER_PRICE_LABELS}`, price_options).prop("checked") ? 1 : 0);
-			setSetting(SETTING_QUICK_SELL_BUTTONS, (0, jquery.default)(`#${SETTING_QUICK_SELL_BUTTONS}`, price_options).prop("checked") ? 1 : 0);
+			setSetting(SETTING_RELIST_AUTOMATICALLY, (0, jquery.default)(`#SETTING_RELIST_AUTOMATICALLY`, price_options).prop("checked") ? 1 : 0);
+			setSetting(SETTING_INVENTORY_PRICE_LABELS, (0, jquery.default)(`#SETTING_INVENTORY_PRICE_LABELS`, price_options).prop("checked") ? 1 : 0);
+			setSetting(SETTING_TRADEOFFER_PRICE_LABELS, (0, jquery.default)(`#SETTING_TRADEOFFER_PRICE_LABELS`, price_options).prop("checked") ? 1 : 0);
+			setSetting(SETTING_QUICK_SELL_BUTTONS, (0, jquery.default)(`#SETTING_QUICK_SELL_BUTTONS`, price_options).prop("checked") ? 1 : 0);
 			window.location.reload();
 		});
 	}
