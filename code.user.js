@@ -348,7 +348,15 @@
         return REQUEST_DELAY_DEFAULT;
     }
 
-    function request(url, options, callback) {
+    // transport is the one adapter this function needed to become testable: everything else
+    // - the delay policy (getRequestDelay), the breaker policy (REQUEST_BREAKER_*,
+    // stopRequests) - was already a plain value or a pure function, not something request()
+    // held itself. transport is not: $.ajax is a real network call, so it is a parameter
+    // instead, defaulting to $.ajax for every existing call site. A fake transport in tests
+    // takes the same jQuery-ajax-shaped settings object and answers success/error/complete
+    // itself, so request()'s own queueing, pending flag and breaker can be exercised with a
+    // fake clock and no network - see test/request.test.js.
+    function request(url, options, callback, { transport = $.ajax } = {}) {
         callback = callback || function () { };
 
         // If the request was stopped, we don't want to send it to the server and continue other requests.
@@ -372,7 +380,7 @@
 
         request.pending = true;
 
-        $.ajax({
+        transport({
             url: url,
 
             type: options.method,
