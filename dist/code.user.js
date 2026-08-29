@@ -1655,7 +1655,7 @@
 			`${item.elm.id}`;
 		});
 		if (totalSellOrderAmount > 0) increaseMarketProgressMax();
-		(0, jquery.default)("#my_market_selllistings_number").append(`<span id="my_market_sell_listings_total_amount"> [${totalSellOrderAmount}]</span>`).append(`<span id="my_market_sell_listings_total_price">, ${formatPrice(totalSellOrderPriceBuyer)} ➤ ${formatPrice(totalSellOrderPriceSeller)}</span>`);
+		(0, jquery.default)("#my_market_selllistings_number").append(`<span id="my_market_sell_listings_total_amount"> [${totalSellOrderAmount}]</span>`).append(`<span id="my_market_sell_listings_total_price">, Listed ${formatPrice(totalSellOrderPriceBuyer)} · You get ${formatPrice(totalSellOrderPriceSeller)}</span>`);
 		(0, jquery.default)("#my_market_buylistings_number").append(`<span id="my_market_buy_listings_total_amount"> [${totalBuyOrderAmount}]</span>`).append(`<span id="my_market_buy_listings_total_price">, ${formatPrice(totalBuyOrderPrice)}</span>`);
 	}
 	function addMarketListings(market_listing_see) {

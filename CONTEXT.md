@@ -19,6 +19,11 @@ user's configured price offset. This is the reference point every comparison is 
 against.
 _Avoid_: calculated price, market price, fair price
 
+**Seller proceeds**:
+The part of the listed price that reaches the seller once Steam has taken its fee. Shown
+to the user as "You get", both per listing and as a total.
+_Avoid_: net price, take-home, seller price
+
 **Relist price**:
 The best price with the user's price offset applied — what a relist would actually list
 the item at. It exists so that a user who deliberately undercuts is not relisted on every

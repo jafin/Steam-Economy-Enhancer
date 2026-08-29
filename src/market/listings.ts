@@ -486,10 +486,15 @@ export function fillMarketListingsQueue() {
         increaseMarketProgressMax();
     }
 
+    // The two totals are the same pair the price grid labels on every row: what the buyers
+    // pay, and what reaches the seller once Steam takes its cut. They were separated by a
+    // ➤ and nothing else, which leaves the reader to guess which direction the arrow means
+    // and why the second number is smaller. Naming them costs a few characters and uses
+    // the same words as the quadrants, so the summary and the rows agree.
     $('#my_market_selllistings_number')
         .append(`<span id="my_market_sell_listings_total_amount"> [${totalSellOrderAmount}]</span>`)
         .append(
-            `<span id="my_market_sell_listings_total_price">, ${formatPrice(totalSellOrderPriceBuyer)} ➤ ${formatPrice(totalSellOrderPriceSeller)}</span>`,
+            `<span id="my_market_sell_listings_total_price">, Listed ${formatPrice(totalSellOrderPriceBuyer)} · You get ${formatPrice(totalSellOrderPriceSeller)}</span>`,
         );
 
     $('#my_market_buylistings_number')
