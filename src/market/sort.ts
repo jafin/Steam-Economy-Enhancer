@@ -5,10 +5,18 @@
 
 import { logConsole } from '../ui/logger.ts';
 import { getPriceValueAsInt } from './assets.ts';
-import { refreshMarketOverpricedButtons } from './relist.ts';
+import {
+    getListFromContainer,
+    getListingFromLists,
+    marketLists,
+    removeListingFromLists,
+} from './rows.ts';
 import $ from 'jquery';
 import * as luxon from 'luxon';
-export const marketLists: any[] = [];
+
+// Re-exported so the rest of src/market/ can keep importing the row registry from here for
+// one more commit, until every importer points at rows.ts directly.
+export { getListFromContainer, getListingFromLists, marketLists, removeListingFromLists };
 
 // Sort the market listings.
 export function sortMarketListings(elem, isPrice, isDateOrQuantity, isName) {
@@ -155,38 +163,4 @@ export function sortMarketListings(elem, isPrice, isDateOrQuantity, isName) {
             },
         });
     }
-}
-
-export function getListFromContainer(group) {
-    for (let i = 0; i < marketLists.length; i++) {
-        if (group[0].contains(marketLists[i].listContainer)) {
-            return marketLists[i];
-        }
-    }
-}
-
-export function getListingFromLists(listingid) {
-    // Sometimes listing ids are contained in multiple lists (?), use the last one available as this is the one we're most likely interested in.
-    for (let i = marketLists.length - 1; i >= 0; i--) {
-        let values = marketLists[i].get('market_listing_item_name', `mylisting_${listingid}_name`);
-        if (values != null && values.length > 0) {
-            return values[0];
-        }
-
-        values = marketLists[i].get('market_listing_item_name', `mbuyorder_${listingid}_name`);
-        if (values != null && values.length > 0) {
-            return values[0];
-        }
-    }
-}
-
-export function removeListingFromLists(listingid) {
-    for (let i = 0; i < marketLists.length; i++) {
-        marketLists[i].remove('market_listing_item_name', `mylisting_${listingid}_name`);
-        marketLists[i].remove('market_listing_item_name', `mbuyorder_${listingid}_name`);
-    }
-
-    // Listings are removed from the lists a few seconds after they are relisted or removed,
-    // which can be after the queue drained, so refresh the counts here as well.
-    refreshMarketOverpricedButtons();
 }
