@@ -78,7 +78,7 @@ const ERROR_SUCCESS = null;
 const ERROR_FAILED = 1;
 const ERROR_DATA = 2;
 
-const marketLists = [];
+const marketLists: any[] = [];
 let totalNumberOfProcessedQueueItems = 0;
 let totalNumberOfQueuedItems = 0;
 let totalPriceWithFeesOnMarket = 0;
@@ -274,7 +274,7 @@ const CURRENCY_CODES_TO_ROUND = [
 // Check if the current currency uses round for fees.
 const useRound = CURRENCY_CODES_TO_ROUND.includes(currencyCode);
 
-function SteamMarket(appContext, inventoryUrl, walletInfo) {
+function SteamMarket(this: any, appContext, inventoryUrl, walletInfo) {
     this.appContext = appContext;
     this.inventoryUrl = inventoryUrl;
     this.walletInfo = walletInfo;
@@ -284,7 +284,7 @@ function SteamMarket(appContext, inventoryUrl, walletInfo) {
     }
 }
 
-request.queue = [];
+request.queue = [] as (() => void)[];
 request.errors = 0;
 request.pending = false;
 request.stopped = false;
@@ -301,6 +301,16 @@ const REQUEST_MARKET_PREFIX = 'https://steamcommunity.com/market/';
 const REQUEST_BREAKER_STATUSES = [400, 401, 403, 404, 405, 429];
 const REQUEST_BREAKER_THRESHOLD = 5;
 const REQUEST_BREAKER_WINDOW_MS = 5 * 60 * 1000;
+
+// The Error request() passes to its callback on failure. The response detail is attached
+// to the Error rather than passed alongside it, which is how every caller already reads it.
+interface RequestError extends Error {
+    url: string;
+    method?: string;
+    errorText: string;
+    statusCode: number;
+    responseText: string;
+}
 
 function getRequestStoppedMessage() {
     return `Steam Economy Enhancer stopped sending requests after ${
@@ -396,7 +406,7 @@ function request(url, options, callback, { transport = $.ajax } = {}) {
         error: (xhr, statusText, httpErrorText) => {
             const error = new Error(
                 `Request failed with status ${xhr.status || 0} (${statusText === 'error' ? 'http error' : statusText})`,
-            );
+            ) as RequestError;
 
             error.url = url;
             error.method = options.method;
@@ -447,7 +457,7 @@ function getInventoryUrl() {
     if (steamProfileUrl) {
         profileUrl = steamProfileUrl;
     } else {
-        const avatar = document.querySelector('#global_actions a.user_avatar');
+        const avatar = document.querySelector<HTMLAnchorElement>('#global_actions a.user_avatar');
 
         if (avatar) {
             profileUrl = avatar.href;
@@ -894,6 +904,26 @@ function nextRetryDelay(counter) {
     return delay;
 }
 
+// A unit of work on one of the script's queues. The payload differs per queue -- a listing,
+// an inventory item, a listing id -- and pinning those shapes is the item-shape question
+// that outlives this migration, so the payload stays open. `ignoreErrors` is the one field
+// runQueue itself owns: it sets it when re-pushing a task for its single forced retry.
+interface QueueTask {
+    ignoreErrors?: boolean;
+    [key: string]: any;
+}
+
+// Per-queue knobs. Every field is optional; the defaults are the ones nextQueueStep and
+// runQueue apply when a queue passes nothing.
+interface RunQueueOptions {
+    /** async.queue concurrency. Defaults to 1 -- these queues talk to Steam in series. */
+    concurrency?: number;
+    /** Delay after a successful task, or a function producing one. Defaults to a random short delay. */
+    successDelayMs?: number | (() => number);
+    /** Whether a failed task gets one more attempt with ignoreErrors forced on. */
+    retryOnFailure?: boolean;
+}
+
 // What a queue does after one task finishes: how long to wait before the next one, and
 // whether this task gets one more try with ignoreErrors forced on before it is dropped.
 //
@@ -901,7 +931,7 @@ function nextRetryDelay(counter) {
 // testable without async.queue, a worker or a real clock - the same reason
 // nextRetryDelay/resetRetryDelay above take their counter as a parameter rather than
 // closing over one.
-function nextQueueStep(success, cached, failures, alreadyRetried, options = {}) {
+function nextQueueStep(success, cached, failures, alreadyRetried, options: RunQueueOptions = {}) {
     if (success) {
         if (!cached) {
             resetRetryDelay(failures);
@@ -932,10 +962,10 @@ function nextQueueStep(success, cached, failures, alreadyRetried, options = {}) 
 // Returns the async.queue itself. push/kill/drain/length/idle all still work exactly as
 // they did on a hand-rolled queue, so call sites that manage a queue's lifecycle do not
 // need to change.
-function runQueue(worker, options = {}) {
+function runQueue(worker, options: RunQueueOptions = {}) {
     const failures = createFailureCounter();
 
-    const queue = async.queue((task, next) => {
+    const queue = async.queue((task: QueueTask, next) => {
         worker(task, task.ignoreErrors === true, (success, cached) => {
             const step = nextQueueStep(
                 success,
@@ -961,7 +991,7 @@ function getNumberOfDigits(x) {
     return (Math.log10((x ^ (x >> 31)) - (x >> 31)) | 0) + 1;
 }
 
-function padLeftZero(str, max) {
+function padLeftZero(str, max): string {
     str = str.toString();
     return str.length < max ? padLeftZero(`0${str}`, max) : str;
 }
@@ -1058,7 +1088,7 @@ function aggregateTradeOfferAssets(assets, resolve) {
         }
     }
 
-    const items = [];
+    const items: any[] = [];
     counts.forEach((count, text) => {
         items.push({ text: text, count: count });
     });
@@ -1357,7 +1387,7 @@ function buildOrderBook(data) {
     const orderBook = data.data;
 
     const buildGraph = (compactOrders) => {
-        const graph = [];
+        const graph: any[] = [];
 
         if (!Array.isArray(compactOrders)) {
             return graph;
@@ -1491,7 +1521,7 @@ function flattenItem(value, id) {
 // property names - one reader, parameterised by them, instead of the same walk written
 // out twice.
 function readInventoryItems(activeInventory, childrenProperty, assetsProperty) {
-    const items = [];
+    const items: any[] = [];
 
     if (!activeInventory) {
         return items;
@@ -1897,7 +1927,7 @@ function updateTotals() {
     }
 }
 
-const sellQueue = async.queue((task, next) => {
+const sellQueue = async.queue((task: QueueTask, next) => {
     totalNumberOfProcessedQueueItems++;
 
     const digits = getNumberOfDigits(totalNumberOfQueuedItems);
@@ -1978,7 +2008,7 @@ function sellAllItems() {
         removeSpinner();
 
         const items = getInventoryItems();
-        const filteredItems = [];
+        const filteredItems: any[] = [];
 
         items.forEach((item) => {
             if (!item.marketable) {
@@ -1999,7 +2029,7 @@ function sellAllDuplicateItems() {
         removeSpinner();
 
         const items = getInventoryItems();
-        const marketableItems = [];
+        const marketableItems: any[] = [];
         let filteredItems = [];
 
         items.forEach((item) => {
@@ -2075,7 +2105,7 @@ function sellAllCards() {
         removeSpinner();
 
         const items = getInventoryItems();
-        const filteredItems = [];
+        const filteredItems: any[] = [];
 
         items.forEach((item) => {
             if (!getIsTradingCard(item) || !item.marketable) {
@@ -2096,7 +2126,7 @@ function sellAllCrates() {
         removeSpinner();
 
         const items = getInventoryItems();
-        const filteredItems = [];
+        const filteredItems: any[] = [];
         items.forEach((item) => {
             if (!getIsCrate(item) || !item.marketable) {
                 return;
@@ -2550,7 +2580,7 @@ function initializeInventoryUI() {
 
 // Gets the selected items in the inventory.
 function getSelectedItems() {
-    const ids = [];
+    const ids: string[] = [];
     $('.inventory_ctn').each(function () {
         $(this)
             .find('.inventory_page')
@@ -2581,7 +2611,7 @@ function getInventorySelectedMarketableItems(callback) {
 
     loadAllInventories().then(() => {
         const items = getInventoryItems();
-        const filteredItems = [];
+        const filteredItems: any[] = [];
 
         items.forEach((item) => {
             if (!item.marketable) {
@@ -2604,7 +2634,7 @@ function getInventorySelectedGemsItems(callback) {
 
     loadAllInventories().then(() => {
         const items = getInventoryItems();
-        const filteredItems = [];
+        const filteredItems: any[] = [];
 
         items.forEach((item) => {
             let canTurnIntoGems = false;
@@ -2637,7 +2667,7 @@ function getInventorySelectedBoosterPackItems(callback) {
 
     loadAllInventories().then(() => {
         const items = getInventoryItems();
-        const filteredItems = [];
+        const filteredItems: any[] = [];
 
         items.forEach((item) => {
             let canOpenBooster = false;
@@ -2834,7 +2864,7 @@ async function updateInventorySelection(selectedItem) {
         baseLink.next().append(groupMain);
 
         // Generate quick sell buttons.
-        let prices = [];
+        let prices: number[] = [];
 
         if (orderbook != null && orderbook.highest_buy_order != null) {
             prices.push(parseInt(orderbook.highest_buy_order));
@@ -3099,8 +3129,8 @@ function inventoryPriceQueueWorker(item, ignoreErrors, callback) {
 //#region Market
 // --- Page-scoped code, hoisted to module scope (see the note above) ---
 // Original guard: currentPage == PAGE_MARKET || currentPage == PAGE_MARKET_LISTING
-const marketListingsRelistedAssets = [];
-let marketProgressBar;
+const marketListingsRelistedAssets: any[] = [];
+let marketProgressBar: any;
 
 // Progress of the current relist run, shown on the relist overpriced button.
 // Both are reset once nothing is queueing relists any more, see resetMarketRelistProgress.
@@ -3166,7 +3196,7 @@ function increaseMarketProgress() {
 const getPriceValueAsInt = (listing) =>
     steamPage.parsePriceText(listing.match(/(?<price>[0-9][0-9 .,]*)/)?.groups?.price ?? 0);
 
-const marketListingsQueue = async.queue((listing, next) => {
+const marketListingsQueue = async.queue((listing: QueueTask, next) => {
     marketListingsQueueWorker(listing, false, (success, cached) => {
         const callback = () => {
             increaseMarketProgress();
@@ -3379,7 +3409,7 @@ function marketListingsQueueWorker(listing, ignoreErrors, callback) {
     });
 }
 
-const marketOverpricedQueue = async.queue((item, next) => {
+const marketOverpricedQueue = async.queue((item: QueueTask, next) => {
     marketOverpricedQueueWorker(item, false, (success) => {
         const callback = () => {
             marketRelistDone += 1;
@@ -3554,7 +3584,7 @@ function queueOverpricedItemListing(listingid) {
     }
 }
 
-const marketRemoveQueue = async.queue((listingid, next) => {
+const marketRemoveQueue = async.queue((listingid: QueueTask, next) => {
     marketRemoveQueueWorker(listingid, false, (success) => {
         const callback = () => {
             increaseMarketProgress();
@@ -3601,7 +3631,7 @@ function marketRemoveQueueWorker(listingid, ignoreErrors, callback) {
     });
 }
 
-const marketListingsItemsQueue = async.queue((listing, next) => {
+const marketListingsItemsQueue = async.queue((listing: QueueTask, next) => {
     const callback = () => {
         increaseMarketProgress();
         setTimeout(() => next(), getRandomInt(RETRY_DELAY_SHORT_MIN, RETRY_DELAY_SHORT_MAX));

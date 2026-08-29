@@ -22,7 +22,6 @@
         "@eslint/js": "^9.39.1",
         "@types/async": "^3.2.25",
         "@types/jquery": "^4.0.1",
-        "@types/jqueryui": "^1.12.24",
         "@types/list.js": "^2.3.5",
         "@types/luxon": "^3.7.5",
         "async": "3.2.6",

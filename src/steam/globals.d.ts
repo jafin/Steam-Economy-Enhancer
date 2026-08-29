@@ -63,4 +63,13 @@ export interface SteamWindow {
 declare global {
     /** Granted by `@grant unsafeWindow`. The page's real window, not the sandbox's. */
     const unsafeWindow: SteamWindow;
+
+    interface HTMLElement {
+        /**
+         * Steam hangs the inventory item's own data off its DOM element. Reading it is how
+         * the inventory code gets from an element back to the item it represents, so this
+         * is a real part of the page contract rather than an escape hatch.
+         */
+        rgItem?: any;
+    }
 }
