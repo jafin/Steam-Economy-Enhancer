@@ -104,23 +104,32 @@ test('sellItem reports a listed item as (null, data)', () => {
     assert.deepStrictEqual(cb.calls, [[null, { success: true }]]);
 });
 
-test('sellItem reports a listing Steam REJECTED as (null, data) -- the defect', () => {
-    // A 200 carrying success:false means Steam declined to list the item. sellItem does not
-    // look at the body, so the error argument is null and every caller that only checks it
-    // -- market/relist.ts:135 -- treats the rejection as a completed sale.
-    answerWith({
-        data: {
-            success: false,
-            message: 'You cannot sell any items until your previous action completes.',
-        },
-    });
+test('sellItem reports a listing Steam rejected as ERROR_DATA, keeping the message', () => {
+    // A 200 carrying success:false means Steam declined to list the item. This used to be
+    // reported as ERROR_SUCCESS, so market/relist.ts -- which asks only whether there was an
+    // error -- painted the row green and removed the listing three seconds later, leaving
+    // the item unlisted in the user's inventory.
+    const message = 'You cannot sell any items until your previous action completes.';
+
+    answerWith({ data: { success: false, message } });
 
     const cb = recorder();
     see.market.sellItem(anItem, 100, cb);
     vi.advanceTimersByTime(0);
 
-    assert.strictEqual(cb.calls[0][0], null);
-    assert.strictEqual(cb.calls[0][1].success, false);
+    assert.deepStrictEqual(cb.calls, [[ERROR_DATA, { success: false, message }]]);
+});
+
+test('sellItem reports a 200 with no success field as ERROR_DATA', () => {
+    // Truthiness, not `success === false`: an absent field counts as refused. That matches
+    // what inventory/sell.ts has read off this response for years.
+    answerWith({ data: {} });
+
+    const cb = recorder();
+    see.market.sellItem(anItem, 100, cb);
+    vi.advanceTimersByTime(0);
+
+    assert.deepStrictEqual(cb.calls, [[ERROR_DATA, {}]]);
 });
 
 test('sellItem reports a transport failure as (ERROR_FAILED, null)', () => {

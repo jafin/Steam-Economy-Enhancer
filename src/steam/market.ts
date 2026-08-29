@@ -15,10 +15,12 @@
 //
 // errorCode is ERROR_SUCCESS on success, ERROR_FAILED when the request itself failed, and
 // ERROR_DATA when Steam answered normally and said no. The later arguments are always
-// passed -- null and false on a failure -- because a caller cannot state what it receives
-// if half the methods stop short. sellItem used to hand request()'s own callback straight
-// to the caller, which is why its failures arrived as an Error while everything else's
-// arrived as a sentinel, and why two callers of that one method read it two different ways.
+// passed -- because a caller cannot state what it receives if half the methods stop short --
+// and carry whatever the method actually has: null when the request failed and there is no
+// response, Steam's own body on a refusal where it holds the message worth showing.
+// sellItem used to hand request()'s own callback straight to the caller, which is why its
+// failures arrived as an Error while everything else's arrived as a sentinel, and why two
+// callers of that one method read it two different ways.
 //
 // ERROR_DATA is only ever produced where Steam is known to report refusals; see
 // docs/adr/0002-steam-success-is-checked-on-sellitem-only.md for which methods those are
@@ -44,8 +46,23 @@ export function SteamMarket(this: any, appContext, inventoryUrl, walletInfo) {
     }
 }
 
+// Whether Steam answered normally and then declined to do the thing.
+//
+// Different from the request failing. The response arrived, so we know the action did not
+// happen and a retry is safe -- where a transport failure leaves the outcome unknown and a
+// retry can list the same item twice.
+//
+// Truthiness rather than `success === false`, matching what inventory/sell.ts has read off
+// this response for years: a body with no success field, or success: 0, counts as refused.
+// Only called where Steam is known to answer this way; see
+// docs/adr/0002-steam-success-is-checked-on-sellitem-only.md for which endpoints those are
+// and why the others are deliberately not checked.
+function steamRefused(data) {
+    return !data?.success;
+}
+
 export function buildOrderBook(data) {
-    if (!data || !data.success || !data.data) {
+    if (!data || steamRefused(data) || !data.data) {
         return null;
     }
 
@@ -124,6 +141,18 @@ SteamMarket.prototype.sellItem = function (item, price, callback /*err, data*/) 
     request(url, options, (error, data) => {
         if (error) {
             callback(ERROR_FAILED, null);
+            return;
+        }
+
+        // A rejected listing comes back as a 200 with success:false, so the request
+        // succeeding is not the same as the item being listed. Asking here rather than
+        // leaving it to callers is the whole point: market/relist.ts asked only whether
+        // there was an error, and so treated a rejection as a completed relist -- painting
+        // the row green and then removing the listing, with the item sitting unlisted in
+        // the user's inventory. The body is passed on because it carries the message the
+        // caller shows and classifies.
+        if (steamRefused(data)) {
+            callback(ERROR_DATA, data);
             return;
         }
 
@@ -348,7 +377,7 @@ SteamMarket.prototype.getCurrentPriceHistory = function (appid, market_name, cal
             return;
         }
 
-        if (data && (!data.success || !data.prices)) {
+        if (data && (steamRefused(data) || !data.prices)) {
             callback(ERROR_DATA, null, false);
             return;
         }
