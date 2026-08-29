@@ -26,4 +26,8 @@ export interface PricingRules {
     useRound?: boolean;
     /** The current time, injected so history averaging is deterministic under test. */
     now?: number;
+    /** The lowest price the sell calculation will settle on, before fees. */
+    minPriceBeforeFees?: number;
+    /** The highest price the sell calculation will settle on, before fees. */
+    maxPriceBeforeFees?: number;
 }

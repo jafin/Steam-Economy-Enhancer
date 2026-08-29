@@ -20,8 +20,7 @@ import {
     SETTING_PRICE_OFFSET,
 } from '../settings/index.ts';
 import { currencyCode, currencyCountry, useRound } from '../steam/currency.ts';
-import { steamPage } from '../steam/instance.ts';
-import { market } from '../steam/market.ts';
+import { isLoggedIn, steamPage } from '../steam/instance.ts';
 import { clamp, priceBeforeFees } from './fees.ts';
 import type { PricingRules } from './rules.ts';
 
@@ -65,6 +64,14 @@ export function formatPriceDelta(cents) {
     return `${cents > 0 ? '+' : '−'}${formatPrice(Math.abs(cents))}`;
 }
 
+// The wallet, read through the page adapter rather than the `market` singleton. They are
+// the same object -- market is constructed with exactly this value, the same reasoning
+// currency.ts already uses -- and going direct is what lets pricing/ drop its last
+// dependency on SteamMarket.
+function walletRules(): PricingRules {
+    return { walletInfo: isLoggedIn ? steamPage.walletInfo() : undefined, useRound };
+}
+
 export function getPriceInformationFromItem(item) {
     const isTradingCard = getIsTradingCard(item);
     const isFoilTradingCard = getIsFoilTradingCard(item);
@@ -90,8 +97,10 @@ export function getPriceInformation(isTradingCard, isFoilTradingCard) {
     maxPrice = maxPrice * 100.0;
     minPrice = minPrice * 100.0;
 
-    const maxPriceBeforeFees = market.getPriceBeforeFees(maxPrice);
-    const minPriceBeforeFees = market.getPriceBeforeFees(minPrice);
+    const rules = walletRules();
+
+    const maxPriceBeforeFees = priceBeforeFees(maxPrice, null, rules);
+    const minPriceBeforeFees = priceBeforeFees(minPrice, null, rules);
 
     return {
         maxPrice,
@@ -107,16 +116,29 @@ export function getPriceInformation(isTradingCard, isFoilTradingCard) {
 // to show and nothing to add to a trade offer total.
 export const NO_LISTING_PRICE_SENTINEL = 65535;
 
-export function createPricingRules() {
-    return {
+export function createPricingRules(item?): PricingRules {
+    const rules: PricingRules = {
         algorithm: Number(getSettingWithDefault(SETTING_PRICE_ALGORITHM)),
         offsetCents: Number(getSettingWithDefault(SETTING_PRICE_OFFSET)) * 100,
         historyHours: Number(getSettingWithDefault(SETTING_PRICE_HISTORY_HOURS)),
         ignoreLowestOnLowQuantity: getSettingWithDefault(SETTING_PRICE_IGNORE_LOWEST_Q) == 1,
-        walletInfo: market.walletInfo,
-        useRound,
+        ...walletRules(),
         now: Date.now(),
     };
+
+    // No item means no card class to look the bounds up against. They fall back to the
+    // non-card (misc) branch getPriceInformation takes for isTradingCard = false, same as
+    // passing an item that isn't a trading card. Nothing relies on this default today: every
+    // per-item caller passes its item, and inventoryPriceQueueWorker -- the one caller that
+    // omits it -- overrides both bounds explicitly for the "nobody is selling this" sentinel
+    // case (NO_LISTING_PRICE_SENTINEL) rather than reading them from here.
+    const priceInfo =
+        item != null ? getPriceInformationFromItem(item) : getPriceInformation(false, false);
+
+    rules.minPriceBeforeFees = priceInfo.minPriceBeforeFees;
+    rules.maxPriceBeforeFees = priceInfo.maxPriceBeforeFees;
+
+    return rules;
 }
 
 export function calculateAverageHistoryPriceBeforeFees(
