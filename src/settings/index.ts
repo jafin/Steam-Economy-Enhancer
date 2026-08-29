@@ -72,11 +72,6 @@ export function getSetting<K extends SettingKey>(key: K): (typeof settingDefault
     return (stored ? Number(stored) : settingDefaults[key]) as (typeof settingDefaults)[K];
 }
 
-/** @deprecated Use getSetting. Kept until every read site has moved over. */
-export function getSettingWithDefault<K extends SettingKey>(key: K) {
-    return getSetting(key);
-}
-
 /** false when the browser refused the write -- private mode, disabled site data, quota. */
 export function setSetting(name: SettingKey, value): boolean {
     return setLocalStorageItem(name, value);
