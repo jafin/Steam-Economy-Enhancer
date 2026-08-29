@@ -1464,6 +1464,49 @@
     //#endregion
 
     //#region Steam Market / Inventory helpers
+
+    // Flattens Steam's inventory shape into one array. The inventory page's active inventory
+    // (m_rgChildInventories/m_rgAssets) and the trade offer page's (rgChildInventories/
+    // rgInventory) were byte-for-byte identical but for these two property names - one
+    // reader, parameterised by them, instead of the same walk written out twice.
+    //
+    // Each item's own `description` is merged onto it in place, to keep the shape consistent
+    // with the market page's items, which are also flattened this way. This mutates Steam's
+    // own inventory objects rather than returning new ones: Steam's CInventory click handler
+    // hands back the very same object later (see onInventorySelectItem), and
+    // updateInventorySelection reads it expecting the flattening to have already happened.
+    // Returning copies here would leave that object unflattened until this function
+    // happened to run again.
+    function readInventoryItems(activeInventory, childrenProperty, assetsProperty) {
+        const items = [];
+
+        if (!activeInventory) {
+            return items;
+        }
+
+        const collect = (assets) => {
+            for (const key in assets) {
+                const value = assets[key];
+                if (typeof value === 'object') {
+                    Object.assign(value, value.description);
+                    value['id'] = key;
+                    value['assetid'] = key;
+                    items.push(value);
+                }
+            }
+        };
+
+        for (const child in activeInventory[childrenProperty]) {
+            collect(activeInventory[childrenProperty][child][assetsProperty]);
+        }
+
+        // Some inventories (e.g. BattleBlock Theater) do not have child inventories, they
+        // have just one.
+        collect(activeInventory[assetsProperty]);
+
+        return items;
+    }
+
     function getMarketHashName(item) {
         if (item == null) {
             return null;
@@ -2895,42 +2938,7 @@
 
         // Gets the inventory items from the active inventory.
         function getInventoryItems() {
-            const arr = [];
-            const activeInventory = getActiveInventory();
-
-            // We don't have an active inventory yet.
-            if (!activeInventory) {
-                return arr;
-            }
-
-            for (const child in activeInventory.m_rgChildInventories) {
-                for (const key in activeInventory.m_rgChildInventories[child].m_rgAssets) {
-                    const value = activeInventory.m_rgChildInventories[child].m_rgAssets[key];
-                    if (typeof value === 'object') {
-                        // Merges the description in the normal object, this is done to keep the layout consistent with the market page, which is also flattened.
-                        Object.assign(value, value.description);
-                        // Includes the id of the inventory item.
-                        value['id'] = key;
-                        value['assetid'] = key;
-                        arr.push(value);
-                    }
-                }
-            }
-
-            // Some inventories (e.g. BattleBlock Theater) do not have child inventories, they have just one.
-            for (const key in activeInventory.m_rgAssets) {
-                const value = activeInventory.m_rgAssets[key];
-                if (typeof value === 'object') {
-                    // Merges the description in the normal object, this is done to keep the layout consistent with the market page, which is also flattened.
-                    Object.assign(value, value.description);
-                    // Includes the id of the inventory item.
-                    value['id'] = key;
-                    value['assetid'] = key;
-                    arr.push(value);
-                }
-            }
-
-            return arr;
+            return readInventoryItems(getActiveInventory(), 'm_rgChildInventories', 'm_rgAssets');
         }
     }
     //#endregion
@@ -4316,42 +4324,7 @@
     if (currentPage == PAGE_TRADEOFFER) {
         // Gets the trade offer's inventory items from the active inventory.
         function getTradeOfferInventoryItems() {
-            const arr = [];
-            const activeInventory = getActiveInventory();
-
-            // We don't have an active inventory yet.
-            if (!activeInventory) {
-                return arr;
-            }
-
-            for (const child in activeInventory.rgChildInventories) {
-                for (const key in activeInventory.rgChildInventories[child].rgInventory) {
-                    const value = activeInventory.rgChildInventories[child].rgInventory[key];
-                    if (typeof value === 'object') {
-                        // Merges the description in the normal object, this is done to keep the layout consistent with the market page, which is also flattened.
-                        Object.assign(value, value.description);
-                        // Includes the id of the inventory item.
-                        value['id'] = key;
-                        value['assetid'] = key;
-                        arr.push(value);
-                    }
-                }
-            }
-
-            // Some inventories (e.g. BattleBlock Theater) do not have child inventories, they have just one.
-            for (const key in activeInventory.rgInventory) {
-                const value = activeInventory.rgInventory[key];
-                if (typeof value === 'object') {
-                    // Merges the description in the normal object, this is done to keep the layout consistent with the market page, which is also flattened.
-                    Object.assign(value, value.description);
-                    // Includes the id of the inventory item.
-                    value['id'] = key;
-                    value['assetid'] = key;
-                    arr.push(value);
-                }
-            }
-
-            return arr;
+            return readInventoryItems(getActiveInventory(), 'rgChildInventories', 'rgInventory');
         }
 
         // side is 'me' or 'them' - see steamPage.tradeAssets/findTradeAsset.
@@ -4771,6 +4744,7 @@
             getNumberOfDigits,
             getRequestDelay,
             getRequestStoppedMessage,
+            readInventoryItems,
             request,
             stopRequests,
             requestPolicy: {
