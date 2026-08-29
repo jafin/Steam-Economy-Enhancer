@@ -355,11 +355,12 @@
 		SETTING_LAST_CACHE: 0,
 		SETTING_RELIST_AUTOMATICALLY: 0
 	};
-	function getSettingWithDefault(name) {
-		return getLocalStorageItem(name) || (name in settingDefaults ? settingDefaults[name] : null);
+	function getSetting(key) {
+		const stored = getLocalStorageItem(key);
+		return stored ? Number(stored) : settingDefaults[key];
 	}
 	function setSetting(name, value) {
-		setLocalStorageItem(name, value);
+		return setLocalStorageItem(name, value);
 	}
 	function pickSellListingsHeader(anchored, all) {
 		return anchored.length > 0 ? anchored[0] : all[0];
@@ -531,8 +532,8 @@
 	var storageSession;
 	var noCache = new URL(window.location.href).searchParams.get("no-cache") != null;
 	if (getSessionStorageItem("SESSION") == null || noCache) {
-		let lastCache = getSettingWithDefault(SETTING_LAST_CACHE);
-		if (lastCache > 5) lastCache = 0;
+		let lastCache = getSetting(SETTING_LAST_CACHE);
+		if (lastCache >= 5) lastCache = 0;
 		setSetting(SETTING_LAST_CACHE, lastCache + 1);
 		storageSession = localforage.default.createInstance({ name: `see_session_${lastCache}` });
 		storageSession.clear();
@@ -619,7 +620,7 @@
 		});
 	};
 	SteamMarket.prototype.getPriceHistory = function(item, cache, callback) {
-		if (!(getSettingWithDefault("SETTING_PRICE_ALGORITHM") == 1 || getSettingWithDefault("SETTING_PRICE_ALGORITHM") == 4)) return callback(null, null, true);
+		if (!(getSetting("SETTING_PRICE_ALGORITHM") == 1 || getSetting("SETTING_PRICE_ALGORITHM") == 4)) return callback(null, null, true);
 		try {
 			const market_name = getMarketHashName(item);
 			if (market_name == null) {
@@ -810,11 +811,11 @@
 		let maxPrice = 0;
 		let minPrice = 0;
 		if (!isTradingCard) {
-			maxPrice = getSettingWithDefault(SETTING_MAX_MISC_PRICE);
-			minPrice = getSettingWithDefault(SETTING_MIN_MISC_PRICE);
+			maxPrice = getSetting(SETTING_MAX_MISC_PRICE);
+			minPrice = getSetting(SETTING_MIN_MISC_PRICE);
 		} else {
-			maxPrice = isFoilTradingCard ? getSettingWithDefault(SETTING_MAX_FOIL_PRICE) : getSettingWithDefault(SETTING_MAX_NORMAL_PRICE);
-			minPrice = isFoilTradingCard ? getSettingWithDefault(SETTING_MIN_FOIL_PRICE) : getSettingWithDefault(SETTING_MIN_NORMAL_PRICE);
+			maxPrice = isFoilTradingCard ? getSetting(SETTING_MAX_FOIL_PRICE) : getSetting(SETTING_MAX_NORMAL_PRICE);
+			minPrice = isFoilTradingCard ? getSetting(SETTING_MIN_FOIL_PRICE) : getSetting(SETTING_MIN_NORMAL_PRICE);
 		}
 		maxPrice = maxPrice * 100;
 		minPrice = minPrice * 100;
@@ -830,10 +831,10 @@
 	var NO_LISTING_PRICE_SENTINEL = 65535;
 	function createPricingRules() {
 		return {
-			algorithm: Number(getSettingWithDefault(SETTING_PRICE_ALGORITHM)),
-			offsetCents: Number(getSettingWithDefault(SETTING_PRICE_OFFSET)) * 100,
-			historyHours: Number(getSettingWithDefault(SETTING_PRICE_HISTORY_HOURS)),
-			ignoreLowestOnLowQuantity: getSettingWithDefault(SETTING_PRICE_IGNORE_LOWEST_Q) == 1,
+			algorithm: getSetting(SETTING_PRICE_ALGORITHM),
+			offsetCents: getSetting(SETTING_PRICE_OFFSET) * 100,
+			historyHours: getSetting(SETTING_PRICE_HISTORY_HOURS),
+			ignoreLowestOnLowQuantity: getSetting(SETTING_PRICE_IGNORE_LOWEST_Q) == 1,
 			walletInfo: market.walletInfo,
 			useRound,
 			now: Date.now()
@@ -1253,87 +1254,92 @@
         <div>
             Calculate prices as the:&nbsp;
             <select id="${SETTING_PRICE_ALGORITHM}">
-                <option value="1"${getSettingWithDefault("SETTING_PRICE_ALGORITHM") == 1 ? "selected=\"selected\"" : ""}>Maximum of the average history and lowest sell listing</option>
-                <option value="2" ${getSettingWithDefault("SETTING_PRICE_ALGORITHM") == 2 ? "selected=\"selected\"" : ""}>Lowest sell listing</option>
-                <option value="3" ${getSettingWithDefault("SETTING_PRICE_ALGORITHM") == 3 ? "selected=\"selected\"" : ""}>Highest current buy order or lowest sell listing</option>
-                <option value="4" ${getSettingWithDefault("SETTING_PRICE_ALGORITHM") == 4 ? "selected=\"selected\"" : ""}>Average history only</option>
+                <option value="1"${getSetting("SETTING_PRICE_ALGORITHM") == 1 ? "selected=\"selected\"" : ""}>Maximum of the average history and lowest sell listing</option>
+                <option value="2" ${getSetting("SETTING_PRICE_ALGORITHM") == 2 ? "selected=\"selected\"" : ""}>Lowest sell listing</option>
+                <option value="3" ${getSetting("SETTING_PRICE_ALGORITHM") == 3 ? "selected=\"selected\"" : ""}>Highest current buy order or lowest sell listing</option>
+                <option value="4" ${getSetting("SETTING_PRICE_ALGORITHM") == 4 ? "selected=\"selected\"" : ""}>Average history only</option>
             </select>
         </div>
         <div style="margin-top:6px;">
             Hours to use for the average history calculated price:&nbsp;
-            <input type="number" min="0" step="2" id="${SETTING_PRICE_HISTORY_HOURS}" value=${getSettingWithDefault(SETTING_PRICE_HISTORY_HOURS)}>
+            <input type="number" min="0" step="2" id="${SETTING_PRICE_HISTORY_HOURS}" value=${getSetting(SETTING_PRICE_HISTORY_HOURS)}>
         </div>
         <div style="margin-top:6px;">
             The value to add to the calculated price (minimum and maximum are respected):&nbsp;
-            <input type="number" step="0.01" id="${SETTING_PRICE_OFFSET}" value=${getSettingWithDefault(SETTING_PRICE_OFFSET)}>
+            <input type="number" step="0.01" id="${SETTING_PRICE_OFFSET}" value=${getSetting(SETTING_PRICE_OFFSET)}>
         </div>
         <div style="margin-top:6px">
             Use the second lowest sell listing when the lowest sell listing has a low quantity:&nbsp;
-            <input type="checkbox" id="${SETTING_PRICE_IGNORE_LOWEST_Q}" ${getSettingWithDefault("SETTING_PRICE_IGNORE_LOWEST_Q") == 1 ? "checked" : ""}>
+            <input type="checkbox" id="${SETTING_PRICE_IGNORE_LOWEST_Q}" ${getSetting("SETTING_PRICE_IGNORE_LOWEST_Q") == 1 ? "checked" : ""}>
         </div>
         <div style="margin-top:6px;">
             Don't check market listings with prices of and below:&nbsp;
-            <input type="number" step="0.01" id="${SETTING_PRICE_MIN_CHECK_PRICE}" value=${getSettingWithDefault(SETTING_PRICE_MIN_CHECK_PRICE)}>
+            <input type="number" step="0.01" id="${SETTING_PRICE_MIN_CHECK_PRICE}" value=${getSetting(SETTING_PRICE_MIN_CHECK_PRICE)}>
         </div>
         <div style="margin-top:6px;">
             Don't list market listings with prices of and below:&nbsp;
-            <input type="number" step="0.01" id="${SETTING_PRICE_MIN_LIST_PRICE}" value=${getSettingWithDefault(SETTING_PRICE_MIN_LIST_PRICE)}>
+            <input type="number" step="0.01" id="${SETTING_PRICE_MIN_LIST_PRICE}" value=${getSetting(SETTING_PRICE_MIN_LIST_PRICE)}>
         </div>
         <div style="margin-top:24px">
             Show price labels in inventory:&nbsp;
-            <input type="checkbox" id="${SETTING_INVENTORY_PRICE_LABELS}" ${getSettingWithDefault("SETTING_INVENTORY_PRICE_LABELS") == 1 ? "checked" : ""}>
+            <input type="checkbox" id="${SETTING_INVENTORY_PRICE_LABELS}" ${getSetting("SETTING_INVENTORY_PRICE_LABELS") == 1 ? "checked" : ""}>
         </div>
         <div style="margin-top:6px">
             Show price labels in trade offers:&nbsp;
-            <input type="checkbox" id="${SETTING_TRADEOFFER_PRICE_LABELS}" ${getSettingWithDefault("SETTING_TRADEOFFER_PRICE_LABELS") == 1 ? "checked" : ""}>
+            <input type="checkbox" id="${SETTING_TRADEOFFER_PRICE_LABELS}" ${getSetting("SETTING_TRADEOFFER_PRICE_LABELS") == 1 ? "checked" : ""}>
         </div>
         <div style="margin-top:6px">
             Show quick sell info and buttons:&nbsp;
-            <input type="checkbox" id="${SETTING_QUICK_SELL_BUTTONS}" ${getSettingWithDefault("SETTING_QUICK_SELL_BUTTONS") == 1 ? "checked" : ""}>
+            <input type="checkbox" id="${SETTING_QUICK_SELL_BUTTONS}" ${getSetting("SETTING_QUICK_SELL_BUTTONS") == 1 ? "checked" : ""}>
         </div>
         <div style="margin-top:24px;">
             Minimum:&nbsp;
-            <input type="number" step="0.01" id="${SETTING_MIN_NORMAL_PRICE}" value=${getSettingWithDefault(SETTING_MIN_NORMAL_PRICE)}>
+            <input type="number" step="0.01" id="${SETTING_MIN_NORMAL_PRICE}" value=${getSetting(SETTING_MIN_NORMAL_PRICE)}>
             &nbsp;and maximum:&nbsp;
-            <input type="number" step="0.01" id="${SETTING_MAX_NORMAL_PRICE}" value=${getSettingWithDefault(SETTING_MAX_NORMAL_PRICE)}>
+            <input type="number" step="0.01" id="${SETTING_MAX_NORMAL_PRICE}" value=${getSetting(SETTING_MAX_NORMAL_PRICE)}>
             &nbsp;price for normal cards
         </div>
         <div style="margin-top:6px;">
             Minimum:&nbsp;
-            <input type="number" step="0.01" id="${SETTING_MIN_FOIL_PRICE}" value=${getSettingWithDefault(SETTING_MIN_FOIL_PRICE)}>
+            <input type="number" step="0.01" id="${SETTING_MIN_FOIL_PRICE}" value=${getSetting(SETTING_MIN_FOIL_PRICE)}>
             &nbsp;and maximum:&nbsp;
-            <input type="number" step="0.01" id="${SETTING_MAX_FOIL_PRICE}" value=${getSettingWithDefault(SETTING_MAX_FOIL_PRICE)}>
+            <input type="number" step="0.01" id="${SETTING_MAX_FOIL_PRICE}" value=${getSetting(SETTING_MAX_FOIL_PRICE)}>
             &nbsp;price for foil cards
         </div>
         <div style="margin-top:6px;">
             Minimum:&nbsp;
-            <input type="number" step="0.01" id="${SETTING_MIN_MISC_PRICE}" value=${getSettingWithDefault(SETTING_MIN_MISC_PRICE)}>
+            <input type="number" step="0.01" id="${SETTING_MIN_MISC_PRICE}" value=${getSetting(SETTING_MIN_MISC_PRICE)}>
             &nbsp;and maximum:&nbsp;
-            <input type="number" step="0.01" id="${SETTING_MAX_MISC_PRICE}" value=${getSettingWithDefault(SETTING_MAX_MISC_PRICE)}>
+            <input type="number" step="0.01" id="${SETTING_MAX_MISC_PRICE}" value=${getSetting(SETTING_MAX_MISC_PRICE)}>
             &nbsp;price for other items
         </div>
         <div style="margin-top:6px;">
             Automatically relist overpriced market listings (slow on large inventories):&nbsp;
-            <input id="${SETTING_RELIST_AUTOMATICALLY}" class="market_relist_auto" type="checkbox" ${getSettingWithDefault("SETTING_RELIST_AUTOMATICALLY") == 1 ? "checked" : ""}>
+            <input id="${SETTING_RELIST_AUTOMATICALLY}" class="market_relist_auto" type="checkbox" ${getSetting("SETTING_RELIST_AUTOMATICALLY") == 1 ? "checked" : ""}>
         </div>
     </div>`);
 		steamPage.showConfirmDialog("Steam Economy Enhancer", price_options).done(() => {
-			setSetting(SETTING_MIN_NORMAL_PRICE, (0, jquery.default)(`#${SETTING_MIN_NORMAL_PRICE}`, price_options).val());
-			setSetting(SETTING_MAX_NORMAL_PRICE, (0, jquery.default)(`#${SETTING_MAX_NORMAL_PRICE}`, price_options).val());
-			setSetting(SETTING_MIN_FOIL_PRICE, (0, jquery.default)(`#${SETTING_MIN_FOIL_PRICE}`, price_options).val());
-			setSetting(SETTING_MAX_FOIL_PRICE, (0, jquery.default)(`#${SETTING_MAX_FOIL_PRICE}`, price_options).val());
-			setSetting(SETTING_MIN_MISC_PRICE, (0, jquery.default)(`#${SETTING_MIN_MISC_PRICE}`, price_options).val());
-			setSetting(SETTING_MAX_MISC_PRICE, (0, jquery.default)(`#${SETTING_MAX_MISC_PRICE}`, price_options).val());
-			setSetting(SETTING_PRICE_OFFSET, (0, jquery.default)(`#${SETTING_PRICE_OFFSET}`, price_options).val());
-			setSetting(SETTING_PRICE_MIN_CHECK_PRICE, (0, jquery.default)(`#${SETTING_PRICE_MIN_CHECK_PRICE}`, price_options).val());
-			setSetting(SETTING_PRICE_MIN_LIST_PRICE, (0, jquery.default)(`#${SETTING_PRICE_MIN_LIST_PRICE}`, price_options).val());
-			setSetting(SETTING_PRICE_ALGORITHM, (0, jquery.default)(`#${SETTING_PRICE_ALGORITHM}`, price_options).val());
-			setSetting(SETTING_PRICE_IGNORE_LOWEST_Q, (0, jquery.default)(`#SETTING_PRICE_IGNORE_LOWEST_Q`, price_options).prop("checked") ? 1 : 0);
-			setSetting(SETTING_PRICE_HISTORY_HOURS, (0, jquery.default)(`#${SETTING_PRICE_HISTORY_HOURS}`, price_options).val());
-			setSetting(SETTING_RELIST_AUTOMATICALLY, (0, jquery.default)(`#SETTING_RELIST_AUTOMATICALLY`, price_options).prop("checked") ? 1 : 0);
-			setSetting(SETTING_INVENTORY_PRICE_LABELS, (0, jquery.default)(`#SETTING_INVENTORY_PRICE_LABELS`, price_options).prop("checked") ? 1 : 0);
-			setSetting(SETTING_TRADEOFFER_PRICE_LABELS, (0, jquery.default)(`#SETTING_TRADEOFFER_PRICE_LABELS`, price_options).prop("checked") ? 1 : 0);
-			setSetting(SETTING_QUICK_SELL_BUTTONS, (0, jquery.default)(`#SETTING_QUICK_SELL_BUTTONS`, price_options).prop("checked") ? 1 : 0);
+			if (![
+				setSetting("SETTING_MIN_NORMAL_PRICE", (0, jquery.default)(`#SETTING_MIN_NORMAL_PRICE`, price_options).val()),
+				setSetting("SETTING_MAX_NORMAL_PRICE", (0, jquery.default)(`#SETTING_MAX_NORMAL_PRICE`, price_options).val()),
+				setSetting("SETTING_MIN_FOIL_PRICE", (0, jquery.default)(`#SETTING_MIN_FOIL_PRICE`, price_options).val()),
+				setSetting("SETTING_MAX_FOIL_PRICE", (0, jquery.default)(`#SETTING_MAX_FOIL_PRICE`, price_options).val()),
+				setSetting("SETTING_MIN_MISC_PRICE", (0, jquery.default)(`#SETTING_MIN_MISC_PRICE`, price_options).val()),
+				setSetting("SETTING_MAX_MISC_PRICE", (0, jquery.default)(`#SETTING_MAX_MISC_PRICE`, price_options).val()),
+				setSetting("SETTING_PRICE_OFFSET", (0, jquery.default)(`#SETTING_PRICE_OFFSET`, price_options).val()),
+				setSetting("SETTING_PRICE_MIN_CHECK_PRICE", (0, jquery.default)(`#SETTING_PRICE_MIN_CHECK_PRICE`, price_options).val()),
+				setSetting("SETTING_PRICE_MIN_LIST_PRICE", (0, jquery.default)(`#SETTING_PRICE_MIN_LIST_PRICE`, price_options).val()),
+				setSetting("SETTING_PRICE_ALGORITHM", (0, jquery.default)(`#SETTING_PRICE_ALGORITHM`, price_options).val()),
+				setSetting("SETTING_PRICE_IGNORE_LOWEST_Q", (0, jquery.default)(`#SETTING_PRICE_IGNORE_LOWEST_Q`, price_options).prop("checked") ? 1 : 0),
+				setSetting("SETTING_PRICE_HISTORY_HOURS", (0, jquery.default)(`#SETTING_PRICE_HISTORY_HOURS`, price_options).val()),
+				setSetting("SETTING_RELIST_AUTOMATICALLY", (0, jquery.default)(`#SETTING_RELIST_AUTOMATICALLY`, price_options).prop("checked") ? 1 : 0),
+				setSetting("SETTING_INVENTORY_PRICE_LABELS", (0, jquery.default)(`#SETTING_INVENTORY_PRICE_LABELS`, price_options).prop("checked") ? 1 : 0),
+				setSetting("SETTING_TRADEOFFER_PRICE_LABELS", (0, jquery.default)(`#SETTING_TRADEOFFER_PRICE_LABELS`, price_options).prop("checked") ? 1 : 0),
+				setSetting("SETTING_QUICK_SELL_BUTTONS", (0, jquery.default)(`#SETTING_QUICK_SELL_BUTTONS`, price_options).prop("checked") ? 1 : 0)
+			].every(Boolean)) {
+				window.alert("Steam Economy Enhancer could not save your settings -- the browser refused the write. Check that this site is allowed to store data (private browsing and disabled site data both block it), then try again.");
+				return;
+			}
 			window.location.reload();
 		});
 	}
@@ -1567,7 +1573,7 @@
 		listingUI = (0, jquery.default)(listingUI.elm);
 		const game_name = asset.type;
 		const price = getPriceValueAsInt((0, jquery.default)(".market_listing_price > span:nth-child(1) > span:nth-child(1)", listingUI).text());
-		if (price <= getSettingWithDefault("SETTING_PRICE_MIN_CHECK_PRICE") * 100 || listingUI.hasClass("removing")) {
+		if (price <= getSetting("SETTING_PRICE_MIN_CHECK_PRICE") * 100 || listingUI.hasClass("removing")) {
 			(0, jquery.default)(".market_listing_my_price", listingUI).last().css("background", COLOR_PRICE_NOT_CHECKED);
 			(0, jquery.default)(".market_listing_my_price", listingUI).last().prop("title", "The price is not checked.");
 			clearPriceCellGrid(listingUI);
@@ -1618,7 +1624,7 @@
 				});
 				(0, jquery.default)(".market_listing_my_price", listingUI).last().css("background", VERDICT_COLORS[verdict]);
 				VERDICT_MESSAGES[verdict];
-				if (verdict == "overpriced" && getSettingWithDefault("SETTING_RELIST_AUTOMATICALLY") == 1) queueOverpricedItemListing(listing.listingid);
+				if (verdict == "overpriced" && getSetting("SETTING_RELIST_AUTOMATICALLY") == 1) queueOverpricedItemListing(listing.listingid);
 				return callback(true, cachedHistory && cachedListings);
 			});
 		});
@@ -1894,7 +1900,7 @@
 		return TRADE_SIDES.every((side) => tradeItemsFor(side).every((asset) => asset != null));
 	}
 	function initializeTradeOfferUI() {
-		if (getSettingWithDefault("SETTING_TRADEOFFER_PRICE_LABELS") == 1) {
+		if (getSetting("SETTING_TRADEOFFER_PRICE_LABELS") == 1) {
 			const updateInventoryPrices = function() {
 				setInventoryPrices(getTradeOfferInventoryItems());
 			};
@@ -2094,7 +2100,7 @@
 		const itemName = task.item.name || task.item.description.name;
 		const itemNameWithAmount = task.item.amount == 1 ? itemName : `${task.item.amount}x ${itemName}`;
 		const padLeft = `${padLeftZero(`${totals.processedQueueItems}`, digits)} / ${totals.queuedItems}`;
-		if (getSettingWithDefault("SETTING_PRICE_MIN_LIST_PRICE") * 100 >= market.getPriceIncludingFees(task.sellPrice)) {
+		if (getSetting("SETTING_PRICE_MIN_LIST_PRICE") * 100 >= market.getPriceIncludingFees(task.sellPrice)) {
 			logDOM(`${padLeft} - ${itemNameWithAmount} is not listed due to ignoring price settings.`);
 			markRow(`${task.item.appid}_${task.item.contextid}_${itemId}`, "notChecked");
 			next();
@@ -2433,7 +2439,7 @@
 		updateOpenBoosterPacksButton();
 	}
 	async function updateInventorySelection(selectedItem) {
-		if (getSettingWithDefault("SETTING_QUICK_SELL_BUTTONS") != 1) return;
+		if (getSetting("SETTING_QUICK_SELL_BUTTONS") != 1) return;
 		const item_info = (0, jquery.default)(`#iteminfo${steamPage.activeSelectView()}`);
 		if (!item_info.length) return;
 		if (item_info.html().indexOf("checkout/sendgift/") > -1) return;
@@ -2587,7 +2593,7 @@
 		});
 		loadAllInventories().then(() => {
 			const updateInventoryPrices = function() {
-				if (getSettingWithDefault("SETTING_INVENTORY_PRICE_LABELS") == 1) setInventoryPrices(getInventoryItems());
+				if (getSetting("SETTING_INVENTORY_PRICE_LABELS") == 1) setInventoryPrices(getInventoryItems());
 			};
 			updateInventoryPrices();
 			(0, jquery.default)("#pagecontrol_cur").observe("childlist", () => {
