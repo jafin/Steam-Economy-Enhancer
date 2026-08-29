@@ -41,3 +41,28 @@ _Avoid_: status, state, price check result
 The signed amount by which the listed price differs from the best price. Positive means
 the listing asks more than the best price; the sign always agrees with the verdict.
 _Avoid_: difference, gap, spread, margin
+
+### Talking to Steam
+
+These three name the difference between a request that broke and a request Steam answered
+with "no". The distinction had no name for two years, which is how `sellItem` came to
+report a rejected listing as a completed one — see
+`docs/adr/0002-steam-success-is-checked-on-sellitem-only.md`.
+
+**Transport failure**:
+The request did not complete: an HTTP error status, a timeout, a parse error, or the
+breaker refusing to send. The action's outcome is _unknown_ — Steam may or may not have
+performed it before the connection broke — which is why retrying one is unsafe.
+_Avoid_: error, request error, network error
+
+**Steam refusal**:
+The request completed normally and Steam's response body says it declined to act. The
+outcome is _known_: nothing happened, so a retry is safe. Only some endpoints report this
+way, in a `success` field with an accompanying message.
+_Avoid_: failure, rejection, bad response
+
+**Retryable refusal**:
+A Steam refusal whose message is one of the three known transient ones, such as "You cannot
+sell any items until your previous action completes." Means _try again shortly_, as opposed
+to a refusal that will fail identically however often it is repeated.
+_Avoid_: temporary error, soft failure
