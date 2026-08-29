@@ -17,6 +17,35 @@ import localforage from 'localforage';
 import * as luxon from 'luxon';
 import List from 'list.js';
 
+import {
+    COLOR_ERROR,
+    COLOR_PENDING,
+    COLOR_PRICE_CHEAP,
+    COLOR_PRICE_EXPENSIVE,
+    COLOR_PRICE_FAIR,
+    COLOR_PRICE_NOT_CHECKED,
+    COLOR_SUCCESS,
+    enableConsoleLog,
+    ERROR_DATA,
+    ERROR_FAILED,
+    ERROR_SUCCESS,
+    PAGE_INVENTORY,
+    PAGE_MARKET,
+    PAGE_MARKET_LISTING,
+    PAGE_TRADEOFFER,
+    RETRY_DELAY_LONG_MAX,
+    RETRY_DELAY_LONG_MIN,
+    RETRY_DELAY_SHORT_MAX,
+    RETRY_DELAY_SHORT_MIN,
+    RETRY_FAILURES_BEFORE_RESET,
+    ROW_STATUS_COLORS,
+    VERDICT_COLORS,
+    VERDICT_FAIR,
+    VERDICT_MESSAGES,
+    VERDICT_OVERPRICED,
+    VERDICT_UNDERPRICED,
+} from './constants.ts';
+
 // Vendored jQuery plugins, previously @require'd from raw.githubusercontent.com. Both
 // attach to the jQuery global at evaluation time, which -- because ES imports are
 // evaluated before the module body -- is still before $.noConflict(true) runs below.
@@ -24,47 +53,6 @@ import './vendor/jquery-observe.js';
 import './vendor/jquery.checkboxes.js';
 
 $.noConflict(true);
-
-const PAGE_MARKET = 0;
-const PAGE_MARKET_LISTING = 1;
-const PAGE_TRADEOFFER = 2;
-const PAGE_INVENTORY = 3;
-
-const COLOR_ERROR = '#8A4243';
-const COLOR_SUCCESS = '#407736';
-const COLOR_PENDING = '#908F44';
-const COLOR_PRICE_FAIR = '#496424';
-const COLOR_PRICE_CHEAP = '#837433';
-const COLOR_PRICE_EXPENSIVE = '#813030';
-const COLOR_PRICE_NOT_CHECKED = '#26566c';
-
-// A listing is asking more than the best price, less than it, or exactly it. The names
-// double as the class names the listings have always carried.
-const VERDICT_OVERPRICED = 'overpriced';
-const VERDICT_UNDERPRICED = 'underpriced';
-const VERDICT_FAIR = 'fair';
-
-const VERDICT_COLORS = {
-    [VERDICT_OVERPRICED]: COLOR_PRICE_EXPENSIVE,
-    [VERDICT_UNDERPRICED]: COLOR_PRICE_CHEAP,
-    [VERDICT_FAIR]: COLOR_PRICE_FAIR,
-};
-
-const VERDICT_MESSAGES = {
-    [VERDICT_OVERPRICED]: 'Sell price is too high.',
-    [VERDICT_UNDERPRICED]: 'Sell price is too low.',
-    [VERDICT_FAIR]: 'Sell price is fair.',
-};
-
-// What a queue is doing with one inventory row, as a value rather than a colour picked
-// at each of nine call sites: excluded from checking, waiting on a network call,
-// finished, or failed.
-const ROW_STATUS_COLORS = {
-    notChecked: COLOR_PRICE_NOT_CHECKED,
-    pending: COLOR_PENDING,
-    success: COLOR_SUCCESS,
-    error: COLOR_ERROR,
-};
 
 // Colours an inventory row by asset key - the same `appid_contextid_assetid` id every
 // inventory item element carries (see getAssetKey, below). Replaces nine identical
@@ -74,25 +62,12 @@ function markRow(assetKey, status) {
     $(`#${assetKey}`).css('background', ROW_STATUS_COLORS[status]);
 }
 
-const ERROR_SUCCESS = null;
-const ERROR_FAILED = 1;
-const ERROR_DATA = 2;
-
 const marketLists: any[] = [];
 let totalNumberOfProcessedQueueItems = 0;
 let totalNumberOfQueuedItems = 0;
 let totalPriceWithFeesOnMarket = 0;
 let totalPriceWithoutFeesOnMarket = 0;
 let totalScrap = 0;
-
-// Retry timings shared by every queue. The values are the ones the queues used inline.
-const RETRY_DELAY_SHORT_MIN = 1000;
-const RETRY_DELAY_SHORT_MAX = 1500;
-const RETRY_DELAY_LONG_MIN = 30000;
-const RETRY_DELAY_LONG_MAX = 45000;
-const RETRY_FAILURES_BEFORE_RESET = 3;
-
-const enableConsoleLog = false;
 
 // Everything Steam's own page exposes, in one place. `unsafeWindow` global reach-ins used
 // to happen at ~44 sites across the whole file: this is what caused the bug fixed in
@@ -5028,7 +5003,8 @@ export {
     priceIncludingFees,
     replaceNonNumbers,
     resetRetryDelay,
-    ROW_STATUS_COLORS,
     runQueue,
 };
+
+export { ROW_STATUS_COLORS } from './constants.ts';
 //#endregion
