@@ -1623,31 +1623,25 @@
 			});
 		});
 	}
-	var marketListingsItemsQueue = async.default.queue((listing, next) => {
-		const callback = () => {
-			increaseMarketProgress();
-			setTimeout(() => next(), getRandomInt(RETRY_DELAY_SHORT_MIN, RETRY_DELAY_SHORT_MAX));
-		};
+	var marketListingsItemsQueue = runQueue(marketListingsItemsQueueWorker, { onTaskDone: () => increaseMarketProgress() });
+	function marketListingsItemsQueueWorker(task, ignoreErrors, callback) {
 		request(`${window.location.origin}/market/mylistings`, {
 			method: "GET",
 			data: {
 				count: 100,
-				start: listing
+				start: task.start
 			},
 			responseType: "json"
 		}, (error, data) => {
-			if (error || !data?.success) {
-				callback();
-				return;
-			}
+			if (error || !data?.success) return callback(false);
 			const myMarketListings = (0, jquery.default)("#tabContentsMyActiveMarketListingsRows");
 			const nodes = jquery.default.parseHTML(data.results_html);
 			const rows = (0, jquery.default)(".market_listing_row", nodes);
 			myMarketListings.append(rows);
 			steamPage.mergeAssets(data.assets);
-			callback();
+			callback(true);
 		});
-	}, 1);
+	}
 	function fillMarketListingsQueue() {
 		(0, jquery.default)(".market_home_listing_table").each(function(e) {
 			if ((0, jquery.default)(".my_market_header", (0, jquery.default)(this)).length == 0) return;
@@ -1754,7 +1748,7 @@
 			(0, jquery.default)(".market_pagesize_options").hide();
 			renderSpinner("Loading market listings");
 			while (currentCount < totalCount) {
-				marketListingsItemsQueue.push(currentCount);
+				marketListingsItemsQueue.push({ start: currentCount });
 				increaseMarketProgressMax();
 				currentCount += 100;
 			}
