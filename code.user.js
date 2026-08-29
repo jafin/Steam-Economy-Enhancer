@@ -2249,7 +2249,7 @@
                 const baseUrl = `${window.location.origin}/market/multisell`;
                 const redirectUrl = `${baseUrl}?appid=${appid}&contextid=${contextid}${itemsString}`;
 
-                const dialog = unsafeWindow.ShowDialog('Steam Economy Enhancer', `<iframe frameBorder="0" height="650" width="900" src="${redirectUrl}"></iframe>`);
+                const dialog = steamPage.showDialog('Steam Economy Enhancer', `<iframe frameBorder="0" height="650" width="900" src="${redirectUrl}"></iframe>`);
                 dialog.OnDismiss(() => {
                     items.forEach((item) => {
                         const itemId = item.assetid || item.id;
@@ -2363,7 +2363,7 @@
 
         // Initialize the inventory UI.
         function initializeInventoryUI() {
-            const isOwnInventory = unsafeWindow.g_ActiveUser.strSteamId == unsafeWindow.g_steamID;
+            const isOwnInventory = steamPage.activeUser().strSteamId == steamPage.steamId();
             let previousSelection = -1; // To store the index of the previous selection.
             updateInventoryUI(isOwnInventory);
 
@@ -2406,16 +2406,13 @@
                 }
             });
 
-            if (typeof unsafeWindow.CInventory !== 'undefined') {
-                const originalSelectItem = unsafeWindow.CInventory.prototype.SelectItem;
-
-                unsafeWindow.CInventory.prototype.SelectItem = function (event, elItem, rgItem) {
-                    originalSelectItem.apply(this, arguments);
-
-                    updateButtons();
-                    updateInventorySelection(rgItem);
-                };
-            }
+            // Not torn down: initializeInventoryUI runs exactly once, on page load. The
+            // teardown exists for whoever calls this a second time - a test, or a future
+            // SPA-style re-init - to undo it rather than stack another wrapper on top.
+            steamPage.onInventorySelectItem((rgItem) => {
+                updateButtons();
+                updateInventorySelection(rgItem);
+            });
         }
 
         // Gets the selected items in the inventory.
@@ -2585,7 +2582,7 @@
                 return;
             }
 
-            const item_info = $(`#iteminfo${unsafeWindow.iActiveSelectView}`);
+            const item_info = $(`#iteminfo${steamPage.activeSelectView()}`);
 
             if (!item_info.length) {
                 return;
@@ -2915,7 +2912,7 @@
 
         // Gets the active inventory.
         function getActiveInventory() {
-            return unsafeWindow.g_ActiveInventory;
+            return steamPage.activeInventory();
         }
 
         // Sets the prices for the items.
