@@ -393,6 +393,8 @@ export {
 
 export { formatPriceDelta } from './pricing/algorithms.ts';
 
+export { market } from './steam/market.ts';
+
 export {
     getRequestDelay,
     getRequestStoppedMessage,
