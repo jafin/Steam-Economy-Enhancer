@@ -98,52 +98,80 @@ export function openSettings() {
     </div>`);
 
     steamPage.showConfirmDialog('Steam Economy Enhancer', price_options).done(() => {
-        setSetting(
-            SETTING_MIN_NORMAL_PRICE,
-            $(`#${SETTING_MIN_NORMAL_PRICE}`, price_options).val(),
-        );
-        setSetting(
-            SETTING_MAX_NORMAL_PRICE,
-            $(`#${SETTING_MAX_NORMAL_PRICE}`, price_options).val(),
-        );
-        setSetting(SETTING_MIN_FOIL_PRICE, $(`#${SETTING_MIN_FOIL_PRICE}`, price_options).val());
-        setSetting(SETTING_MAX_FOIL_PRICE, $(`#${SETTING_MAX_FOIL_PRICE}`, price_options).val());
-        setSetting(SETTING_MIN_MISC_PRICE, $(`#${SETTING_MIN_MISC_PRICE}`, price_options).val());
-        setSetting(SETTING_MAX_MISC_PRICE, $(`#${SETTING_MAX_MISC_PRICE}`, price_options).val());
-        setSetting(SETTING_PRICE_OFFSET, $(`#${SETTING_PRICE_OFFSET}`, price_options).val());
-        setSetting(
-            SETTING_PRICE_MIN_CHECK_PRICE,
-            $(`#${SETTING_PRICE_MIN_CHECK_PRICE}`, price_options).val(),
-        );
-        setSetting(
-            SETTING_PRICE_MIN_LIST_PRICE,
-            $(`#${SETTING_PRICE_MIN_LIST_PRICE}`, price_options).val(),
-        );
-        setSetting(SETTING_PRICE_ALGORITHM, $(`#${SETTING_PRICE_ALGORITHM}`, price_options).val());
-        setSetting(
-            SETTING_PRICE_IGNORE_LOWEST_Q,
-            $(`#${SETTING_PRICE_IGNORE_LOWEST_Q}`, price_options).prop('checked') ? 1 : 0,
-        );
-        setSetting(
-            SETTING_PRICE_HISTORY_HOURS,
-            $(`#${SETTING_PRICE_HISTORY_HOURS}`, price_options).val(),
-        );
-        setSetting(
-            SETTING_RELIST_AUTOMATICALLY,
-            $(`#${SETTING_RELIST_AUTOMATICALLY}`, price_options).prop('checked') ? 1 : 0,
-        );
-        setSetting(
-            SETTING_INVENTORY_PRICE_LABELS,
-            $(`#${SETTING_INVENTORY_PRICE_LABELS}`, price_options).prop('checked') ? 1 : 0,
-        );
-        setSetting(
-            SETTING_TRADEOFFER_PRICE_LABELS,
-            $(`#${SETTING_TRADEOFFER_PRICE_LABELS}`, price_options).prop('checked') ? 1 : 0,
-        );
-        setSetting(
-            SETTING_QUICK_SELL_BUTTONS,
-            $(`#${SETTING_QUICK_SELL_BUTTONS}`, price_options).prop('checked') ? 1 : 0,
-        );
+        // Every one of these returns false when the browser refused the write -- private
+        // mode, disabled site data, quota. All fourteen run regardless, so one refusal
+        // does not leave the rest of the form half-saved; but if any did, reloading would
+        // throw away the settings the user just entered in favour of whatever is on disk.
+        const allSettingsSaved = [
+            setSetting(
+                SETTING_MIN_NORMAL_PRICE,
+                $(`#${SETTING_MIN_NORMAL_PRICE}`, price_options).val(),
+            ),
+            setSetting(
+                SETTING_MAX_NORMAL_PRICE,
+                $(`#${SETTING_MAX_NORMAL_PRICE}`, price_options).val(),
+            ),
+            setSetting(
+                SETTING_MIN_FOIL_PRICE,
+                $(`#${SETTING_MIN_FOIL_PRICE}`, price_options).val(),
+            ),
+            setSetting(
+                SETTING_MAX_FOIL_PRICE,
+                $(`#${SETTING_MAX_FOIL_PRICE}`, price_options).val(),
+            ),
+            setSetting(
+                SETTING_MIN_MISC_PRICE,
+                $(`#${SETTING_MIN_MISC_PRICE}`, price_options).val(),
+            ),
+            setSetting(
+                SETTING_MAX_MISC_PRICE,
+                $(`#${SETTING_MAX_MISC_PRICE}`, price_options).val(),
+            ),
+            setSetting(SETTING_PRICE_OFFSET, $(`#${SETTING_PRICE_OFFSET}`, price_options).val()),
+            setSetting(
+                SETTING_PRICE_MIN_CHECK_PRICE,
+                $(`#${SETTING_PRICE_MIN_CHECK_PRICE}`, price_options).val(),
+            ),
+            setSetting(
+                SETTING_PRICE_MIN_LIST_PRICE,
+                $(`#${SETTING_PRICE_MIN_LIST_PRICE}`, price_options).val(),
+            ),
+            setSetting(
+                SETTING_PRICE_ALGORITHM,
+                $(`#${SETTING_PRICE_ALGORITHM}`, price_options).val(),
+            ),
+            setSetting(
+                SETTING_PRICE_IGNORE_LOWEST_Q,
+                $(`#${SETTING_PRICE_IGNORE_LOWEST_Q}`, price_options).prop('checked') ? 1 : 0,
+            ),
+            setSetting(
+                SETTING_PRICE_HISTORY_HOURS,
+                $(`#${SETTING_PRICE_HISTORY_HOURS}`, price_options).val(),
+            ),
+            setSetting(
+                SETTING_RELIST_AUTOMATICALLY,
+                $(`#${SETTING_RELIST_AUTOMATICALLY}`, price_options).prop('checked') ? 1 : 0,
+            ),
+            setSetting(
+                SETTING_INVENTORY_PRICE_LABELS,
+                $(`#${SETTING_INVENTORY_PRICE_LABELS}`, price_options).prop('checked') ? 1 : 0,
+            ),
+            setSetting(
+                SETTING_TRADEOFFER_PRICE_LABELS,
+                $(`#${SETTING_TRADEOFFER_PRICE_LABELS}`, price_options).prop('checked') ? 1 : 0,
+            ),
+            setSetting(
+                SETTING_QUICK_SELL_BUTTONS,
+                $(`#${SETTING_QUICK_SELL_BUTTONS}`, price_options).prop('checked') ? 1 : 0,
+            ),
+        ].every(Boolean);
+
+        if (!allSettingsSaved) {
+            window.alert(
+                'Steam Economy Enhancer could not save your settings -- the browser refused the write. Check that this site is allowed to store data (private browsing and disabled site data both block it), then try again.',
+            );
+            return;
+        }
 
         window.location.reload();
     });
