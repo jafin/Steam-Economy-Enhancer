@@ -6,7 +6,7 @@
 // that behaviour before it is fixed, so the fix is a deliberate, visible change to a test
 // rather than a silent one.
 
-import { test, beforeEach } from 'vitest';
+import { test, beforeEach, vi } from 'vitest';
 import assert from 'node:assert';
 import {
     getSettingWithDefault,
@@ -45,4 +45,25 @@ test('SETTING_LAST_CACHE runs away under string concatenation, today', () => {
     setSetting(SETTING_LAST_CACHE, getSettingWithDefault(SETTING_LAST_CACHE) + 1);
 
     assert.strictEqual(getSettingWithDefault(SETTING_LAST_CACHE), '11');
+});
+
+// storage/session.ts reads and writes SETTING_LAST_CACHE at module-evaluation time, so a
+// fresh "session" is simulated by resetting the module registry and clearing sessionStorage
+// (localStorage, which is what actually carries the counter, is left alone -- it is what
+// survives between real browsing sessions).
+async function newSessionDatabaseName() {
+    sessionStorage.clear();
+    vi.resetModules();
+    const { storageSession } = await import('../src/storage/session.ts');
+    return storageSession.config().name;
+}
+
+test('three consecutive sessions pick three different cache databases', async () => {
+    const names = [
+        await newSessionDatabaseName(),
+        await newSessionDatabaseName(),
+        await newSessionDatabaseName(),
+    ];
+
+    assert.strictEqual(new Set(names).size, 3, `expected 3 distinct databases, got ${names}`);
 });
