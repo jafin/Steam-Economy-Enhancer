@@ -52,7 +52,10 @@ export const sellQueue = async.queue((task: QueueTask, next) => {
     }
 
     market.sellItem(task.item, task.sellPrice, (error, data) => {
-        const success = Boolean(data?.success);
+        // sellItem answers this now. This used to read data.success itself, which was the
+        // module's job done in one caller and skipped in the other -- market/relist.ts calls
+        // the same method and did not ask, so it read a rejected listing as a sale.
+        const success = error === ERROR_SUCCESS;
         const message = data?.message || '';
 
         const callback = () =>

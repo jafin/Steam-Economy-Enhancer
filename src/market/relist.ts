@@ -132,7 +132,7 @@ export function marketOverpricedQueueWorker(item, ignoreErrors, callback) {
                                 item.assetid = newAssetId;
                                 marketListingsRelistedAssets.push(newAssetId);
 
-                                market.sellItem(item, item.sellPrice, (errorSell) => {
+                                market.sellItem(item, item.sellPrice, (errorSell, dataSell) => {
                                     if (!errorSell) {
                                         $('.actual_content', listingUI).css(
                                             'background',
@@ -145,6 +145,16 @@ export function marketOverpricedQueueWorker(item, ignoreErrors, callback) {
 
                                         return callback(true);
                                     } else {
+                                        // Steam says why it refused, and the reason is worth
+                                        // having: the item is out of its listing by this
+                                        // point, so a red row on its own does not say whether
+                                        // to try again or stop.
+                                        const message = dataSell?.message || '';
+
+                                        logConsole(
+                                            `Relisting ${item.listing} failed${message ? `: ${message}` : '.'}`,
+                                        );
+
                                         $('.actual_content', listingUI).css(
                                             'background',
                                             COLOR_ERROR,
