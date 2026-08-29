@@ -44,3 +44,7 @@ export function getListingVerdict(bestPrice, listedPrice) {
 
     return VERDICT_FAIR;
 }
+
+// One store for the page. The market listings and the trade offer inventory are never
+// both on screen, so they cannot collide, and the keys differ anyway.
+export const listingState = createListingState();
