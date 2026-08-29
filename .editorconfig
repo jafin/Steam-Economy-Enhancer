@@ -1,9 +1,16 @@
 # http://editorconfig.org
+#
+# Prettier is the authority on formatting for everything it handles; this file exists so an
+# editor gets the indentation right before Prettier runs, and covers the files it does not.
 
 root = true
 
 [*]
 charset = utf-8
 indent_style = space
+indent_size = 4
 insert_final_newline = true
 trim_trailing_whitespace = true
+
+[*.md]
+trim_trailing_whitespace = false
