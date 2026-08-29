@@ -114,6 +114,16 @@
     // implements the same shape from data instead of a real page, so a change to the shape
     // this file expects Steam's page to have can be caught by a test rather than by a user
     // reporting silence. See test/steam-page.test.js.
+
+    // The rule PR #334 needed, pulled out of the DOM lookup that feeds it: prefer the header
+    // anchored to the sell listings table itself, and only fall back to "whichever header
+    // is first" when the anchored lookup truly finds nothing. `anchored`/`all` need only
+    // `.length` and index access, so this runs the same whether they came from a real
+    // jQuery selection or plain fixture data - see test/steam-page-fixture.js.
+    function pickSellListingsHeader(anchored, all) {
+        return anchored.length > 0 ? anchored[0] : all[0];
+    }
+
     function createSteamPage(win) {
         return {
             // Session / config
@@ -188,6 +198,16 @@
                 if (typeof win.g_oMyHistory !== 'undefined') {
                     win.g_oMyHistory.GoToPage(index);
                 }
+            },
+
+            // The header the sell listings buttons attach to. See pickSellListingsHeader.
+            sellListingsHeader: () => {
+                const anchored = $('#tabContentsMyActiveMarketListingsRows').
+                    closest('.market_home_listing_table').
+                    find('.my_market_header');
+                const all = $('.my_market_header');
+
+                return $(pickSellListingsHeader(anchored, all));
             },
 
             // Trade offer. `side` is 'me' or 'them', the same keys g_rgCurrentTradeStatus
@@ -4044,18 +4064,10 @@
 
             // Sell orders.
             // Steam prepends a "listings awaiting confirmation" block whenever a confirmation is pending,
-            // so the sell listings are not always the first header. Anchor to the sell listings table itself.
-            //
-            // Fall back to the first header if that table cannot be found. An empty set here is worse
-            // than a wrong guess: the buttons below would go nowhere, and the .not() further down would
-            // then match every header and give the sell listings the two button block instead.
-            const anchoredHeader = $('#tabContentsMyActiveMarketListingsRows').
-                closest('.market_home_listing_table').
-                find('.my_market_header').
-                first();
-            const sellListingsHeader = anchoredHeader.length > 0
-                ? anchoredHeader
-                : $('.my_market_header').first();
+            // so the sell listings are not always the first header. steamPage.sellListingsHeader()
+            // anchors to the sell listings table itself and falls back to the first header only if
+            // that table cannot be found - see pickSellListingsHeader for why the fallback matters.
+            const sellListingsHeader = steamPage.sellListingsHeader();
 
             sellListingsHeader.append(`<div class="market_listing_buttons">
                 <a class="item_market_action_button item_market_action_button_green select_all market_listing_button">
@@ -4767,6 +4779,7 @@
             nextQueueStep,
             nextRetryDelay,
             padLeftZero,
+            pickSellListingsHeader,
             priceBeforeFees,
             priceIncludingFees,
             replaceNonNumbers,
