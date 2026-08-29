@@ -16,7 +16,7 @@
 import localforage from 'localforage';
 
 import { getSessionStorageItem, setSessionStorageItem } from './index.ts';
-import { getSettingWithDefault, setSetting, SETTING_LAST_CACHE } from '../settings/index.ts';
+import { getSetting, setSetting, SETTING_LAST_CACHE } from '../settings/index.ts';
 
 export const storagePersistent = localforage.createInstance({
     name: 'see_persistent',
@@ -30,8 +30,8 @@ const noCache = currentUrl.searchParams.get('no-cache') != null;
 // This does not work the same as the 'normal' session storage because opening a new browser session/tab will clear the cache.
 // For this reason, a rolling cache is used.
 if (getSessionStorageItem('SESSION') == null || noCache) {
-    let lastCache = getSettingWithDefault(SETTING_LAST_CACHE);
-    if (lastCache > 5) {
+    let lastCache = getSetting(SETTING_LAST_CACHE);
+    if (lastCache >= 5) {
         lastCache = 0;
     }
 

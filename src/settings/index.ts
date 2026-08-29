@@ -1,8 +1,9 @@
 // The user's settings.
 //
 // Keys are their own names, which is what lets the settings dialog build itself from this
-// list. Reads go through getSettingWithDefault so a key that has never been written still
-// answers with something sensible rather than null.
+// list. Reads go through getSetting so a key that has never been written still answers with
+// something sensible rather than null, and so the coercion from localStorage's strings to
+// the type a caller actually wants happens once, here, rather than at each read site.
 
 import { getLocalStorageItem, setLocalStorageItem } from '../storage/index.ts';
 
@@ -61,10 +62,17 @@ export const settingDefaults = {
     SETTING_RELIST_AUTOMATICALLY: 0,
 };
 
-export function getSettingWithDefault(name) {
-    return getLocalStorageItem(name) || (name in settingDefaults ? settingDefaults[name] : null);
+export type SettingKey = keyof typeof settingDefaults;
+
+// Booleans are stored as 0/1, not true/false -- that is what is already on disk in users'
+// browsers -- so every key here is a number and every read site that used to write `== 1`
+// or `!= 1` keeps doing so against the number this returns.
+export function getSetting<K extends SettingKey>(key: K): (typeof settingDefaults)[K] {
+    const stored = getLocalStorageItem(key);
+    return (stored ? Number(stored) : settingDefaults[key]) as (typeof settingDefaults)[K];
 }
 
-export function setSetting(name, value) {
-    setLocalStorageItem(name, value);
+/** false when the browser refused the write -- private mode, disabled site data, quota. */
+export function setSetting(name: SettingKey, value): boolean {
+    return setLocalStorageItem(name, value);
 }

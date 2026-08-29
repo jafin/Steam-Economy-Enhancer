@@ -7,7 +7,7 @@
 
 import { getIsFoilTradingCard, getIsTradingCard } from '../items/index.ts';
 import {
-    getSettingWithDefault,
+    getSetting,
     SETTING_MAX_FOIL_PRICE,
     SETTING_MAX_MISC_PRICE,
     SETTING_MAX_NORMAL_PRICE,
@@ -76,15 +76,15 @@ export function getPriceInformation(isTradingCard, isFoilTradingCard) {
     let minPrice = 0;
 
     if (!isTradingCard) {
-        maxPrice = getSettingWithDefault(SETTING_MAX_MISC_PRICE);
-        minPrice = getSettingWithDefault(SETTING_MIN_MISC_PRICE);
+        maxPrice = getSetting(SETTING_MAX_MISC_PRICE);
+        minPrice = getSetting(SETTING_MIN_MISC_PRICE);
     } else {
         maxPrice = isFoilTradingCard
-            ? getSettingWithDefault(SETTING_MAX_FOIL_PRICE)
-            : getSettingWithDefault(SETTING_MAX_NORMAL_PRICE);
+            ? getSetting(SETTING_MAX_FOIL_PRICE)
+            : getSetting(SETTING_MAX_NORMAL_PRICE);
         minPrice = isFoilTradingCard
-            ? getSettingWithDefault(SETTING_MIN_FOIL_PRICE)
-            : getSettingWithDefault(SETTING_MIN_NORMAL_PRICE);
+            ? getSetting(SETTING_MIN_FOIL_PRICE)
+            : getSetting(SETTING_MIN_NORMAL_PRICE);
     }
 
     maxPrice = maxPrice * 100.0;
@@ -109,10 +109,10 @@ export const NO_LISTING_PRICE_SENTINEL = 65535;
 
 export function createPricingRules() {
     return {
-        algorithm: Number(getSettingWithDefault(SETTING_PRICE_ALGORITHM)),
-        offsetCents: Number(getSettingWithDefault(SETTING_PRICE_OFFSET)) * 100,
-        historyHours: Number(getSettingWithDefault(SETTING_PRICE_HISTORY_HOURS)),
-        ignoreLowestOnLowQuantity: getSettingWithDefault(SETTING_PRICE_IGNORE_LOWEST_Q) == 1,
+        algorithm: getSetting(SETTING_PRICE_ALGORITHM),
+        offsetCents: getSetting(SETTING_PRICE_OFFSET) * 100,
+        historyHours: getSetting(SETTING_PRICE_HISTORY_HOURS),
+        ignoreLowestOnLowQuantity: getSetting(SETTING_PRICE_IGNORE_LOWEST_Q) == 1,
         walletInfo: market.walletInfo,
         useRound,
         now: Date.now(),

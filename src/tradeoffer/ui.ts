@@ -8,7 +8,7 @@ import { getActiveInventory, setInventoryPrices } from '../inventory/data.ts';
 import { getAssetKey, readInventoryItems } from '../items/index.ts';
 import { listingState } from '../market/listingState.ts';
 import { formatPrice } from '../pricing/algorithms.ts';
-import { SETTING_TRADEOFFER_PRICE_LABELS, getSettingWithDefault } from '../settings/index.ts';
+import { SETTING_TRADEOFFER_PRICE_LABELS, getSetting } from '../settings/index.ts';
 import { steamPage } from '../steam/instance.ts';
 import { aggregateTradeOfferAssets } from './totals.ts';
 import $ from 'jquery';
@@ -81,7 +81,7 @@ export function hasLoadedAllTradeOfferItems() {
 }
 
 export function initializeTradeOfferUI() {
-    if (getSettingWithDefault(SETTING_TRADEOFFER_PRICE_LABELS) == 1) {
+    if (getSetting(SETTING_TRADEOFFER_PRICE_LABELS) == 1) {
         const updateInventoryPrices = function () {
             setInventoryPrices(getTradeOfferInventoryItems());
         };
