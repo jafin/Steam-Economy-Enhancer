@@ -8,8 +8,6 @@ import {
     COLOR_PRICE_NOT_CHECKED,
     ERROR_SUCCESS,
     PAGE_MARKET,
-    RETRY_DELAY_SHORT_MAX,
-    RETRY_DELAY_SHORT_MIN,
     VERDICT_COLORS,
     VERDICT_MESSAGES,
     VERDICT_OVERPRICED,
@@ -33,7 +31,7 @@ import { currentPage, steamPage } from '../steam/instance.ts';
 import { market } from '../steam/market.ts';
 import { renderSpinner } from '../ui/index.ts';
 import { logConsole } from '../ui/logger.ts';
-import { getRandomInt, replaceNonNumbers } from '../util/numbers.ts';
+import { replaceNonNumbers } from '../util/numbers.ts';
 import { getAssetInfoFromBuyOrderId, getAssetInfoFromListingId } from './assets.ts';
 import { getListingPriceDelta, getListingVerdict, listingState } from './listingState.ts';
 import { increaseMarketProgress, increaseMarketProgressMax } from './progress.ts';
@@ -41,7 +39,6 @@ import { queueOverpricedItemListing, refreshMarketOverpricedButtons } from './re
 import { getListingFromLists, marketLists, sortMarketListings } from './sort.ts';
 import { updateMarketSelectAllButton } from './ui.ts';
 import $ from 'jquery';
-import async from 'async';
 import List from 'list.js';
 //#region Market
 // --- Page-scoped code, hoisted to module scope (see the note above) ---
@@ -339,27 +336,30 @@ export function marketListingsQueueWorker(listing, ignoreErrors, callback) {
     });
 }
 
-export const marketListingsItemsQueue = async.queue((listing: any, next) => {
-    const callback = () => {
-        increaseMarketProgress();
-        setTimeout(() => next(), getRandomInt(RETRY_DELAY_SHORT_MIN, RETRY_DELAY_SHORT_MAX));
-    };
+// A plain paging walk over the listings page, not a retrying queue -- a failed page is not
+// re-fetched, it is just skipped and the walk moves on. Converting it onto runQueue is for
+// the delay policy only: a page that fails to load now backs off the same escalating way a
+// real failure does anywhere else, instead of waiting the same short jittered gap it would
+// have waited on success.
+export const marketListingsItemsQueue = runQueue(marketListingsItemsQueueWorker, {
+    onTaskDone: () => increaseMarketProgress(),
+});
 
+export function marketListingsItemsQueueWorker(task, ignoreErrors, callback) {
     const url = `${window.location.origin}/market/mylistings`;
 
     const options = {
         method: 'GET',
         data: {
             count: 100,
-            start: listing,
+            start: task.start,
         },
         responseType: 'json',
     };
 
     request(url, options, (error, data) => {
         if (error || !data?.success) {
-            callback();
-            return;
+            return callback(false);
         }
 
         const myMarketListings = $('#tabContentsMyActiveMarketListingsRows');
@@ -371,9 +371,9 @@ export const marketListingsItemsQueue = async.queue((listing: any, next) => {
         // g_rgAssets
         steamPage.mergeAssets(data.assets); // This is a method from Steam.
 
-        callback();
+        callback(true);
     });
-}, 1);
+}
 
 export function fillMarketListingsQueue() {
     $('.market_home_listing_table').each(function (e) {
@@ -568,7 +568,7 @@ export function processMarketListings() {
         renderSpinner('Loading market listings');
 
         while (currentCount < totalCount) {
-            marketListingsItemsQueue.push(currentCount);
+            marketListingsItemsQueue.push({ start: currentCount });
             increaseMarketProgressMax();
             currentCount += 100;
         }
