@@ -35,6 +35,11 @@ export function fakeSteamWindow(): any {
             m_rgChildInventories: {},
             m_rgAssets: {},
             selectedItem: null,
+
+            // Steam returns a jQuery Deferred here and loadAllInventories() awaits it before
+            // reading any item. Resolving immediately keeps the fake inventory as loaded as
+            // it will ever get -- m_rgAssets above is already the whole of it.
+            LoadCompleteInventory: () => ({ done: (callback: () => void) => callback() }),
         },
         iActiveSelectView: 0,
 
