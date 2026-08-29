@@ -21,10 +21,11 @@ exact best price, where it answers its own question without redefining the label
 
 ## Consequences
 
-The percentage uses the best price as its denominator for the same reason, so that the
-overpriced and underpriced sides are measured from one fixed reference and two listings
-equally far from the market always report the same magnitude.
-
 Changing this baseline later is not a visible break — nothing throws and the label still
 renders — it silently changes what every number on the page means. That invisibility is why
-the decision is recorded here rather than left to be inferred from the division.
+the decision is recorded here rather than left to be inferred from a subtraction.
+
+The delta was briefly also rendered as a percentage of the best price. That was dropped as
+noise: the amount is the thing at stake, and on a page of items worth a few cents each a
+second number earned no room. The baseline decision above is unaffected — it governs which
+price is subtracted, not how the result is displayed.

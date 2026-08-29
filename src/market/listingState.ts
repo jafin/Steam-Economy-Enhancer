@@ -45,26 +45,19 @@ export function getListingVerdict(bestPrice, listedPrice) {
     return VERDICT_FAIR;
 }
 
-// How far a listing is from where it should be priced, as a signed value. `bestPrice` and
-// `listedPrice` are both prices including fees, and `bestPrice` is the price *without* the
-// user's offset applied -- the same number the verdict above is computed from. See
+// How far a listing is from where it should be priced, in cents, signed: positive means
+// the listing asks more than the best price. `bestPrice` and `listedPrice` are both prices
+// including fees, and `bestPrice` is the price *without* the user's offset applied -- the
+// same number the verdict above is computed from.
+//
+// The subtraction is trivial; which two numbers go into it is not. See
 // docs/adr/0001-price-delta-measured-against-the-no-offset-best-price.md: measuring
 // against the offset price instead would put a number on the row that disagrees with the
-// colour beside it, and nothing would throw when it did.
-//
-// The percentage is a fraction of the best price rather than of the listed price, so that
-// the overpriced and underpriced sides share one fixed reference: two listings equally far
-// from the market then report the same magnitude, which a moving denominator would not do.
-//
-// A best price of zero has no meaningful percentage -- the division is infinite, not
-// large -- so it comes back null and the caller renders the amount alone.
+// colour beside it, and nothing would throw when it did. This function exists to give that
+// choice a name and a test rather than leave it implicit in a subtraction inside a
+// hundred-line callback.
 export function getListingPriceDelta(bestPrice, listedPrice) {
-    const cents = listedPrice - bestPrice;
-
-    return {
-        cents: cents,
-        percent: bestPrice === 0 ? null : (cents / bestPrice) * 100,
-    };
+    return listedPrice - bestPrice;
 }
 
 // One store for the page. The market listings and the trade offer inventory are never

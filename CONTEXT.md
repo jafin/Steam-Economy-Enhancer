@@ -33,7 +33,6 @@ An exact three-way comparison — one cent above the best price is overpriced.
 _Avoid_: status, state, price check result
 
 **Price delta**:
-The signed distance from the best price to the listed price, carried as both an amount and
-a percentage of the best price. Positive means the listing asks more than the best price;
-the sign always agrees with the verdict.
+The signed amount by which the listed price differs from the best price. Positive means
+the listing asks more than the best price; the sign always agrees with the verdict.
 _Avoid_: difference, gap, spread, margin
