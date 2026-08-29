@@ -36,6 +36,24 @@ export interface RunQueueOptions {
     successDelayMs?: number | (() => number);
     /** Whether a failed task gets one more attempt with ignoreErrors forced on. */
     retryOnFailure?: boolean;
+    /**
+     * Where a retried task goes back onto the queue. Defaults to 'back'.
+     *
+     * 'front' matters when the task is holding something open while it waits. A relist has
+     * already removed the listing by the time it tries to sell, so an item whose retry sits
+     * behind three hundred others stays unlisted for the whole run; the queues that hand
+     * work back that way ask for 'front'. Where a task holds nothing open -- a pricing pass,
+     * a removal -- 'back' is the kinder order, because it lets the rest of the run continue.
+     */
+    retryPlacement?: 'front' | 'back';
+    /**
+     * Called once per task when the queue has finished with it, successfully or not.
+     *
+     * Once per *task*, not once per attempt: a task that fails and is retried reports only
+     * after the retry. Queues use this to count work done, and counting an attempt rather
+     * than a task is how a progress bar ends up running past its own total.
+     */
+    onTaskDone?: (task: QueueTask, success: boolean) => void;
 }
 
 /** Backoff state for one queue. Mutable by design -- each queue owns exactly one. */
@@ -142,6 +160,11 @@ export function nextQueueStep(
 // callback(success, cached). A cached answer never reached Steam, so - like the delay -
 // it is left out of the failure count entirely.
 //
+// onTaskDone is what let the market queues stop hand-rolling this. Each of them wrapped
+// completion in a local callback that also advanced a progress bar, and with nowhere to put
+// that they kept their own copy of the whole wrapper - and so never got the escalating
+// backoff this file exists to provide.
+//
 // Returns the async.queue itself. push/kill/drain/length/idle all still work exactly as
 // they did on a hand-rolled queue, so call sites that manage a queue's lifecycle do not
 // need to change.
@@ -160,7 +183,16 @@ export function runQueue(worker: QueueWorker, options: RunQueueOptions = {}) {
 
             if (step.retry) {
                 task.ignoreErrors = true;
-                queue.push(task);
+
+                if (options.retryPlacement === 'front') {
+                    queue.unshift(task);
+                } else {
+                    queue.push(task);
+                }
+            } else {
+                // Only once the queue is actually finished with this task. Reporting on
+                // every attempt would count a retried task twice.
+                options.onTaskDone?.(task, success);
             }
 
             setTimeout(() => next(), step.delay);

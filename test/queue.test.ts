@@ -1,6 +1,18 @@
-import { test } from 'vitest';
+import { test, afterEach, vi } from 'vitest';
 import assert from 'node:assert';
 import * as see from '../src/main.ts';
+
+afterEach(() => {
+    vi.useRealTimers();
+});
+
+// Runs a queue to completion on a fake clock. The delays between tasks are seconds long by
+// design, so waiting them out for real would put minutes on the suite.
+async function drain(queue: any) {
+    await vi.advanceTimersByTimeAsync(120000);
+
+    assert.strictEqual(queue.length(), 0, 'queue did not drain');
+}
 
 const SHORT = [1000, 1500];
 const LONG = [30000, 45000];
@@ -105,6 +117,117 @@ test('a second failure in a row still backs off hard even with retryOnFailure se
     const second = see.nextQueueStep(false, false, failures, true, { retryOnFailure: true });
 
     assertWithin(second.delay, LONG, 'second failure in a row');
+});
+
+// The two options below are runQueue's, not nextQueueStep's, so these drive real tasks
+// through a real async.queue rather than testing the decision in isolation.
+
+test('onTaskDone reports a task once, when it succeeds first time', async () => {
+    vi.useFakeTimers();
+
+    const done: any[] = [];
+    const worker = (_task: any, _ignoreErrors: boolean, cb: any) => cb(true);
+
+    const queue = see.runQueue(worker, {
+        successDelayMs: 0,
+        onTaskDone: (task: any, success: boolean) => done.push([task.id, success]),
+    });
+
+    queue.push({ id: 'a' });
+    queue.push({ id: 'b' });
+    await drain(queue);
+
+    assert.deepStrictEqual(done, [
+        ['a', true],
+        ['b', true],
+    ]);
+});
+
+test('onTaskDone reports a retried task once, not once per attempt', async () => {
+    // The market queues counted progress in the callback they handed to the retry, so a
+    // retried listing advanced the bar once however many attempts it took. Firing this hook
+    // per attempt instead would count it twice and run the bar past its own total.
+    vi.useFakeTimers();
+
+    const done: any[] = [];
+    let attempts = 0;
+
+    const worker = (_task: any, _ignoreErrors: boolean, cb: any) => {
+        attempts += 1;
+        cb(attempts > 1);
+    };
+
+    const queue = see.runQueue(worker, {
+        retryOnFailure: true,
+        successDelayMs: 0,
+        onTaskDone: (task: any, success: boolean) => done.push([task.id, success]),
+    });
+
+    queue.push({ id: 'a' });
+    await drain(queue);
+
+    assert.strictEqual(attempts, 2, 'failed once, retried once');
+    assert.deepStrictEqual(done, [['a', true]]);
+});
+
+test('onTaskDone reports a task that fails and is not retried', async () => {
+    vi.useFakeTimers();
+
+    const done: any[] = [];
+    const worker = (_task: any, _ignoreErrors: boolean, cb: any) => cb(false);
+
+    const queue = see.runQueue(worker, {
+        onTaskDone: (task: any, success: boolean) => done.push([task.id, success]),
+    });
+
+    queue.push({ id: 'a' });
+    await drain(queue);
+
+    assert.deepStrictEqual(done, [['a', false]]);
+});
+
+test('a retry goes to the back of the queue by default', async () => {
+    vi.useFakeTimers();
+
+    const started: string[] = [];
+    const worker = (task: any, ignoreErrors: boolean, cb: any) => {
+        started.push(task.id);
+        cb(ignoreErrors || task.id !== 'a');
+    };
+
+    const queue = see.runQueue(worker, { retryOnFailure: true, successDelayMs: 0 });
+
+    queue.push({ id: 'a' });
+    queue.push({ id: 'b' });
+    queue.push({ id: 'c' });
+    await drain(queue);
+
+    assert.deepStrictEqual(started, ['a', 'b', 'c', 'a']);
+});
+
+test("retryPlacement 'front' puts the retry ahead of work already queued", async () => {
+    // For relist the task is holding something open: the listing is already removed, so an
+    // item whose retry waits behind the rest of the run stays unlisted for all of it.
+    vi.useFakeTimers();
+
+    const started: string[] = [];
+    const worker = (task: any, ignoreErrors: boolean, cb: any) => {
+        started.push(task.id);
+        cb(ignoreErrors || task.id !== 'a');
+    };
+
+    const queue = see.runQueue(worker, {
+        retryOnFailure: true,
+        successDelayMs: 0,
+        retryPlacement: 'front',
+    });
+
+    queue.push({ id: 'a' });
+    queue.push({ id: 'b' });
+    queue.push({ id: 'c' });
+    await drain(queue);
+
+    assert.deepStrictEqual(started, ['a', 'a', 'b', 'c']);
 });
 
 test('runQueue returns a queue-shaped object without touching the network', () => {
