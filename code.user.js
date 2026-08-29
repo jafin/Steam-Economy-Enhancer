@@ -4334,11 +4334,12 @@
             return arr;
         }
 
-        function sumTradeOfferAssets(assets, user) {
+        // side is 'me' or 'them' - see steamPage.tradeAssets/findTradeAsset.
+        function sumTradeOfferAssets(side) {
             // What the offer holds and what it is worth. The prices come from the state the
             // inventory pass wrote, not from the class names on the item elements.
-            const summary = aggregateTradeOfferAssets(assets, (asset) => {
-                const rgItem = user.findAsset(asset.appid, asset.contextid, asset.assetid);
+            const summary = aggregateTradeOfferAssets(steamPage.tradeAssets(side), (asset) => {
+                const rgItem = steamPage.findTradeAsset(side, asset.appid, asset.contextid, asset.assetid);
 
                 if (rgItem == null) {
                     return null;
@@ -4379,21 +4380,18 @@
 
     let lastTradeOfferSum = 0;
 
-    function hasLoadedAllTradeOfferItems() {
-        for (let i = 0; i < unsafeWindow.g_rgCurrentTradeStatus.them.assets.length; i++) {
-            const asset = unsafeWindow.UserThem.findAsset(unsafeWindow.g_rgCurrentTradeStatus.them.assets[i].appid, unsafeWindow.g_rgCurrentTradeStatus.them.assets[i].contextid, unsafeWindow.g_rgCurrentTradeStatus.them.assets[i].assetid);
-            if (asset == null) {
-                return false;
-            }
-        }
-        for (let i = 0; i < unsafeWindow.g_rgCurrentTradeStatus.me.assets.length; i++) {
-            const asset = unsafeWindow.UserYou.findAsset(unsafeWindow.g_rgCurrentTradeStatus.me.assets[i].appid, unsafeWindow.g_rgCurrentTradeStatus.me.assets[i].contextid, unsafeWindow.g_rgCurrentTradeStatus.me.assets[i].assetid);
-            if (asset == null) {
-                return false;
-            }
-        }
-        return true;
+    // Both sides of a trade are walked the same way, by the same two steamPage calls, in
+    // four different places. TRADE_SIDES is that walk, done once each time instead of once
+    // per side per place.
+    const TRADE_SIDES = ['them', 'me'];
 
+    function tradeItemsFor(side) {
+        return steamPage.tradeAssets(side).
+            map((asset) => steamPage.findTradeAsset(side, asset.appid, asset.contextid, asset.assetid));
+    }
+
+    function hasLoadedAllTradeOfferItems() {
+        return TRADE_SIDES.every((side) => tradeItemsFor(side).every((asset) => asset != null));
     }
 
     function initializeTradeOfferUI() {
@@ -4403,16 +4401,7 @@
             };
 
             const updateInventoryPricesInTrade = function () {
-                const items = [];
-                for (let i = 0; i < unsafeWindow.g_rgCurrentTradeStatus.them.assets.length; i++) {
-                    const asset = unsafeWindow.UserThem.findAsset(unsafeWindow.g_rgCurrentTradeStatus.them.assets[i].appid, unsafeWindow.g_rgCurrentTradeStatus.them.assets[i].contextid, unsafeWindow.g_rgCurrentTradeStatus.them.assets[i].assetid);
-                    items.push(asset);
-                }
-                for (let i = 0; i < unsafeWindow.g_rgCurrentTradeStatus.me.assets.length; i++) {
-                    const asset = unsafeWindow.UserYou.findAsset(unsafeWindow.g_rgCurrentTradeStatus.me.assets[i].appid, unsafeWindow.g_rgCurrentTradeStatus.me.assets[i].contextid, unsafeWindow.g_rgCurrentTradeStatus.me.assets[i].assetid);
-                    items.push(asset);
-                }
-                setInventoryPrices(items);
+                setInventoryPrices(TRADE_SIDES.flatMap((side) => tradeItemsFor(side)));
             };
 
             $('.trade_right > div > div > div > .trade_item_box').observe('childlist subtree', () => {
@@ -4420,7 +4409,8 @@
                     return;
                 }
 
-                const currentTradeOfferSum = unsafeWindow.g_rgCurrentTradeStatus.me.assets.length + unsafeWindow.g_rgCurrentTradeStatus.them.assets.length;
+                const currentTradeOfferSum = TRADE_SIDES.
+                    reduce((total, side) => total + steamPage.tradeAssets(side).length, 0);
                 if (lastTradeOfferSum != currentTradeOfferSum) {
                     updateInventoryPricesInTrade();
                 }
@@ -4430,8 +4420,8 @@
                 $('#trade_offer_your_sum').remove();
                 $('#trade_offer_their_sum').remove();
 
-                const your_sum = sumTradeOfferAssets(unsafeWindow.g_rgCurrentTradeStatus.me.assets, unsafeWindow.UserYou);
-                const their_sum = sumTradeOfferAssets(unsafeWindow.g_rgCurrentTradeStatus.them.assets, unsafeWindow.UserThem);
+                const your_sum = sumTradeOfferAssets('me');
+                const their_sum = sumTradeOfferAssets('them');
 
                 $('div.offerheader:nth-child(1) > div:nth-child(3)').append(`<div class="trade_offer_sum" id="trade_offer_your_sum">${your_sum}</div>`);
                 $('div.offerheader:nth-child(3) > div:nth-child(3)').append(`<div class="trade_offer_sum" id="trade_offer_their_sum">${their_sum}</div>`);
@@ -4467,7 +4457,7 @@
                         return;
                     }
 
-                    unsafeWindow.MoveItemToTrade(it);
+                    steamPage.moveItemToTrade(it);
                 });
             });
         }
@@ -4554,7 +4544,7 @@
             </div>
         </div>`);
 
-        unsafeWindow.ShowConfirmDialog('Steam Economy Enhancer', price_options).done(() => {
+        steamPage.showConfirmDialog('Steam Economy Enhancer', price_options).done(() => {
             setSetting(SETTING_MIN_NORMAL_PRICE, $(`#${SETTING_MIN_NORMAL_PRICE}`, price_options).val());
             setSetting(SETTING_MAX_NORMAL_PRICE, $(`#${SETTING_MAX_NORMAL_PRICE}`, price_options).val());
             setSetting(SETTING_MIN_FOIL_PRICE, $(`#${SETTING_MIN_FOIL_PRICE}`, price_options).val());
