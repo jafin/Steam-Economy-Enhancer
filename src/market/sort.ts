@@ -4,7 +4,7 @@
 // dependency behind one module means replacing it later is a single-file question.
 
 import { logConsole } from '../ui/logger.ts';
-import { getPriceValueAsInt } from './listings.ts';
+import { getPriceValueAsInt } from './assets.ts';
 import { refreshMarketOverpricedButtons } from './relist.ts';
 import $ from 'jquery';
 import * as luxon from 'luxon';
