@@ -8,7 +8,7 @@ import { runQueue } from '../queue/index.ts';
 import { market } from '../steam/market.ts';
 import { getRandomInt } from '../util/numbers.ts';
 import { increaseMarketProgress } from './progress.ts';
-import { getListingFromLists, marketLists, removeListingFromLists } from './sort.ts';
+import { getListingFromLists, marketLists, removeListingFromLists } from './rows.ts';
 import $ from 'jquery';
 export const marketRemoveQueue = runQueue(marketRemoveQueueWorker, {
     retryOnFailure: true,

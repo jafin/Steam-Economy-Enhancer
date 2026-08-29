@@ -14,7 +14,7 @@ import { getAssetInfoFromListingId } from './assets.ts';
 import { marketListingsRelistedAssets } from './listings.ts';
 import { listingState } from './listingState.ts';
 import { increaseMarketProgress, increaseMarketProgressMax, marketProgress } from './progress.ts';
-import { getListFromContainer, getListingFromLists, removeListingFromLists } from './sort.ts';
+import { getListFromContainer, getListingFromLists, removeListingFromLists } from './rows.ts';
 import $ from 'jquery';
 // Listings already queued for relisting. Relisting one twice is pointless work: the
 // second attempt looks up a listing that the first one already removed. This replaces

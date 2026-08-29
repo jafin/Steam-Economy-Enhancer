@@ -42,7 +42,8 @@ import {
 import { getListingPriceDelta, getListingVerdict, listingState } from './listingState.ts';
 import { increaseMarketProgress, increaseMarketProgressMax } from './progress.ts';
 import { queueOverpricedItemListing, refreshMarketOverpricedButtons } from './relist.ts';
-import { getListingFromLists, marketLists, sortMarketListings } from './sort.ts';
+import { getListingFromLists, marketLists } from './rows.ts';
+import { sortMarketListings } from './sort.ts';
 import { updateMarketSelectAllButton } from './ui.ts';
 import $ from 'jquery';
 import async from 'async';

@@ -5,7 +5,7 @@
 
 import { steamPage } from '../steam/instance.ts';
 import { replaceNonNumbers } from '../util/numbers.ts';
-import { getListingFromLists } from './sort.ts';
+import { getListingFromLists } from './rows.ts';
 import $ from 'jquery';
 
 // Match number part from any currency format

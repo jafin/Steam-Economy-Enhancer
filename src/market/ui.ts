@@ -10,7 +10,8 @@ import { processMarketListings } from './listings.ts';
 import { increaseMarketProgressMax, marketProgress } from './progress.ts';
 import { queueOverpricedItemListing } from './relist.ts';
 import { marketRemoveQueue } from './remove.ts';
-import { getListFromContainer, getListingFromLists, sortMarketListings } from './sort.ts';
+import { getListFromContainer, getListingFromLists } from './rows.ts';
+import { sortMarketListings } from './sort.ts';
 import $ from 'jquery';
 // Update the select/deselect all button on the market.
 export function updateMarketSelectAllButton() {

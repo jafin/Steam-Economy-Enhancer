@@ -5,18 +5,9 @@
 
 import { logConsole } from '../ui/logger.ts';
 import { getPriceValueAsInt } from './assets.ts';
-import {
-    getListFromContainer,
-    getListingFromLists,
-    marketLists,
-    removeListingFromLists,
-} from './rows.ts';
+import { getListFromContainer } from './rows.ts';
 import $ from 'jquery';
 import * as luxon from 'luxon';
-
-// Re-exported so the rest of src/market/ can keep importing the row registry from here for
-// one more commit, until every importer points at rows.ts directly.
-export { getListFromContainer, getListingFromLists, marketLists, removeListingFromLists };
 
 // Sort the market listings.
 export function sortMarketListings(elem, isPrice, isDateOrQuantity, isName) {
