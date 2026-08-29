@@ -24,7 +24,7 @@
 // @grant        unsafeWindow
 // ==/UserScript==
 
-(function(jquery, async, localforage, luxon, list_js) {
+(function(jquery, async, luxon, list_js, localforage) {
 	"use strict";
 	var __create = Object.create;
 	var __defProp = Object.defineProperty;
@@ -48,9 +48,9 @@
 	}) : target, mod));
 	jquery = __toESM(jquery);
 	async = __toESM(async);
-	localforage = __toESM(localforage);
 	luxon = __toESM(luxon);
 	list_js = __toESM(list_js);
+	localforage = __toESM(localforage);
 	var COLOR_ERROR = "#8A4243";
 	var COLOR_SUCCESS = "#407736";
 	var COLOR_PENDING = "#908F44";
@@ -81,211 +81,6 @@
 	var RETRY_DELAY_SHORT_MAX = 1500;
 	var RETRY_DELAY_LONG_MIN = 3e4;
 	var RETRY_DELAY_LONG_MAX = 45e3;
-	var logger = document.createElement("div");
-	logger.setAttribute("id", "logger");
-	var userScrolled = false;
-	function setUserScrolled(value) {
-		userScrolled = value;
-	}
-	function updateScroll() {
-		if (userScrolled) return;
-		const element = document.getElementById("logger");
-		if (element == null) return;
-		element.scrollTop = element.scrollHeight;
-	}
-	function logDOM(text) {
-		logger.innerHTML += `${text}<br/>`;
-		updateScroll();
-	}
-	var REQUEST_DELAY_MARKET = 1e3;
-	var REQUEST_DELAY_ERROR = 5e3;
-	var REQUEST_BREAKER_STATUSES = [
-		400,
-		401,
-		403,
-		404,
-		405,
-		429
-	];
-	var REQUEST_BREAKER_WINDOW_MS = 3e5;
-	function getRequestStoppedMessage() {
-		return `Steam Economy Enhancer stopped sending requests after 5 failed requests within ${REQUEST_BREAKER_WINDOW_MS / 6e4} minutes. Reload the page to start again.`;
-	}
-	function stopRequests() {
-		request.stopped = true;
-		request.errors = 0;
-		console.error(getRequestStoppedMessage());
-		logDOM(getRequestStoppedMessage());
-	}
-	function getRequestDelay(url, status, statusText) {
-		if (status === 0 || status >= 400 || statusText === "error") return REQUEST_DELAY_ERROR;
-		if (url.startsWith("https://steamcommunity.com/market/")) return REQUEST_DELAY_MARKET;
-		return 300;
-	}
-	function request(url, options, callback, { transport = jquery.default.ajax } = {}) {
-		callback = callback || function() {};
-		if (request.stopped) {
-			const error = new Error(getRequestStoppedMessage());
-			setTimeout(() => request.queue.shift()?.(), 1);
-			setTimeout(() => callback(error, null), 0);
-			return;
-		}
-		if (request.pending) {
-			const args = Array.prototype.slice.call(arguments);
-			request.queue.push(() => request(...args));
-			return;
-		}
-		request.pending = true;
-		transport({
-			url,
-			type: options.method,
-			data: options.data,
-			dataType: options.responseType,
-			success: function(data, statusText, xhr) {
-				setTimeout(() => callback(null, data), 0);
-			},
-			error: (xhr, statusText, httpErrorText) => {
-				const error = new Error(`Request failed with status ${xhr.status || 0} (${statusText === "error" ? "http error" : statusText})`);
-				error.url = url;
-				error.method = options.method;
-				error.errorText = statusText || "";
-				error.statusCode = xhr.status || 0;
-				error.responseText = xhr.responseText || "";
-				setTimeout(() => callback(error, null), 0);
-			},
-			complete: (xhr, statusText) => {
-				const delay = getRequestDelay(url, xhr.status, statusText);
-				if (REQUEST_BREAKER_STATUSES.includes(xhr.status)) {
-					if (request.errors++ === 0) setTimeout(() => request.errors = 0, REQUEST_BREAKER_WINDOW_MS);
-					if (request.errors >= 5) stopRequests();
-				}
-				const next = () => {
-					request.pending = false;
-					request.queue.shift()?.();
-				};
-				setTimeout(next, delay);
-			}
-		});
-	}
-	function isRetryMessage(message) {
-		return [
-			"You cannot sell any items until your previous action completes.",
-			"There was a problem listing your item. Refresh the page and try again.",
-			"We were unable to contact the game's item server. The game's item server may be down or Steam may be experiencing temporary connectivity issues. Your listing has not been created. Refresh the page and try again."
-		].indexOf(message) !== -1;
-	}
-	request.queue = [];
-	request.errors = 0;
-	request.pending = false;
-	request.stopped = false;
-	function getLocalStorageItem(name) {
-		try {
-			return localStorage.getItem(name);
-		} catch (e) {
-			`${name}${e}`;
-			return null;
-		}
-	}
-	function setLocalStorageItem(name, value) {
-		try {
-			localStorage.setItem(name, value);
-			return true;
-		} catch (e) {
-			`${name}${e}`;
-			return false;
-		}
-	}
-	function getSessionStorageItem(name) {
-		try {
-			return sessionStorage.getItem(name);
-		} catch (e) {
-			`${name}${e}`;
-			return null;
-		}
-	}
-	function setSessionStorageItem(name, value) {
-		try {
-			sessionStorage.setItem(name, value);
-			return true;
-		} catch (e) {
-			`${name}${e}`;
-			return false;
-		}
-	}
-	var SETTING_MIN_NORMAL_PRICE = "SETTING_MIN_NORMAL_PRICE";
-	var SETTING_MAX_NORMAL_PRICE = "SETTING_MAX_NORMAL_PRICE";
-	var SETTING_MIN_FOIL_PRICE = "SETTING_MIN_FOIL_PRICE";
-	var SETTING_MAX_FOIL_PRICE = "SETTING_MAX_FOIL_PRICE";
-	var SETTING_MIN_MISC_PRICE = "SETTING_MIN_MISC_PRICE";
-	var SETTING_MAX_MISC_PRICE = "SETTING_MAX_MISC_PRICE";
-	var SETTING_PRICE_OFFSET = "SETTING_PRICE_OFFSET";
-	var SETTING_PRICE_MIN_CHECK_PRICE = "SETTING_PRICE_MIN_CHECK_PRICE";
-	var SETTING_PRICE_MIN_LIST_PRICE = "SETTING_PRICE_MIN_LIST_PRICE";
-	var SETTING_PRICE_ALGORITHM = "SETTING_PRICE_ALGORITHM";
-	var SETTING_PRICE_IGNORE_LOWEST_Q = "SETTING_PRICE_IGNORE_LOWEST_Q";
-	var SETTING_PRICE_HISTORY_HOURS = "SETTING_PRICE_HISTORY_HOURS";
-	var SETTING_INVENTORY_PRICE_LABELS = "SETTING_INVENTORY_PRICE_LABELS";
-	var SETTING_TRADEOFFER_PRICE_LABELS = "SETTING_TRADEOFFER_PRICE_LABELS";
-	var SETTING_QUICK_SELL_BUTTONS = "SETTING_QUICK_SELL_BUTTONS";
-	var SETTING_LAST_CACHE = "SETTING_LAST_CACHE";
-	var SETTING_RELIST_AUTOMATICALLY = "SETTING_RELIST_AUTOMATICALLY";
-	var settingDefaults = {
-		SETTING_MIN_NORMAL_PRICE: .05,
-		SETTING_MAX_NORMAL_PRICE: 2.5,
-		SETTING_MIN_FOIL_PRICE: .15,
-		SETTING_MAX_FOIL_PRICE: 10,
-		SETTING_MIN_MISC_PRICE: .05,
-		SETTING_MAX_MISC_PRICE: 10,
-		SETTING_PRICE_OFFSET: 0,
-		SETTING_PRICE_MIN_CHECK_PRICE: 0,
-		SETTING_PRICE_MIN_LIST_PRICE: .03,
-		SETTING_PRICE_ALGORITHM: 1,
-		SETTING_PRICE_IGNORE_LOWEST_Q: 1,
-		SETTING_PRICE_HISTORY_HOURS: 12,
-		SETTING_INVENTORY_PRICE_LABELS: 1,
-		SETTING_TRADEOFFER_PRICE_LABELS: 1,
-		SETTING_QUICK_SELL_BUTTONS: 1,
-		SETTING_LAST_CACHE: 0,
-		SETTING_RELIST_AUTOMATICALLY: 0
-	};
-	function getSettingWithDefault(name) {
-		return getLocalStorageItem(name) || (name in settingDefaults ? settingDefaults[name] : null);
-	}
-	function setSetting(name, value) {
-		setLocalStorageItem(name, value);
-	}
-	function aggregateTradeOfferAssets(assets, resolve) {
-		const counts = new Map();
-		let totalPrice = 0;
-		for (let i = 0; i < assets.length; i++) {
-			const item = resolve(assets[i]);
-			const text = getTradeOfferAssetText(item);
-			counts.set(text, (counts.get(text) || 0) + 1);
-			if (item != null && item.price > 0) totalPrice += item.price;
-		}
-		const items = [];
-		counts.forEach((count, text) => {
-			items.push({
-				text,
-				count
-			});
-		});
-		return {
-			items,
-			totalPrice
-		};
-	}
-	function getTradeOfferAssetText(item) {
-		if (item == null) return "Unknown Item";
-		let text = "";
-		if (item.originalAmount != null && item.amount != null) {
-			const usedAmount = parseInt(item.originalAmount) - parseInt(item.amount);
-			text += `${usedAmount.toString()}x `;
-		}
-		text += item.name;
-		if (item.type != null && item.type.length > 0) text += ` (${item.type})`;
-		return text;
-	}
 	function createListingState() {
 		const states = new Map();
 		return {
@@ -390,6 +185,279 @@
 		if (item.type != null && item.type.toLowerCase().includes("foil trading card")) return true;
 		return false;
 	}
+	var logger = document.createElement("div");
+	logger.setAttribute("id", "logger");
+	var userScrolled = false;
+	function setUserScrolled(value) {
+		userScrolled = value;
+	}
+	function updateScroll() {
+		if (userScrolled) return;
+		const element = document.getElementById("logger");
+		if (element == null) return;
+		element.scrollTop = element.scrollHeight;
+	}
+	function logDOM(text) {
+		logger.innerHTML += `${text}<br/>`;
+		updateScroll();
+	}
+	function getLocalStorageItem(name) {
+		try {
+			return localStorage.getItem(name);
+		} catch (e) {
+			`${name}${e}`;
+			return null;
+		}
+	}
+	function setLocalStorageItem(name, value) {
+		try {
+			localStorage.setItem(name, value);
+			return true;
+		} catch (e) {
+			`${name}${e}`;
+			return false;
+		}
+	}
+	function getSessionStorageItem(name) {
+		try {
+			return sessionStorage.getItem(name);
+		} catch (e) {
+			`${name}${e}`;
+			return null;
+		}
+	}
+	function setSessionStorageItem(name, value) {
+		try {
+			sessionStorage.setItem(name, value);
+			return true;
+		} catch (e) {
+			`${name}${e}`;
+			return false;
+		}
+	}
+	var SETTING_MIN_NORMAL_PRICE = "SETTING_MIN_NORMAL_PRICE";
+	var SETTING_MAX_NORMAL_PRICE = "SETTING_MAX_NORMAL_PRICE";
+	var SETTING_MIN_FOIL_PRICE = "SETTING_MIN_FOIL_PRICE";
+	var SETTING_MAX_FOIL_PRICE = "SETTING_MAX_FOIL_PRICE";
+	var SETTING_MIN_MISC_PRICE = "SETTING_MIN_MISC_PRICE";
+	var SETTING_MAX_MISC_PRICE = "SETTING_MAX_MISC_PRICE";
+	var SETTING_PRICE_OFFSET = "SETTING_PRICE_OFFSET";
+	var SETTING_PRICE_MIN_CHECK_PRICE = "SETTING_PRICE_MIN_CHECK_PRICE";
+	var SETTING_PRICE_MIN_LIST_PRICE = "SETTING_PRICE_MIN_LIST_PRICE";
+	var SETTING_PRICE_ALGORITHM = "SETTING_PRICE_ALGORITHM";
+	var SETTING_PRICE_IGNORE_LOWEST_Q = "SETTING_PRICE_IGNORE_LOWEST_Q";
+	var SETTING_PRICE_HISTORY_HOURS = "SETTING_PRICE_HISTORY_HOURS";
+	var SETTING_INVENTORY_PRICE_LABELS = "SETTING_INVENTORY_PRICE_LABELS";
+	var SETTING_TRADEOFFER_PRICE_LABELS = "SETTING_TRADEOFFER_PRICE_LABELS";
+	var SETTING_QUICK_SELL_BUTTONS = "SETTING_QUICK_SELL_BUTTONS";
+	var SETTING_LAST_CACHE = "SETTING_LAST_CACHE";
+	var SETTING_RELIST_AUTOMATICALLY = "SETTING_RELIST_AUTOMATICALLY";
+	var settingDefaults = {
+		SETTING_MIN_NORMAL_PRICE: .05,
+		SETTING_MAX_NORMAL_PRICE: 2.5,
+		SETTING_MIN_FOIL_PRICE: .15,
+		SETTING_MAX_FOIL_PRICE: 10,
+		SETTING_MIN_MISC_PRICE: .05,
+		SETTING_MAX_MISC_PRICE: 10,
+		SETTING_PRICE_OFFSET: 0,
+		SETTING_PRICE_MIN_CHECK_PRICE: 0,
+		SETTING_PRICE_MIN_LIST_PRICE: .03,
+		SETTING_PRICE_ALGORITHM: 1,
+		SETTING_PRICE_IGNORE_LOWEST_Q: 1,
+		SETTING_PRICE_HISTORY_HOURS: 12,
+		SETTING_INVENTORY_PRICE_LABELS: 1,
+		SETTING_TRADEOFFER_PRICE_LABELS: 1,
+		SETTING_QUICK_SELL_BUTTONS: 1,
+		SETTING_LAST_CACHE: 0,
+		SETTING_RELIST_AUTOMATICALLY: 0
+	};
+	function getSettingWithDefault(name) {
+		return getLocalStorageItem(name) || (name in settingDefaults ? settingDefaults[name] : null);
+	}
+	function setSetting(name, value) {
+		setLocalStorageItem(name, value);
+	}
+	function pickSellListingsHeader(anchored, all) {
+		return anchored.length > 0 ? anchored[0] : all[0];
+	}
+	function createSteamPage(win) {
+		return {
+			isLoggedIn: () => typeof win.g_rgWalletInfo !== "undefined" && win.g_rgWalletInfo != null || typeof win.g_bLoggedIn !== "undefined" && win.g_bLoggedIn,
+			countryCode: () => typeof win.g_strCountryCode !== "undefined" ? win.g_strCountryCode : void 0,
+			walletInfo: () => win.g_rgWalletInfo,
+			appContextData: () => win.g_rgAppContextData,
+			inventoryLoadUrl: () => win.g_strInventoryLoadURL || void 0,
+			profileUrl: () => win.g_strProfileURL || void 0,
+			currencyCode: (currencyId) => win.GetCurrencyCode(currencyId),
+			formatPrice: (valueInCents, currencyCode, currencyCountry) => win.v_currencyformat(valueInCents, currencyCode, currencyCountry),
+			parsePriceText: (text) => win.GetPriceValueAsInt(text),
+			showDialog: (title, html) => win.ShowDialog(title, html),
+			showConfirmDialog: (title, html) => win.ShowConfirmDialog(title, html),
+			activeInventory: () => win.g_ActiveInventory,
+			activeUser: () => win.g_ActiveUser,
+			steamId: () => win.g_steamID,
+			activeSelectView: () => win.iActiveSelectView,
+			onInventorySelectItem(handler) {
+				if (typeof win.CInventory === "undefined") return () => {};
+				const original = win.CInventory.prototype.SelectItem;
+				win.CInventory.prototype.SelectItem = function(event, elItem, rgItem) {
+					original.apply(this, arguments);
+					handler(rgItem);
+				};
+				return () => {
+					win.CInventory.prototype.SelectItem = original;
+				};
+			},
+			assetFor: (appid, contextid, assetid) => win.g_rgAssets?.[appid]?.[contextid]?.[assetid],
+			setAsset: (appid, contextid, assetid, asset) => {
+				win.g_rgAssets[appid][contextid][assetid] = asset;
+			},
+			firstAsset: () => {
+				for (const appid in win.g_rgAssets) for (const contextid in win.g_rgAssets[appid]) for (const assetid in win.g_rgAssets[appid][contextid]) return win.g_rgAssets[appid][contextid][assetid];
+				return null;
+			},
+			mergeAssets: (assets) => win.MergeWithAssetArray(assets),
+			requestFullInventory: (url, callback) => win.RequestFullInventory(url, {}, null, null, callback),
+			myListingsTotalCount: () => typeof win.g_oMyListings !== "undefined" && win.g_oMyListings != null ? win.g_oMyListings.m_cTotalCount : null,
+			goToHistoryPage: (index) => {
+				if (typeof win.g_oMyHistory !== "undefined") win.g_oMyHistory.GoToPage(index);
+			},
+			sellListingsHeader: () => {
+				const anchored = (0, jquery.default)("#tabContentsMyActiveMarketListingsRows").closest(".market_home_listing_table").find(".my_market_header");
+				const all = (0, jquery.default)(".my_market_header");
+				return (0, jquery.default)(pickSellListingsHeader(anchored, all));
+			},
+			tradeAssets: (side) => win.g_rgCurrentTradeStatus[side].assets,
+			findTradeAsset: (side, appid, contextid, assetid) => {
+				return (side === "me" ? win.UserYou : win.UserThem).findAsset(appid, contextid, assetid);
+			},
+			moveItemToTrade: (item) => win.MoveItemToTrade(item)
+		};
+	}
+	var steamPage = createSteamPage(unsafeWindow);
+	steamPage.countryCode();
+	var isLoggedIn = steamPage.isLoggedIn();
+	var currentPage = window.location.href.includes(".com/market") ? window.location.href.includes("market/listings") ? 1 : 0 : window.location.href.includes(".com/tradeoffer") ? 2 : 3;
+	function getInventoryUrl() {
+		const inventoryLoadUrl = steamPage.inventoryLoadUrl();
+		if (inventoryLoadUrl) return inventoryLoadUrl;
+		let profileUrl = `${window.location.origin}/my/`;
+		const steamProfileUrl = steamPage.profileUrl();
+		if (steamProfileUrl) profileUrl = steamProfileUrl;
+		else {
+			const avatar = document.querySelector("#global_actions a.user_avatar");
+			if (avatar) profileUrl = avatar.href;
+		}
+		return `${profileUrl.replace(/\/$/, "")}/inventory/json/`;
+	}
+	var walletInfo = isLoggedIn ? steamPage.walletInfo() : void 0;
+	var currencyId = isLoggedIn && walletInfo != null && walletInfo.wallet_currency != null ? walletInfo.wallet_currency : 3;
+	var currencyCountry = isLoggedIn && walletInfo != null && walletInfo.wallet_country != null ? walletInfo.wallet_country : "US";
+	var currencyCode = steamPage.currencyCode(currencyId);
+	var useRound = [
+		"JPY",
+		"IDR",
+		"UAH",
+		"CLP",
+		"COP",
+		"TWD",
+		"KZT",
+		"CRC",
+		"UYU",
+		"KRW",
+		"VND"
+	].includes(currencyCode);
+	var REQUEST_DELAY_MARKET = 1e3;
+	var REQUEST_DELAY_ERROR = 5e3;
+	var REQUEST_BREAKER_STATUSES = [
+		400,
+		401,
+		403,
+		404,
+		405,
+		429
+	];
+	var REQUEST_BREAKER_WINDOW_MS = 3e5;
+	function getRequestStoppedMessage() {
+		return `Steam Economy Enhancer stopped sending requests after 5 failed requests within ${REQUEST_BREAKER_WINDOW_MS / 6e4} minutes. Reload the page to start again.`;
+	}
+	function stopRequests() {
+		request.stopped = true;
+		request.errors = 0;
+		console.error(getRequestStoppedMessage());
+		logDOM(getRequestStoppedMessage());
+	}
+	function getRequestDelay(url, status, statusText) {
+		if (status === 0 || status >= 400 || statusText === "error") return REQUEST_DELAY_ERROR;
+		if (url.startsWith("https://steamcommunity.com/market/")) return REQUEST_DELAY_MARKET;
+		return 300;
+	}
+	function request(url, options, callback, { transport = jquery.default.ajax } = {}) {
+		callback = callback || function() {};
+		if (request.stopped) {
+			const error = new Error(getRequestStoppedMessage());
+			setTimeout(() => request.queue.shift()?.(), 1);
+			setTimeout(() => callback(error, null), 0);
+			return;
+		}
+		if (request.pending) {
+			const args = Array.prototype.slice.call(arguments);
+			request.queue.push(() => request(...args));
+			return;
+		}
+		request.pending = true;
+		transport({
+			url,
+			type: options.method,
+			data: options.data,
+			dataType: options.responseType,
+			success: function(data, statusText, xhr) {
+				setTimeout(() => callback(null, data), 0);
+			},
+			error: (xhr, statusText, httpErrorText) => {
+				const error = new Error(`Request failed with status ${xhr.status || 0} (${statusText === "error" ? "http error" : statusText})`);
+				error.url = url;
+				error.method = options.method;
+				error.errorText = statusText || "";
+				error.statusCode = xhr.status || 0;
+				error.responseText = xhr.responseText || "";
+				setTimeout(() => callback(error, null), 0);
+			},
+			complete: (xhr, statusText) => {
+				const delay = getRequestDelay(url, xhr.status, statusText);
+				if (REQUEST_BREAKER_STATUSES.includes(xhr.status)) {
+					if (request.errors++ === 0) setTimeout(() => request.errors = 0, REQUEST_BREAKER_WINDOW_MS);
+					if (request.errors >= 5) stopRequests();
+				}
+				const next = () => {
+					request.pending = false;
+					request.queue.shift()?.();
+				};
+				setTimeout(next, delay);
+			}
+		});
+	}
+	function isRetryMessage(message) {
+		return [
+			"You cannot sell any items until your previous action completes.",
+			"There was a problem listing your item. Refresh the page and try again.",
+			"We were unable to contact the game's item server. The game's item server may be down or Steam may be experiencing temporary connectivity issues. Your listing has not been created. Refresh the page and try again."
+		].indexOf(message) !== -1;
+	}
+	request.queue = [];
+	request.errors = 0;
+	request.pending = false;
+	request.stopped = false;
+	function readCookie(name) {
+		const nameEQ = `${name}=`;
+		const ca = document.cookie.split(";");
+		for (let i = 0; i < ca.length; i++) {
+			let c = ca[i];
+			while (c.charAt(0) == " ") c = c.substring(1, c.length);
+			if (c.indexOf(nameEQ) == 0) return decodeURIComponent(c.substring(nameEQ.length, c.length));
+		}
+		return null;
+	}
 	function priceBeforeFees(price, item, rules) {
 		let publisherFee = -1;
 		if (item != null) {
@@ -456,62 +524,446 @@
 			amount: parseInt(String(nAmountToSend))
 		};
 	}
-	function pickSellListingsHeader(anchored, all) {
-		return anchored.length > 0 ? anchored[0] : all[0];
+	localforage.default.createInstance({ name: "see_persistent" });
+	var storageSession;
+	var noCache = new URL(window.location.href).searchParams.get("no-cache") != null;
+	if (getSessionStorageItem("SESSION") == null || noCache) {
+		let lastCache = getSettingWithDefault(SETTING_LAST_CACHE);
+		if (lastCache > 5) lastCache = 0;
+		setSetting(SETTING_LAST_CACHE, lastCache + 1);
+		storageSession = localforage.default.createInstance({ name: `see_session_${lastCache}` });
+		storageSession.clear();
+		setSessionStorageItem("SESSION", lastCache);
+	} else storageSession = localforage.default.createInstance({ name: `see_session_${getSessionStorageItem("SESSION")}` });
+	function SteamMarket(appContext, inventoryUrl, walletInfo) {
+		this.appContext = appContext;
+		this.inventoryUrl = inventoryUrl;
+		this.walletInfo = walletInfo;
+		this.inventoryUrlBase = inventoryUrl.replace("/inventory/json", "");
+		if (!this.inventoryUrlBase.endsWith("/")) this.inventoryUrlBase += "/";
 	}
-	function createSteamPage(win) {
-		return {
-			isLoggedIn: () => typeof win.g_rgWalletInfo !== "undefined" && win.g_rgWalletInfo != null || typeof win.g_bLoggedIn !== "undefined" && win.g_bLoggedIn,
-			countryCode: () => typeof win.g_strCountryCode !== "undefined" ? win.g_strCountryCode : void 0,
-			walletInfo: () => win.g_rgWalletInfo,
-			appContextData: () => win.g_rgAppContextData,
-			inventoryLoadUrl: () => win.g_strInventoryLoadURL || void 0,
-			profileUrl: () => win.g_strProfileURL || void 0,
-			currencyCode: (currencyId) => win.GetCurrencyCode(currencyId),
-			formatPrice: (valueInCents, currencyCode, currencyCountry) => win.v_currencyformat(valueInCents, currencyCode, currencyCountry),
-			parsePriceText: (text) => win.GetPriceValueAsInt(text),
-			showDialog: (title, html) => win.ShowDialog(title, html),
-			showConfirmDialog: (title, html) => win.ShowConfirmDialog(title, html),
-			activeInventory: () => win.g_ActiveInventory,
-			activeUser: () => win.g_ActiveUser,
-			steamId: () => win.g_steamID,
-			activeSelectView: () => win.iActiveSelectView,
-			onInventorySelectItem(handler) {
-				if (typeof win.CInventory === "undefined") return () => {};
-				const original = win.CInventory.prototype.SelectItem;
-				win.CInventory.prototype.SelectItem = function(event, elItem, rgItem) {
-					original.apply(this, arguments);
-					handler(rgItem);
-				};
-				return () => {
-					win.CInventory.prototype.SelectItem = original;
-				};
-			},
-			assetFor: (appid, contextid, assetid) => win.g_rgAssets?.[appid]?.[contextid]?.[assetid],
-			setAsset: (appid, contextid, assetid, asset) => {
-				win.g_rgAssets[appid][contextid][assetid] = asset;
-			},
-			firstAsset: () => {
-				for (const appid in win.g_rgAssets) for (const contextid in win.g_rgAssets[appid]) for (const assetid in win.g_rgAssets[appid][contextid]) return win.g_rgAssets[appid][contextid][assetid];
-				return null;
-			},
-			mergeAssets: (assets) => win.MergeWithAssetArray(assets),
-			requestFullInventory: (url, callback) => win.RequestFullInventory(url, {}, null, null, callback),
-			myListingsTotalCount: () => typeof win.g_oMyListings !== "undefined" && win.g_oMyListings != null ? win.g_oMyListings.m_cTotalCount : null,
-			goToHistoryPage: (index) => {
-				if (typeof win.g_oMyHistory !== "undefined") win.g_oMyHistory.GoToPage(index);
-			},
-			sellListingsHeader: () => {
-				const anchored = (0, jquery.default)("#tabContentsMyActiveMarketListingsRows").closest(".market_home_listing_table").find(".my_market_header");
-				const all = (0, jquery.default)(".my_market_header");
-				return (0, jquery.default)(pickSellListingsHeader(anchored, all));
-			},
-			tradeAssets: (side) => win.g_rgCurrentTradeStatus[side].assets,
-			findTradeAsset: (side, appid, contextid, assetid) => {
-				return (side === "me" ? win.UserYou : win.UserThem).findAsset(appid, contextid, assetid);
-			},
-			moveItemToTrade: (item) => win.MoveItemToTrade(item)
+	function buildOrderBook(data) {
+		if (!data || !data.success || !data.data) return null;
+		const orderBook = data.data;
+		const buildGraph = (compactOrders) => {
+			const graph = [];
+			if (!Array.isArray(compactOrders)) return graph;
+			for (let i = 0; i < compactOrders.length; i += 2) {
+				const price = parseInt(compactOrders[i], 10);
+				const quantity = parseInt(compactOrders[i + 1], 10);
+				if (isNaN(price) || isNaN(quantity)) continue;
+				graph.push([
+					price / 100,
+					quantity,
+					""
+				]);
+			}
+			return graph;
 		};
+		return {
+			success: 1,
+			highest_buy_order: orderBook.amtMaxBuyOrder != null ? parseInt(orderBook.amtMaxBuyOrder, 10) : 0,
+			lowest_sell_order: orderBook.amtMinSellOrder != null ? parseInt(orderBook.amtMinSellOrder, 10) : 0,
+			buy_order_graph: buildGraph(orderBook.rgCompactBuyOrders),
+			sell_order_graph: buildGraph(orderBook.rgCompactSellOrders),
+			cBuyOrders: orderBook.cBuyOrders,
+			cSellOrders: orderBook.cSellOrders,
+			eCurrency: orderBook.eCurrency
+		};
+	}
+	var market = new SteamMarket(steamPage.appContextData(), getInventoryUrl(), isLoggedIn ? steamPage.walletInfo() : void 0);
+	SteamMarket.prototype.sellItem = function(item, price, callback) {
+		request(`${window.location.origin}/market/sellitem/`, {
+			method: "POST",
+			data: {
+				sessionid: readCookie("sessionid"),
+				appid: item.appid,
+				contextid: item.contextid,
+				assetid: item.assetid || item.id,
+				amount: item.amount || 1,
+				price
+			},
+			responseType: "json"
+		}, callback);
+	};
+	SteamMarket.prototype.removeListing = function(item, isBuyOrder, callback) {
+		request(isBuyOrder ? `${window.location.origin}/market/cancelbuyorder/` : `${window.location.origin}/market/removelisting/${item}`, {
+			method: "POST",
+			data: {
+				sessionid: readCookie("sessionid"),
+				...isBuyOrder ? { buy_orderid: item } : {}
+			},
+			responseType: "json"
+		}, (error, data) => {
+			if (error) {
+				callback(1);
+				return;
+			}
+			callback(null, data);
+		});
+	};
+	SteamMarket.prototype.getPriceHistory = function(item, cache, callback) {
+		if (!(getSettingWithDefault("SETTING_PRICE_ALGORITHM") == 1 || getSettingWithDefault("SETTING_PRICE_ALGORITHM") == 4)) return callback(null, null, true);
+		try {
+			const market_name = getMarketHashName(item);
+			if (market_name == null) {
+				callback(1);
+				return;
+			}
+			const appid = item.appid;
+			if (cache) {
+				const storage_hash = `pricehistory_${appid}+${market_name}`;
+				storageSession.getItem(storage_hash).then((value) => {
+					if (value != null) callback(null, value, true);
+					else market.getCurrentPriceHistory(appid, market_name, callback);
+				}).catch(() => {
+					market.getCurrentPriceHistory(appid, market_name, callback);
+				});
+			} else market.getCurrentPriceHistory(appid, market_name, callback);
+		} catch {
+			return callback(1);
+		}
+	};
+	SteamMarket.prototype.getGooValue = function(item, callback) {
+		try {
+			let appid = item.market_fee_app;
+			for (const action of item.owner_actions) {
+				if (!action.link || !action.link.startsWith("javascript:GetGooValue")) continue;
+				const rgMatches = action.link.match(/GetGooValue\( *'%contextid%', *'%assetid%', *'?(?<appid>[0-9]+)'?/);
+				if (!rgMatches) continue;
+				appid = rgMatches.groups.appid;
+				break;
+			}
+			request(`${this.inventoryUrlBase}ajaxgetgoovalue/`, {
+				method: "GET",
+				data: {
+					sessionid: readCookie("sessionid"),
+					appid,
+					assetid: item.assetid,
+					contextid: item.contextid
+				},
+				responseType: "json"
+			}, (error, data) => {
+				if (error) {
+					callback(1, data);
+					return;
+				}
+				callback(null, data);
+			});
+		} catch {
+			return callback(1);
+		}
+	};
+	SteamMarket.prototype.grindIntoGoo = function(item, gooValueExpected, callback) {
+		try {
+			request(`${this.inventoryUrlBase}ajaxgrindintogoo/`, {
+				method: "POST",
+				data: {
+					sessionid: readCookie("sessionid"),
+					appid: item.market_fee_app,
+					assetid: item.assetid,
+					contextid: item.contextid,
+					goo_value_expected: gooValueExpected
+				},
+				responseType: "json"
+			}, (error, data) => {
+				if (error) {
+					callback(1, data);
+					return;
+				}
+				callback(null, data);
+			});
+		} catch {
+			return callback(1);
+		}
+	};
+	SteamMarket.prototype.unpackBoosterPack = function(item, callback) {
+		try {
+			request(`${this.inventoryUrlBase}ajaxunpackbooster/`, {
+				method: "POST",
+				data: {
+					sessionid: readCookie("sessionid"),
+					appid: item.market_fee_app,
+					communityitemid: item.assetid
+				},
+				responseType: "json"
+			}, (error, data) => {
+				if (error) {
+					callback(1, data);
+					return;
+				}
+				callback(null, data);
+			});
+		} catch {
+			return callback(1);
+		}
+	};
+	SteamMarket.prototype.getCurrentPriceHistory = function(appid, market_name, callback) {
+		request(`${window.location.origin}/market/pricehistory/`, {
+			method: "GET",
+			data: {
+				appid,
+				market_hash_name: market_name
+			},
+			responseType: "json"
+		}, (error, data) => {
+			if (error) {
+				callback(1);
+				return;
+			}
+			if (data && (!data.success || !data.prices)) {
+				callback(2);
+				return;
+			}
+			for (let i = 0; i < data.prices.length; i++) {
+				data.prices[i][1] *= 100;
+				data.prices[i][2] = parseInt(data.prices[i][2]);
+			}
+			const storage_hash = `pricehistory_${appid}+${market_name}`;
+			storageSession.setItem(storage_hash, data.prices);
+			callback(null, data.prices, false);
+		});
+	};
+	SteamMarket.prototype.getOrderBook = function(item, cache, callback) {
+		try {
+			const market_name = getMarketHashName(item);
+			if (market_name == null) {
+				callback(1);
+				return;
+			}
+			const appid = item.appid;
+			if (cache) {
+				const storage_hash = `orderbook_${appid}+${market_name}`;
+				storageSession.getItem(storage_hash).then((value) => {
+					if (value != null) callback(null, value, true);
+					else market.getCurrentOrderBook(item, market_name, callback);
+				}).catch(() => {
+					market.getCurrentOrderBook(item, market_name, callback);
+				});
+			} else market.getCurrentOrderBook(item, market_name, callback);
+		} catch {
+			return callback(1);
+		}
+	};
+	SteamMarket.prototype.getCurrentOrderBook = function(item, market_name, callback) {
+		request(`${window.location.origin}/market/orderbook`, {
+			method: "GET",
+			data: {
+				q: "Load",
+				qp: JSON.stringify([item.appid, market_name])
+			},
+			responseType: "json"
+		}, (error, data) => {
+			if (error) {
+				callback(1, null);
+				return;
+			}
+			const orderbook = buildOrderBook(data?.data);
+			if (orderbook == null) {
+				callback(2, null);
+				return;
+			}
+			const storage_hash = `orderbook_${item.appid}+${market_name}`;
+			storageSession.setItem(storage_hash, orderbook);
+			callback(null, orderbook, false);
+		});
+	};
+	SteamMarket.prototype.getPriceBeforeFees = function(price, item) {
+		return priceBeforeFees(price, item, {
+			walletInfo: this.walletInfo,
+			useRound
+		});
+	};
+	SteamMarket.prototype.getPriceIncludingFees = function(price, item) {
+		return priceIncludingFees(price, item, {
+			walletInfo: this.walletInfo,
+			useRound
+		});
+	};
+	function formatPrice(valueInCents) {
+		return steamPage.formatPrice(valueInCents, currencyCode, currencyCountry);
+	}
+	function getPriceInformationFromItem(item) {
+		return getPriceInformation(getIsTradingCard(item), getIsFoilTradingCard(item));
+	}
+	function getPriceInformation(isTradingCard, isFoilTradingCard) {
+		let maxPrice = 0;
+		let minPrice = 0;
+		if (!isTradingCard) {
+			maxPrice = getSettingWithDefault(SETTING_MAX_MISC_PRICE);
+			minPrice = getSettingWithDefault(SETTING_MIN_MISC_PRICE);
+		} else {
+			maxPrice = isFoilTradingCard ? getSettingWithDefault(SETTING_MAX_FOIL_PRICE) : getSettingWithDefault(SETTING_MAX_NORMAL_PRICE);
+			minPrice = isFoilTradingCard ? getSettingWithDefault(SETTING_MIN_FOIL_PRICE) : getSettingWithDefault(SETTING_MIN_NORMAL_PRICE);
+		}
+		maxPrice = maxPrice * 100;
+		minPrice = minPrice * 100;
+		const maxPriceBeforeFees = market.getPriceBeforeFees(maxPrice);
+		const minPriceBeforeFees = market.getPriceBeforeFees(minPrice);
+		return {
+			maxPrice,
+			minPrice,
+			maxPriceBeforeFees,
+			minPriceBeforeFees
+		};
+	}
+	var NO_LISTING_PRICE_SENTINEL = 65535;
+	function createPricingRules() {
+		return {
+			algorithm: Number(getSettingWithDefault(SETTING_PRICE_ALGORITHM)),
+			offsetCents: Number(getSettingWithDefault(SETTING_PRICE_OFFSET)) * 100,
+			historyHours: Number(getSettingWithDefault(SETTING_PRICE_HISTORY_HOURS)),
+			ignoreLowestOnLowQuantity: getSettingWithDefault(SETTING_PRICE_IGNORE_LOWEST_Q) == 1,
+			walletInfo: market.walletInfo,
+			useRound,
+			now: Date.now()
+		};
+	}
+	function calculateAverageHistoryPriceBeforeFees(history, rules = createPricingRules()) {
+		let highest = 0;
+		let total = 0;
+		if (history != null) {
+			const timeAgo = rules.now - rules.historyHours * 60 * 60 * 1e3;
+			history.forEach((historyItem) => {
+				if (new Date(historyItem[0]).getTime() > timeAgo) {
+					highest += historyItem[1] * historyItem[2];
+					total += historyItem[2];
+				}
+			});
+		}
+		if (total == 0) return 0;
+		highest = Math.floor(highest / total);
+		return priceBeforeFees(highest, null, rules);
+	}
+	function calculateListingPriceBeforeFees(orderbook, rules = createPricingRules()) {
+		if (typeof orderbook === "undefined" || orderbook == null || orderbook.lowest_sell_order == null || orderbook.sell_order_graph == null) return 0;
+		let listingPrice = priceBeforeFees(orderbook.lowest_sell_order, null, rules);
+		if (rules.ignoreLowestOnLowQuantity && orderbook.sell_order_graph.length >= 2) {
+			const listingPrice2ndLowest = priceBeforeFees(orderbook.sell_order_graph[1][0] * 100, null, rules);
+			if (listingPrice2ndLowest > listingPrice) {
+				const numberOfListingsLowest = orderbook.sell_order_graph[0][1];
+				const numberOfListings2ndLowest = orderbook.sell_order_graph[1][1];
+				const percentageLower = 100 * (numberOfListingsLowest / numberOfListings2ndLowest);
+				if (numberOfListings2ndLowest >= 1e3 && percentageLower <= 5) listingPrice = listingPrice2ndLowest;
+				else if (numberOfListings2ndLowest < 1e3 && percentageLower <= 10) listingPrice = listingPrice2ndLowest;
+				else if (numberOfListings2ndLowest < 100 && percentageLower <= 15) listingPrice = listingPrice2ndLowest;
+				else if (numberOfListings2ndLowest < 50 && percentageLower <= 20) listingPrice = listingPrice2ndLowest;
+				else if (numberOfListings2ndLowest < 25 && percentageLower <= 25) listingPrice = listingPrice2ndLowest;
+				else if (numberOfListings2ndLowest < 10 && percentageLower <= 30) listingPrice = listingPrice2ndLowest;
+			}
+		}
+		return listingPrice;
+	}
+	function calculateBuyOrderPriceBeforeFees(orderbook, rules = createPricingRules()) {
+		if (typeof orderbook === "undefined" || orderbook == null) return 0;
+		return priceBeforeFees(orderbook.highest_buy_order, null, rules);
+	}
+	function calculateSellPriceBeforeFees(history, orderbook, applyOffset, minPriceBeforeFees, maxPriceBeforeFees, rules = createPricingRules()) {
+		const historyPrice = calculateAverageHistoryPriceBeforeFees(history, rules);
+		const listingPrice = calculateListingPriceBeforeFees(orderbook, rules);
+		const buyPrice = calculateBuyOrderPriceBeforeFees(orderbook, rules);
+		const shouldUseAverage = rules.algorithm === 1;
+		const shouldUseBuyOrder = rules.algorithm === 3;
+		const shouldUseHistory = rules.algorithm === 4;
+		let calculatedPrice = 0;
+		if (shouldUseBuyOrder) calculatedPrice = buyPrice;
+		else if ((historyPrice < listingPrice || !shouldUseAverage) && !shouldUseHistory) calculatedPrice = listingPrice;
+		else calculatedPrice = historyPrice;
+		let changedToMax = false;
+		if (calculatedPrice == 0) {
+			calculatedPrice = maxPriceBeforeFees;
+			changedToMax = true;
+		}
+		if (!changedToMax && applyOffset) calculatedPrice = calculatedPrice + rules.offsetCents;
+		calculatedPrice = clamp(calculatedPrice, minPriceBeforeFees, maxPriceBeforeFees);
+		if (!shouldUseHistory && typeof orderbook !== "undefined" && orderbook != null && orderbook.highest_buy_order != null) {
+			const buyOrderPrice = priceBeforeFees(orderbook.highest_buy_order, null, rules);
+			if (buyOrderPrice > calculatedPrice) calculatedPrice = buyOrderPrice;
+		}
+		return calculatedPrice;
+	}
+	function markRow(assetKey, status) {
+		(0, jquery.default)(`#${assetKey}`).css("background", ROW_STATUS_COLORS[status]);
+	}
+	function injectCss(css) {
+		const head = document.getElementsByTagName("head")[0];
+		if (!head) return;
+		const style = document.createElement("style");
+		style.type = "text/css";
+		style.innerHTML = css;
+		head.appendChild(style);
+	}
+	function renderSpinner(text) {
+		const { container, spinnerid } = getSpinnerContext();
+		if (container == null || spinnerid == null) return;
+		text = (text || "").trim();
+		removeSpinner();
+		container.append(`
+        <div id="${spinnerid}">
+            <div class="spinner">
+                <div class="rect1"></div>
+                <div class="rect2"></div>
+                <div class="rect3"></div>
+                <div class="rect4"></div>
+                <div class="rect5"></div>
+            </div>
+            ${text ? `<div style="text-align:center">${text}</div>` : ""}
+        </div>`);
+	}
+	function removeSpinner() {
+		const { container, spinnerid } = getSpinnerContext();
+		if (container == null || spinnerid == null) return;
+		(0, jquery.default)(`#${spinnerid}`, container).remove();
+	}
+	function getSpinnerContext() {
+		let container = null;
+		let spinnerid = null;
+		switch (currentPage) {
+			case 0:
+				container = (0, jquery.default)(".my_market_header").eq(0);
+				spinnerid = "market_listings_spinner";
+				break;
+			case 3:
+				container = (0, jquery.default)("#inventory_sell_buttons");
+				spinnerid = "inventory_items_spinner";
+		}
+		container = container && container.length > 0 ? container : null;
+		return {
+			container,
+			spinnerid
+		};
+	}
+	function aggregateTradeOfferAssets(assets, resolve) {
+		const counts = new Map();
+		let totalPrice = 0;
+		for (let i = 0; i < assets.length; i++) {
+			const item = resolve(assets[i]);
+			const text = getTradeOfferAssetText(item);
+			counts.set(text, (counts.get(text) || 0) + 1);
+			if (item != null && item.price > 0) totalPrice += item.price;
+		}
+		const items = [];
+		counts.forEach((count, text) => {
+			items.push({
+				text,
+				count
+			});
+		});
+		return {
+			items,
+			totalPrice
+		};
+	}
+	function getTradeOfferAssetText(item) {
+		if (item == null) return "Unknown Item";
+		let text = "";
+		if (item.originalAmount != null && item.amount != null) {
+			const usedAmount = parseInt(item.originalAmount) - parseInt(item.amount);
+			text += `${usedAmount.toString()}x `;
+		}
+		text += item.name;
+		if (item.type != null && item.type.length > 0) text += ` (${item.type})`;
+		return text;
 	}
 	function getRandomInt(min, max) {
 		return Math.floor(Math.random() * (max - min + 1)) + min;
@@ -963,419 +1415,13 @@
 		$(dataApiDomReadyHandler);
 	})(window.jQuery);
 	jquery.default.noConflict(true);
-	function markRow(assetKey, status) {
-		(0, jquery.default)(`#${assetKey}`).css("background", ROW_STATUS_COLORS[status]);
-	}
 	var marketLists = [];
 	var totalNumberOfProcessedQueueItems = 0;
 	var totalNumberOfQueuedItems = 0;
 	var totalPriceWithFeesOnMarket = 0;
 	var totalPriceWithoutFeesOnMarket = 0;
 	var totalScrap = 0;
-	var steamPage = createSteamPage(unsafeWindow);
-	steamPage.countryCode();
-	var isLoggedIn = steamPage.isLoggedIn();
-	var currentPage = window.location.href.includes(".com/market") ? window.location.href.includes("market/listings") ? 1 : 0 : window.location.href.includes(".com/tradeoffer") ? 2 : 3;
-	var market = new SteamMarket(steamPage.appContextData(), getInventoryUrl(), isLoggedIn ? steamPage.walletInfo() : void 0);
-	var currencyId = isLoggedIn && market != null && market.walletInfo != null && market.walletInfo.wallet_currency != null ? market.walletInfo.wallet_currency : 3;
-	var currencyCountry = isLoggedIn && market != null && market.walletInfo != null && market.walletInfo.wallet_country != null ? market.walletInfo.wallet_country : "US";
-	var currencyCode = steamPage.currencyCode(currencyId);
-	var useRound = [
-		"JPY",
-		"IDR",
-		"UAH",
-		"CLP",
-		"COP",
-		"TWD",
-		"KZT",
-		"CRC",
-		"UYU",
-		"KRW",
-		"VND"
-	].includes(currencyCode);
-	function SteamMarket(appContext, inventoryUrl, walletInfo) {
-		this.appContext = appContext;
-		this.inventoryUrl = inventoryUrl;
-		this.walletInfo = walletInfo;
-		this.inventoryUrlBase = inventoryUrl.replace("/inventory/json", "");
-		if (!this.inventoryUrlBase.endsWith("/")) this.inventoryUrlBase += "/";
-	}
-	function getInventoryUrl() {
-		const inventoryLoadUrl = steamPage.inventoryLoadUrl();
-		if (inventoryLoadUrl) return inventoryLoadUrl;
-		let profileUrl = `${window.location.origin}/my/`;
-		const steamProfileUrl = steamPage.profileUrl();
-		if (steamProfileUrl) profileUrl = steamProfileUrl;
-		else {
-			const avatar = document.querySelector("#global_actions a.user_avatar");
-			if (avatar) profileUrl = avatar.href;
-		}
-		return `${profileUrl.replace(/\/$/, "")}/inventory/json/`;
-	}
-	localforage.default.createInstance({ name: "see_persistent" });
-	var storageSession;
-	var noCache = new URL(window.location.href).searchParams.get("no-cache") != null;
-	if (getSessionStorageItem("SESSION") == null || noCache) {
-		let lastCache = getSettingWithDefault(SETTING_LAST_CACHE);
-		if (lastCache > 5) lastCache = 0;
-		setSetting(SETTING_LAST_CACHE, lastCache + 1);
-		storageSession = localforage.default.createInstance({ name: `see_session_${lastCache}` });
-		storageSession.clear();
-		setSessionStorageItem("SESSION", lastCache);
-	} else storageSession = localforage.default.createInstance({ name: `see_session_${getSessionStorageItem("SESSION")}` });
-	function formatPrice(valueInCents) {
-		return steamPage.formatPrice(valueInCents, currencyCode, currencyCountry);
-	}
-	function getPriceInformationFromItem(item) {
-		return getPriceInformation(getIsTradingCard(item), getIsFoilTradingCard(item));
-	}
-	function getPriceInformation(isTradingCard, isFoilTradingCard) {
-		let maxPrice = 0;
-		let minPrice = 0;
-		if (!isTradingCard) {
-			maxPrice = getSettingWithDefault(SETTING_MAX_MISC_PRICE);
-			minPrice = getSettingWithDefault(SETTING_MIN_MISC_PRICE);
-		} else {
-			maxPrice = isFoilTradingCard ? getSettingWithDefault(SETTING_MAX_FOIL_PRICE) : getSettingWithDefault(SETTING_MAX_NORMAL_PRICE);
-			minPrice = isFoilTradingCard ? getSettingWithDefault(SETTING_MIN_FOIL_PRICE) : getSettingWithDefault(SETTING_MIN_NORMAL_PRICE);
-		}
-		maxPrice = maxPrice * 100;
-		minPrice = minPrice * 100;
-		const maxPriceBeforeFees = market.getPriceBeforeFees(maxPrice);
-		const minPriceBeforeFees = market.getPriceBeforeFees(minPrice);
-		return {
-			maxPrice,
-			minPrice,
-			maxPriceBeforeFees,
-			minPriceBeforeFees
-		};
-	}
-	var ALGORITHM_MAX_OF_HISTORY_AND_LISTING = 1;
-	var ALGORITHM_HIGHEST_BUY_ORDER = 3;
-	var ALGORITHM_AVERAGE_HISTORY = 4;
-	var NO_LISTING_PRICE_SENTINEL = 65535;
-	function createPricingRules() {
-		return {
-			algorithm: Number(getSettingWithDefault(SETTING_PRICE_ALGORITHM)),
-			offsetCents: Number(getSettingWithDefault(SETTING_PRICE_OFFSET)) * 100,
-			historyHours: Number(getSettingWithDefault(SETTING_PRICE_HISTORY_HOURS)),
-			ignoreLowestOnLowQuantity: getSettingWithDefault(SETTING_PRICE_IGNORE_LOWEST_Q) == 1,
-			walletInfo: market.walletInfo,
-			useRound,
-			now: Date.now()
-		};
-	}
-	function calculateAverageHistoryPriceBeforeFees(history, rules = createPricingRules()) {
-		let highest = 0;
-		let total = 0;
-		if (history != null) {
-			const timeAgo = rules.now - rules.historyHours * 60 * 60 * 1e3;
-			history.forEach((historyItem) => {
-				if (new Date(historyItem[0]).getTime() > timeAgo) {
-					highest += historyItem[1] * historyItem[2];
-					total += historyItem[2];
-				}
-			});
-		}
-		if (total == 0) return 0;
-		highest = Math.floor(highest / total);
-		return priceBeforeFees(highest, null, rules);
-	}
-	function calculateListingPriceBeforeFees(orderbook, rules = createPricingRules()) {
-		if (typeof orderbook === "undefined" || orderbook == null || orderbook.lowest_sell_order == null || orderbook.sell_order_graph == null) return 0;
-		let listingPrice = priceBeforeFees(orderbook.lowest_sell_order, null, rules);
-		if (rules.ignoreLowestOnLowQuantity && orderbook.sell_order_graph.length >= 2) {
-			const listingPrice2ndLowest = priceBeforeFees(orderbook.sell_order_graph[1][0] * 100, null, rules);
-			if (listingPrice2ndLowest > listingPrice) {
-				const numberOfListingsLowest = orderbook.sell_order_graph[0][1];
-				const numberOfListings2ndLowest = orderbook.sell_order_graph[1][1];
-				const percentageLower = 100 * (numberOfListingsLowest / numberOfListings2ndLowest);
-				if (numberOfListings2ndLowest >= 1e3 && percentageLower <= 5) listingPrice = listingPrice2ndLowest;
-				else if (numberOfListings2ndLowest < 1e3 && percentageLower <= 10) listingPrice = listingPrice2ndLowest;
-				else if (numberOfListings2ndLowest < 100 && percentageLower <= 15) listingPrice = listingPrice2ndLowest;
-				else if (numberOfListings2ndLowest < 50 && percentageLower <= 20) listingPrice = listingPrice2ndLowest;
-				else if (numberOfListings2ndLowest < 25 && percentageLower <= 25) listingPrice = listingPrice2ndLowest;
-				else if (numberOfListings2ndLowest < 10 && percentageLower <= 30) listingPrice = listingPrice2ndLowest;
-			}
-		}
-		return listingPrice;
-	}
-	function calculateBuyOrderPriceBeforeFees(orderbook, rules = createPricingRules()) {
-		if (typeof orderbook === "undefined" || orderbook == null) return 0;
-		return priceBeforeFees(orderbook.highest_buy_order, null, rules);
-	}
-	function calculateSellPriceBeforeFees(history, orderbook, applyOffset, minPriceBeforeFees, maxPriceBeforeFees, rules = createPricingRules()) {
-		const historyPrice = calculateAverageHistoryPriceBeforeFees(history, rules);
-		const listingPrice = calculateListingPriceBeforeFees(orderbook, rules);
-		const buyPrice = calculateBuyOrderPriceBeforeFees(orderbook, rules);
-		const shouldUseAverage = rules.algorithm === ALGORITHM_MAX_OF_HISTORY_AND_LISTING;
-		const shouldUseBuyOrder = rules.algorithm === ALGORITHM_HIGHEST_BUY_ORDER;
-		const shouldUseHistory = rules.algorithm === ALGORITHM_AVERAGE_HISTORY;
-		let calculatedPrice = 0;
-		if (shouldUseBuyOrder) calculatedPrice = buyPrice;
-		else if ((historyPrice < listingPrice || !shouldUseAverage) && !shouldUseHistory) calculatedPrice = listingPrice;
-		else calculatedPrice = historyPrice;
-		let changedToMax = false;
-		if (calculatedPrice == 0) {
-			calculatedPrice = maxPriceBeforeFees;
-			changedToMax = true;
-		}
-		if (!changedToMax && applyOffset) calculatedPrice = calculatedPrice + rules.offsetCents;
-		calculatedPrice = clamp(calculatedPrice, minPriceBeforeFees, maxPriceBeforeFees);
-		if (!shouldUseHistory && typeof orderbook !== "undefined" && orderbook != null && orderbook.highest_buy_order != null) {
-			const buyOrderPrice = priceBeforeFees(orderbook.highest_buy_order, null, rules);
-			if (buyOrderPrice > calculatedPrice) calculatedPrice = buyOrderPrice;
-		}
-		return calculatedPrice;
-	}
 	var listingState = createListingState();
-	SteamMarket.prototype.sellItem = function(item, price, callback) {
-		request(`${window.location.origin}/market/sellitem/`, {
-			method: "POST",
-			data: {
-				sessionid: readCookie("sessionid"),
-				appid: item.appid,
-				contextid: item.contextid,
-				assetid: item.assetid || item.id,
-				amount: item.amount || 1,
-				price
-			},
-			responseType: "json"
-		}, callback);
-	};
-	SteamMarket.prototype.removeListing = function(item, isBuyOrder, callback) {
-		request(isBuyOrder ? `${window.location.origin}/market/cancelbuyorder/` : `${window.location.origin}/market/removelisting/${item}`, {
-			method: "POST",
-			data: {
-				sessionid: readCookie("sessionid"),
-				...isBuyOrder ? { buy_orderid: item } : {}
-			},
-			responseType: "json"
-		}, (error, data) => {
-			if (error) {
-				callback(1);
-				return;
-			}
-			callback(null, data);
-		});
-	};
-	SteamMarket.prototype.getPriceHistory = function(item, cache, callback) {
-		if (!(getSettingWithDefault("SETTING_PRICE_ALGORITHM") == 1 || getSettingWithDefault("SETTING_PRICE_ALGORITHM") == 4)) return callback(null, null, true);
-		try {
-			const market_name = getMarketHashName(item);
-			if (market_name == null) {
-				callback(1);
-				return;
-			}
-			const appid = item.appid;
-			if (cache) {
-				const storage_hash = `pricehistory_${appid}+${market_name}`;
-				storageSession.getItem(storage_hash).then((value) => {
-					if (value != null) callback(null, value, true);
-					else market.getCurrentPriceHistory(appid, market_name, callback);
-				}).catch(() => {
-					market.getCurrentPriceHistory(appid, market_name, callback);
-				});
-			} else market.getCurrentPriceHistory(appid, market_name, callback);
-		} catch {
-			return callback(1);
-		}
-	};
-	SteamMarket.prototype.getGooValue = function(item, callback) {
-		try {
-			let appid = item.market_fee_app;
-			for (const action of item.owner_actions) {
-				if (!action.link || !action.link.startsWith("javascript:GetGooValue")) continue;
-				const rgMatches = action.link.match(/GetGooValue\( *'%contextid%', *'%assetid%', *'?(?<appid>[0-9]+)'?/);
-				if (!rgMatches) continue;
-				appid = rgMatches.groups.appid;
-				break;
-			}
-			request(`${this.inventoryUrlBase}ajaxgetgoovalue/`, {
-				method: "GET",
-				data: {
-					sessionid: readCookie("sessionid"),
-					appid,
-					assetid: item.assetid,
-					contextid: item.contextid
-				},
-				responseType: "json"
-			}, (error, data) => {
-				if (error) {
-					callback(1, data);
-					return;
-				}
-				callback(null, data);
-			});
-		} catch {
-			return callback(1);
-		}
-	};
-	SteamMarket.prototype.grindIntoGoo = function(item, gooValueExpected, callback) {
-		try {
-			request(`${this.inventoryUrlBase}ajaxgrindintogoo/`, {
-				method: "POST",
-				data: {
-					sessionid: readCookie("sessionid"),
-					appid: item.market_fee_app,
-					assetid: item.assetid,
-					contextid: item.contextid,
-					goo_value_expected: gooValueExpected
-				},
-				responseType: "json"
-			}, (error, data) => {
-				if (error) {
-					callback(1, data);
-					return;
-				}
-				callback(null, data);
-			});
-		} catch {
-			return callback(1);
-		}
-	};
-	SteamMarket.prototype.unpackBoosterPack = function(item, callback) {
-		try {
-			request(`${this.inventoryUrlBase}ajaxunpackbooster/`, {
-				method: "POST",
-				data: {
-					sessionid: readCookie("sessionid"),
-					appid: item.market_fee_app,
-					communityitemid: item.assetid
-				},
-				responseType: "json"
-			}, (error, data) => {
-				if (error) {
-					callback(1, data);
-					return;
-				}
-				callback(null, data);
-			});
-		} catch {
-			return callback(1);
-		}
-	};
-	SteamMarket.prototype.getCurrentPriceHistory = function(appid, market_name, callback) {
-		request(`${window.location.origin}/market/pricehistory/`, {
-			method: "GET",
-			data: {
-				appid,
-				market_hash_name: market_name
-			},
-			responseType: "json"
-		}, (error, data) => {
-			if (error) {
-				callback(1);
-				return;
-			}
-			if (data && (!data.success || !data.prices)) {
-				callback(2);
-				return;
-			}
-			for (let i = 0; i < data.prices.length; i++) {
-				data.prices[i][1] *= 100;
-				data.prices[i][2] = parseInt(data.prices[i][2]);
-			}
-			const storage_hash = `pricehistory_${appid}+${market_name}`;
-			storageSession.setItem(storage_hash, data.prices);
-			callback(null, data.prices, false);
-		});
-	};
-	function buildOrderBook(data) {
-		if (!data || !data.success || !data.data) return null;
-		const orderBook = data.data;
-		const buildGraph = (compactOrders) => {
-			const graph = [];
-			if (!Array.isArray(compactOrders)) return graph;
-			for (let i = 0; i < compactOrders.length; i += 2) {
-				const price = parseInt(compactOrders[i], 10);
-				const quantity = parseInt(compactOrders[i + 1], 10);
-				if (isNaN(price) || isNaN(quantity)) continue;
-				graph.push([
-					price / 100,
-					quantity,
-					""
-				]);
-			}
-			return graph;
-		};
-		return {
-			success: 1,
-			highest_buy_order: orderBook.amtMaxBuyOrder != null ? parseInt(orderBook.amtMaxBuyOrder, 10) : 0,
-			lowest_sell_order: orderBook.amtMinSellOrder != null ? parseInt(orderBook.amtMinSellOrder, 10) : 0,
-			buy_order_graph: buildGraph(orderBook.rgCompactBuyOrders),
-			sell_order_graph: buildGraph(orderBook.rgCompactSellOrders),
-			cBuyOrders: orderBook.cBuyOrders,
-			cSellOrders: orderBook.cSellOrders,
-			eCurrency: orderBook.eCurrency
-		};
-	}
-	SteamMarket.prototype.getOrderBook = function(item, cache, callback) {
-		try {
-			const market_name = getMarketHashName(item);
-			if (market_name == null) {
-				callback(1);
-				return;
-			}
-			const appid = item.appid;
-			if (cache) {
-				const storage_hash = `orderbook_${appid}+${market_name}`;
-				storageSession.getItem(storage_hash).then((value) => {
-					if (value != null) callback(null, value, true);
-					else market.getCurrentOrderBook(item, market_name, callback);
-				}).catch(() => {
-					market.getCurrentOrderBook(item, market_name, callback);
-				});
-			} else market.getCurrentOrderBook(item, market_name, callback);
-		} catch {
-			return callback(1);
-		}
-	};
-	SteamMarket.prototype.getCurrentOrderBook = function(item, market_name, callback) {
-		request(`${window.location.origin}/market/orderbook`, {
-			method: "GET",
-			data: {
-				q: "Load",
-				qp: JSON.stringify([item.appid, market_name])
-			},
-			responseType: "json"
-		}, (error, data) => {
-			if (error) {
-				callback(1, null);
-				return;
-			}
-			const orderbook = buildOrderBook(data?.data);
-			if (orderbook == null) {
-				callback(2, null);
-				return;
-			}
-			const storage_hash = `orderbook_${item.appid}+${market_name}`;
-			storageSession.setItem(storage_hash, orderbook);
-			callback(null, orderbook, false);
-		});
-	};
-	SteamMarket.prototype.getPriceBeforeFees = function(price, item) {
-		return priceBeforeFees(price, item, {
-			walletInfo: this.walletInfo,
-			useRound
-		});
-	};
-	SteamMarket.prototype.getPriceIncludingFees = function(price, item) {
-		return priceIncludingFees(price, item, {
-			walletInfo: this.walletInfo,
-			useRound
-		});
-	};
-	function readCookie(name) {
-		const nameEQ = `${name}=`;
-		const ca = document.cookie.split(";");
-		for (let i = 0; i < ca.length; i++) {
-			let c = ca[i];
-			while (c.charAt(0) == " ") c = c.substring(1, c.length);
-			if (c.indexOf(nameEQ) == 0) return decodeURIComponent(c.substring(nameEQ.length, c.length));
-		}
-		return null;
-	}
 	function onQueueDrain() {
 		if (itemQueue.length() == 0 && sellQueue.length() == 0 && scrapQueue.length() == 0 && boosterQueue.length() == 0) removeSpinner();
 	}
@@ -2944,54 +2990,6 @@
 		if (currentPage == 0 || currentPage == 1) initializeMarketUI();
 		if (currentPage == 2) initializeTradeOfferUI();
 	});
-	function injectCss(css) {
-		const head = document.getElementsByTagName("head")[0];
-		if (!head) return;
-		const style = document.createElement("style");
-		style.type = "text/css";
-		style.innerHTML = css;
-		head.appendChild(style);
-	}
-	function renderSpinner(text) {
-		const { container, spinnerid } = getSpinnerContext();
-		if (container == null || spinnerid == null) return;
-		text = (text || "").trim();
-		removeSpinner();
-		container.append(`
-        <div id="${spinnerid}">
-            <div class="spinner">
-                <div class="rect1"></div>
-                <div class="rect2"></div>
-                <div class="rect3"></div>
-                <div class="rect4"></div>
-                <div class="rect5"></div>
-            </div>
-            ${text ? `<div style="text-align:center">${text}</div>` : ""}
-        </div>`);
-	}
-	function removeSpinner() {
-		const { container, spinnerid } = getSpinnerContext();
-		if (container == null || spinnerid == null) return;
-		(0, jquery.default)(`#${spinnerid}`, container).remove();
-	}
-	function getSpinnerContext() {
-		let container = null;
-		let spinnerid = null;
-		switch (currentPage) {
-			case 0:
-				container = (0, jquery.default)(".my_market_header").eq(0);
-				spinnerid = "market_listings_spinner";
-				break;
-			case 3:
-				container = (0, jquery.default)("#inventory_sell_buttons");
-				spinnerid = "inventory_items_spinner";
-		}
-		container = container && container.length > 0 ? container : null;
-		return {
-			container,
-			spinnerid
-		};
-	}
 	jquery.default.fn.delayedEach = function(timeout, callback, continuous) {
 		const $els = this;
 		const iterator = function(index) {
@@ -3007,4 +3005,4 @@
 		};
 		iterator(0);
 	};
-})(jQuery, async, localforage, luxon, List);
+})(jQuery, async, luxon, List, localforage);
