@@ -38,6 +38,7 @@ export const userscript: MonkeyUserScript = {
         'https://cdnjs.cloudflare.com/ajax/libs/list.js/2.3.1/list.js',
     ],
     grant: ['unsafeWindow'],
+    homepage: 'https://github.com/jafin/Steam-Economy-Enhancer',
     homepageURL: 'https://github.com/jafin/Steam-Economy-Enhancer',
     supportURL: 'https://github.com/jafin/Steam-Economy-Enhancer/issues',
     downloadURL:

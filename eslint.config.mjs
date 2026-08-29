@@ -1,7 +1,6 @@
 import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
 import prettier from 'eslint-config-prettier';
-import userscripts from 'eslint-plugin-userscripts';
 
 export default tseslint.config(
     {
@@ -39,17 +38,6 @@ export default tseslint.config(
             '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
             // The Steam page boundary is deliberately `any`; see src/steam/globals.d.ts.
             '@typescript-eslint/no-explicit-any': 'off',
-        },
-    },
-    {
-        // The generated artifact. Only the userscript metadata rules apply here -- this is
-        // where eslint-plugin-userscripts earns its place now that the header is generated
-        // from userscript.config.ts rather than hand-written.
-        files: ['dist/*.user.js'],
-        plugins: { userscripts: { rules: userscripts.rules } },
-        rules: { ...userscripts.configs.recommended.rules },
-        settings: {
-            userscriptVersions: { greasemonkey: '*', tampermonkey: '*', violentmonkey: '*' },
         },
     },
     prettier,

@@ -14,7 +14,7 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
-    "lint:dist": "eslint --no-ignore-pattern dist dist/code.user.js",
+    "lint:dist": "eslint --no-ignore --config eslint.dist.config.mjs dist/code.user.js",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },
