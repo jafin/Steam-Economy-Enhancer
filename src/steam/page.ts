@@ -13,8 +13,6 @@
 
 import $ from 'jquery';
 
-import type { SteamWindow } from './globals.d.ts';
-
 // The rule PR #334 needed, pulled out of the DOM lookup that feeds it: prefer the header
 // anchored to the sell listings table itself, and only fall back to "whichever header
 // is first" when the anchored lookup truly finds nothing. `anchored`/`all` need only
@@ -63,6 +61,9 @@ export function createSteamPage(win: any) {
             const original = win.CInventory.prototype.SelectItem;
 
             win.CInventory.prototype.SelectItem = function (event, elItem, rgItem) {
+                // Steam owns this signature, so the patch forwards precisely what Steam
+                // passed rather than a list this file has guessed at.
+                // eslint-disable-next-line prefer-rest-params
                 original.apply(this, arguments);
                 handler(rgItem);
             };

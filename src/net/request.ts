@@ -97,6 +97,10 @@ export function request(
 
     // Add the request to the queue if another one is processing.
     if (request.pending) {
+        // Replays exactly what this call received, including whether a fourth argument was
+        // passed at all. Rebuilding the argument list would bake in the transport default
+        // instead of leaving it to be applied again on the replay.
+        // eslint-disable-next-line prefer-rest-params
         const args = Array.prototype.slice.call(arguments);
 
         request.queue.push(() => request(...args));
@@ -118,10 +122,10 @@ export function request(
         /**
          *
          * @param {*} data - parsed response data, if the request was successful.
-         * @param {string} statusText - one of `success`, `notmodified`, `nocontent`.
-         * @param {XMLHttpRequest} xhr - XMLHttpRequest object with additional jQuery properties.
+         * @param {string} _statusText - one of `success`, `notmodified`, `nocontent`. Unused.
+         * @param {XMLHttpRequest} _xhr - XMLHttpRequest object with jQuery properties. Unused.
          */
-        success: function (data, statusText, xhr) {
+        success: function (data, _statusText, _xhr) {
             setTimeout(() => callback(null, data), 0);
         },
 
@@ -129,9 +133,9 @@ export function request(
          *
          * @param {XMLHttpRequest} xhr - XMLHttpRequest object with additional jQuery properties.
          * @param {string} statusText - one of `error`, `abort`, `timeout` or `parsererror`.
-         * @param {string} httpErrorText - textual portion of the HTTP status, in context of HTTP/2 it may be empty string.
+         * @param {string} _httpErrorText - textual portion of the HTTP status; empty under HTTP/2. Unused.
          */
-        error: (xhr, statusText, httpErrorText) => {
+        error: (xhr, statusText, _httpErrorText) => {
             const error = new Error(
                 `Request failed with status ${xhr.status || 0} (${statusText === 'error' ? 'http error' : statusText})`,
             ) as RequestError;

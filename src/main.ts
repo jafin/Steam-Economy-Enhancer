@@ -13,21 +13,14 @@
 
 import $ from 'jquery';
 import async from 'async';
-import localforage from 'localforage';
 import * as luxon from 'luxon';
 import List from 'list.js';
 
 import {
     COLOR_ERROR,
     COLOR_PENDING,
-    COLOR_PRICE_CHEAP,
-    COLOR_PRICE_EXPENSIVE,
-    COLOR_PRICE_FAIR,
     COLOR_PRICE_NOT_CHECKED,
     COLOR_SUCCESS,
-    enableConsoleLog,
-    ERROR_DATA,
-    ERROR_FAILED,
     ERROR_SUCCESS,
     PAGE_INVENTORY,
     PAGE_MARKET,
@@ -37,13 +30,9 @@ import {
     RETRY_DELAY_LONG_MIN,
     RETRY_DELAY_SHORT_MAX,
     RETRY_DELAY_SHORT_MIN,
-    RETRY_FAILURES_BEFORE_RESET,
-    ROW_STATUS_COLORS,
     VERDICT_COLORS,
-    VERDICT_FAIR,
     VERDICT_MESSAGES,
     VERDICT_OVERPRICED,
-    VERDICT_UNDERPRICED,
 } from './constants.ts';
 import {
     calculateAverageHistoryPriceBeforeFees,
@@ -58,13 +47,7 @@ import {
 import { currentPage, isLoggedIn, steamPage } from './steam/instance.ts';
 import { buildOrderBook, market } from './steam/market.ts';
 import { injectCss, markRow, removeSpinner, renderSpinner } from './ui/index.ts';
-import {
-    request,
-    stopRequests,
-    getRequestDelay,
-    getRequestStoppedMessage,
-    isRetryMessage,
-} from './net/request.ts';
+import { isRetryMessage, request } from './net/request.ts';
 import {
     SETTING_MIN_NORMAL_PRICE,
     SETTING_MAX_NORMAL_PRICE,
@@ -81,13 +64,11 @@ import {
     SETTING_INVENTORY_PRICE_LABELS,
     SETTING_TRADEOFFER_PRICE_LABELS,
     SETTING_QUICK_SELL_BUTTONS,
-    SETTING_LAST_CACHE,
     SETTING_RELIST_AUTOMATICALLY,
-    settingDefaults,
     getSettingWithDefault,
     setSetting,
 } from './settings/index.ts';
-import { aggregateTradeOfferAssets, getTradeOfferAssetText } from './tradeoffer/totals.ts';
+import { aggregateTradeOfferAssets } from './tradeoffer/totals.ts';
 import { createListingState, getListingVerdict } from './market/listingState.ts';
 import {
     flattenItem,
@@ -95,12 +76,10 @@ import {
     getMarketHashName,
     getIsCrate,
     getIsTradingCard,
-    getIsFoilTradingCard,
     getAssetKey,
     isItemQueued,
     markItemQueued,
 } from './items/index.ts';
-import type { PricingRules } from './pricing/rules.ts';
 import {
     REQUEST_BREAKER_STATUSES,
     REQUEST_BREAKER_THRESHOLD,
@@ -110,28 +89,8 @@ import {
     REQUEST_DELAY_MARKET,
 } from './net/request.ts';
 import type { QueueTask } from './queue/index.ts';
-import {
-    getLocalStorageItem,
-    setLocalStorageItem,
-    getSessionStorageItem,
-    setSessionStorageItem,
-} from './storage/index.ts';
-import { logDOM, logConsole, updateScroll, logger, setUserScrolled } from './ui/logger.ts';
-import {
-    priceBeforeFees,
-    priceIncludingFees,
-    CalculateFeeAmount,
-    clamp,
-    CalculateAmountToSendForDesiredReceivedAmount,
-} from './pricing/fees.ts';
-import { pickSellListingsHeader, createSteamPage } from './steam/page.ts';
-import {
-    createFailureCounter,
-    resetRetryDelay,
-    nextRetryDelay,
-    nextQueueStep,
-    runQueue,
-} from './queue/index.ts';
+import { logDOM, logConsole, logger, setUserScrolled } from './ui/logger.ts';
+import { runQueue } from './queue/index.ts';
 import { getRandomInt, getNumberOfDigits, padLeftZero, replaceNonNumbers } from './util/numbers.ts';
 
 // Vendored jQuery plugins, previously @require'd from raw.githubusercontent.com. Both

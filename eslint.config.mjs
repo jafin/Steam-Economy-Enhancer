@@ -38,6 +38,11 @@ export default tseslint.config(
             '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
             // The Steam page boundary is deliberately `any`; see src/steam/globals.d.ts.
             '@typescript-eslint/no-explicit-any': 'off',
+            // `const el = this` inside a jQuery .each() callback is the idiom this codebase
+            // is written in, and the callback's `this` is the element. The rule is aimed at
+            // class-based TypeScript, where the alias hides a binding bug; here it would only
+            // force a rewrite of working jQuery.
+            '@typescript-eslint/no-this-alias': 'off',
         },
     },
     prettier,

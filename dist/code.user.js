@@ -411,10 +411,10 @@
 			type: options.method,
 			data: options.data,
 			dataType: options.responseType,
-			success: function(data, statusText, xhr) {
+			success: function(data, _statusText, _xhr) {
 				setTimeout(() => callback(null, data), 0);
 			},
-			error: (xhr, statusText, httpErrorText) => {
+			error: (xhr, statusText, _httpErrorText) => {
 				const error = new Error(`Request failed with status ${xhr.status || 0} (${statusText === "error" ? "http error" : statusText})`);
 				error.url = url;
 				error.method = options.method;
