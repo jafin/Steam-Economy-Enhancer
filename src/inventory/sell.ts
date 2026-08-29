@@ -21,7 +21,7 @@ import {
     getPriceInformationFromItem,
 } from '../pricing/algorithms.ts';
 import { QueueTask, runQueue } from '../queue/index.ts';
-import { SETTING_PRICE_MIN_LIST_PRICE, getSettingWithDefault } from '../settings/index.ts';
+import { SETTING_PRICE_MIN_LIST_PRICE, getSetting } from '../settings/index.ts';
 import { steamPage } from '../steam/instance.ts';
 import { market } from '../steam/market.ts';
 import { totals } from '../totals.ts';
@@ -42,7 +42,7 @@ export const sellQueue = async.queue((task: QueueTask, next) => {
     const padLeft = `${padLeftZero(`${totals.processedQueueItems}`, digits)} / ${totals.queuedItems}`;
 
     if (
-        getSettingWithDefault(SETTING_PRICE_MIN_LIST_PRICE) * 100 >=
+        getSetting(SETTING_PRICE_MIN_LIST_PRICE) * 100 >=
         market.getPriceIncludingFees(task.sellPrice)
     ) {
         logDOM(`${padLeft} - ${itemNameWithAmount} is not listed due to ignoring price settings.`);

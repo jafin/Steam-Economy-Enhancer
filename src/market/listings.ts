@@ -27,7 +27,7 @@ import { runQueue } from '../queue/index.ts';
 import {
     SETTING_PRICE_MIN_CHECK_PRICE,
     SETTING_RELIST_AUTOMATICALLY,
-    getSettingWithDefault,
+    getSetting,
 } from '../settings/index.ts';
 import { currentPage, steamPage } from '../steam/instance.ts';
 import { market } from '../steam/market.ts';
@@ -178,7 +178,7 @@ export function marketListingsQueueWorker(listing, ignoreErrors, callback) {
     );
 
     if (
-        price <= getSettingWithDefault(SETTING_PRICE_MIN_CHECK_PRICE) * 100 ||
+        price <= getSetting(SETTING_PRICE_MIN_CHECK_PRICE) * 100 ||
         listingUI.hasClass('removing')
     ) {
         $('.market_listing_my_price', listingUI).last().css('background', COLOR_PRICE_NOT_CHECKED);
@@ -327,10 +327,7 @@ export function marketListingsQueueWorker(listing, ignoreErrors, callback) {
 
             logConsole(VERDICT_MESSAGES[verdict]);
 
-            if (
-                verdict == VERDICT_OVERPRICED &&
-                getSettingWithDefault(SETTING_RELIST_AUTOMATICALLY) == 1
-            ) {
+            if (verdict == VERDICT_OVERPRICED && getSetting(SETTING_RELIST_AUTOMATICALLY) == 1) {
                 queueOverpricedItemListing(listing.listingid);
             }
 

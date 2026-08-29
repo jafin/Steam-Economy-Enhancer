@@ -31,7 +31,7 @@ import { getMarketHashName } from '../items/index.ts';
 import { request } from '../net/request.ts';
 import { readCookie } from '../util/cookie.ts';
 import { priceBeforeFees, priceIncludingFees } from '../pricing/fees.ts';
-import { getSettingWithDefault, SETTING_PRICE_ALGORITHM } from '../settings/index.ts';
+import { getSetting, SETTING_PRICE_ALGORITHM } from '../settings/index.ts';
 import { storageSession } from '../storage/session.ts';
 import { useRound } from './currency.ts';
 import { getInventoryUrl, isLoggedIn, steamPage } from './instance.ts';
@@ -194,8 +194,7 @@ SteamMarket.prototype.removeListing = function (item, isBuyOrder, callback /*err
 // Price is inclusive of fees.
 SteamMarket.prototype.getPriceHistory = function (item, cache, callback) {
     const shouldUseAverage =
-        getSettingWithDefault(SETTING_PRICE_ALGORITHM) == 1 ||
-        getSettingWithDefault(SETTING_PRICE_ALGORITHM) == 4;
+        getSetting(SETTING_PRICE_ALGORITHM) == 1 || getSetting(SETTING_PRICE_ALGORITHM) == 4;
 
     if (!shouldUseAverage) {
         // The price history is only used by the "average price" calculation

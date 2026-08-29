@@ -10,7 +10,7 @@ import { formatPrice } from '../pricing/algorithms.ts';
 import {
     SETTING_INVENTORY_PRICE_LABELS,
     SETTING_QUICK_SELL_BUTTONS,
-    getSettingWithDefault,
+    getSetting,
 } from '../settings/index.ts';
 import { steamPage } from '../steam/instance.ts';
 import { market } from '../steam/market.ts';
@@ -210,7 +210,7 @@ export function updateButtons() {
 }
 
 export async function updateInventorySelection(selectedItem) {
-    if (getSettingWithDefault(SETTING_QUICK_SELL_BUTTONS) != 1) {
+    if (getSetting(SETTING_QUICK_SELL_BUTTONS) != 1) {
         return;
     }
 
@@ -472,7 +472,7 @@ export function updateInventoryUI(isOwnInventory) {
 
     loadAllInventories().then(() => {
         const updateInventoryPrices = function () {
-            if (getSettingWithDefault(SETTING_INVENTORY_PRICE_LABELS) == 1) {
+            if (getSetting(SETTING_INVENTORY_PRICE_LABELS) == 1) {
                 setInventoryPrices(getInventoryItems());
             }
         };
