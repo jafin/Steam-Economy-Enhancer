@@ -94,6 +94,48 @@
 	function replaceNonNumbers(str) {
 		return str.replace(/\D/g, "");
 	}
+	function createFailureCounter() {
+		return { failures: 0 };
+	}
+	function resetRetryDelay(counter) {
+		counter.failures = 0;
+	}
+	function nextRetryDelay(counter) {
+		counter.failures += 1;
+		const delay = counter.failures > 1 ? getRandomInt(RETRY_DELAY_LONG_MIN, RETRY_DELAY_LONG_MAX) : getRandomInt(RETRY_DELAY_SHORT_MIN, RETRY_DELAY_SHORT_MAX);
+		if (counter.failures > 3) counter.failures = 0;
+		return delay;
+	}
+	function nextQueueStep(success, cached, failures, alreadyRetried, options = {}) {
+		if (success) {
+			if (!cached) resetRetryDelay(failures);
+			const configured = options.successDelayMs ?? (() => getRandomInt(1e3, 1500));
+			const delay = typeof configured === "function" ? configured() : configured;
+			return {
+				delay: cached ? 0 : delay,
+				retry: false
+			};
+		}
+		const retry = (options.retryOnFailure ?? false) && !alreadyRetried;
+		return {
+			delay: cached ? 0 : nextRetryDelay(failures),
+			retry
+		};
+	}
+	function runQueue(worker, options = {}) {
+		const failures = createFailureCounter();
+		const queue = async.default.queue((task, next) => {
+			worker(task, task.ignoreErrors === true, (success, cached) => {
+				const step = nextQueueStep(success, cached, failures, task.ignoreErrors === true, options);
+				if (step.retry) {
+					task.ignoreErrors = true;
+					queue.push(task);
+				}
+				setTimeout(() => next(), step.delay);
+			});
+		}, options.concurrency ?? 1);
+		return queue;
+	}
 	(function(d) {
 		d.Observe = {};
 	})(jQuery);
@@ -884,48 +926,6 @@
 			if (buyOrderPrice > calculatedPrice) calculatedPrice = buyOrderPrice;
 		}
 		return calculatedPrice;
-	}
-	function createFailureCounter() {
-		return { failures: 0 };
-	}
-	function resetRetryDelay(counter) {
-		counter.failures = 0;
-	}
-	function nextRetryDelay(counter) {
-		counter.failures += 1;
-		const delay = counter.failures > 1 ? getRandomInt(RETRY_DELAY_LONG_MIN, RETRY_DELAY_LONG_MAX) : getRandomInt(RETRY_DELAY_SHORT_MIN, RETRY_DELAY_SHORT_MAX);
-		if (counter.failures > 3) counter.failures = 0;
-		return delay;
-	}
-	function nextQueueStep(success, cached, failures, alreadyRetried, options = {}) {
-		if (success) {
-			if (!cached) resetRetryDelay(failures);
-			const configured = options.successDelayMs ?? (() => getRandomInt(1e3, 1500));
-			const delay = typeof configured === "function" ? configured() : configured;
-			return {
-				delay: cached ? 0 : delay,
-				retry: false
-			};
-		}
-		const retry = (options.retryOnFailure ?? false) && !alreadyRetried;
-		return {
-			delay: cached ? 0 : nextRetryDelay(failures),
-			retry
-		};
-	}
-	function runQueue(worker, options = {}) {
-		const failures = createFailureCounter();
-		const queue = async.default.queue((task, next) => {
-			worker(task, task.ignoreErrors === true, (success, cached) => {
-				const step = nextQueueStep(success, cached, failures, task.ignoreErrors === true, options);
-				if (step.retry) {
-					task.ignoreErrors = true;
-					queue.push(task);
-				}
-				setTimeout(() => next(), step.delay);
-			});
-		}, options.concurrency ?? 1);
-		return queue;
 	}
 	function createListingState() {
 		const states = new Map();
