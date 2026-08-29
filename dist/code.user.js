@@ -99,11 +99,7 @@
 		return VERDICT_FAIR;
 	}
 	function getListingPriceDelta(bestPrice, listedPrice) {
-		const cents = listedPrice - bestPrice;
-		return {
-			cents,
-			percent: bestPrice === 0 ? null : cents / bestPrice * 100
-		};
+		return listedPrice - bestPrice;
 	}
 	var listingState = createListingState();
 	var itemQueueState = createListingState();
@@ -791,12 +787,9 @@
 	function formatPrice(valueInCents) {
 		return steamPage.formatPrice(valueInCents, currencyCode, currencyCountry);
 	}
-	function formatPriceDelta(delta) {
-		if (delta == null || delta.cents === 0) return "";
-		const sign = delta.cents > 0 ? "+" : "−";
-		const amount = `${sign}${formatPrice(Math.abs(delta.cents))}`;
-		if (delta.percent == null) return amount;
-		return `${amount} (${sign}${Math.abs(delta.percent).toFixed(1)}%)`;
+	function formatPriceDelta(cents) {
+		if (!cents) return "";
+		return `${cents > 0 ? "+" : "−"}${formatPrice(Math.abs(cents))}`;
 	}
 	function getPriceInformationFromItem(item) {
 		return getPriceInformation(getIsTradingCard(item), getIsFoilTradingCard(item));
@@ -1477,6 +1470,7 @@
 			priceCell.append(label);
 		}
 		label.text(text);
+		priceCell.toggleClass("has_price_delta", text !== "");
 	}
 	var marketListingsQueue = async.default.queue((listing, next) => {
 		marketListingsQueueWorker(listing, false, (success, cached) => {
@@ -2977,7 +2971,15 @@
     #listings_sell { text-align: right; color: #589328; font-weight:600; }
     #listings_buy { text-align: right; color: #589328; font-weight:600; }
     .market_listing_my_price { height: 50px; padding-right:6px; }
-    .see_price_delta { display: block; font-size: 11px; opacity: 0.85; }
+    /* The price cell is 50px tall (above) and Steam gives it line-height:50px, which the
+       delta label would otherwise inherit -- an 11px label in a 50px box. Worse, the
+       .market_table_value inside is an inline-block with a 10px vertical margin, so its
+       line box alone fills the cell and a block sibling after it starts below the row.
+       Both are corrected only on cells that actually carry a label, so rows without one
+       keep the vertical centring Steam gives them. */
+    .see_price_delta { display: block; font-size: 11px; line-height: 1.2; opacity: 0.85; }
+    .market_listing_my_price.has_price_delta { line-height: 1.2; }
+    .market_listing_my_price.has_price_delta .market_table_value { margin: 0; }
     .market_listing_edit_buttons.actual_content { width:276px; transition-property: background-color, border-color; transition-timing-function: linear; transition-duration: 0.5s;}
     .market_listing_buttons { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 6px; padding: 5px; background: rgba(0, 0, 0, 0.4); }
     .market_listing_label_right { float:right; font-size:12px; margin-top:1px; }
