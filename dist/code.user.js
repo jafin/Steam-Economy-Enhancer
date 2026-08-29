@@ -1461,16 +1461,42 @@
 	}
 	var marketListingsRelistedAssets = [];
 	var getPriceValueAsInt = (listing) => steamPage.parsePriceText(listing.match(/(?<price>[0-9][0-9 .,]*)/)?.groups?.price ?? 0);
-	function setListingPriceDeltaLabel(listingUI, text) {
+	function renderPriceCellGrid(listingUI, values) {
 		const priceCell = (0, jquery.default)(".market_listing_my_price", listingUI).last();
-		let label = (0, jquery.default)(".see_price_delta", priceCell);
-		if (label.length === 0) {
-			if (text === "") return;
-			label = (0, jquery.default)("<span class=\"see_price_delta\"></span>");
-			priceCell.append(label);
-		}
-		label.text(text);
-		priceCell.toggleClass("has_price_delta", text !== "");
+		const quadrants = [
+			{
+				label: "Listed",
+				value: values.listed,
+				cls: "see_grid_lead"
+			},
+			{
+				label: "You get",
+				value: values.net,
+				cls: ""
+			},
+			{
+				label: "Buy order",
+				value: values.buyOrder,
+				cls: ""
+			},
+			{
+				label: "vs best",
+				value: values.delta || "—",
+				cls: ""
+			}
+		];
+		const grid = (0, jquery.default)("<div class=\"see_price_grid\"></div>");
+		quadrants.forEach((q) => {
+			(0, jquery.default)("<div class=\"see_grid_cell\"></div>").append((0, jquery.default)("<span class=\"see_grid_label\"></span>").text(q.label)).append((0, jquery.default)(`<span class="see_grid_value ${q.cls}"></span>`).text(q.value)).appendTo(grid);
+		});
+		(0, jquery.default)(".see_price_grid", priceCell).remove();
+		priceCell.append(grid);
+		(0, jquery.default)(".market_table_value", priceCell).addClass("see_hidden");
+	}
+	function clearPriceCellGrid(listingUI) {
+		const priceCell = (0, jquery.default)(".market_listing_my_price", listingUI).last();
+		(0, jquery.default)(".see_price_grid", priceCell).remove();
+		(0, jquery.default)(".market_table_value", priceCell).removeClass("see_hidden");
 	}
 	var marketListingsQueue = async.default.queue((listing, next) => {
 		marketListingsQueueWorker(listing, false, (success, cached) => {
@@ -1498,7 +1524,7 @@
 		if (price <= getSettingWithDefault("SETTING_PRICE_MIN_CHECK_PRICE") * 100 || listingUI.hasClass("removing")) {
 			(0, jquery.default)(".market_listing_my_price", listingUI).last().css("background", COLOR_PRICE_NOT_CHECKED);
 			(0, jquery.default)(".market_listing_my_price", listingUI).last().prop("title", "The price is not checked.");
-			setListingPriceDeltaLabel(listingUI, "");
+			clearPriceCellGrid(listingUI);
 			listingUI.addClass("not_checked");
 			return callback(true, true);
 		}
@@ -1520,7 +1546,6 @@
 				}
 				if (failed > 0 && !ignoreErrors) return callback(false, cachedHistory && cachedListings);
 				const highestBuyOrderPrice = orderbook == null || orderbook.highest_buy_order == null ? "-" : formatPrice(orderbook.highest_buy_order);
-				(0, jquery.default)(".market_table_value > span:nth-child(1) > span:nth-child(1) > span:nth-child(1)", listingUI).append(` ➤ <span title="This is likely the highest buy order price.">${highestBuyOrderPrice}</span>`);
 				JSON.stringify(listing);
 				`${game_name}${asset.name}`;
 				price / 100;
@@ -1538,7 +1563,13 @@
 				});
 				listingUI.addClass(verdict);
 				(0, jquery.default)(".market_listing_my_price", listingUI).last().prop("title", `The best price is ${formatPrice(sellPriceWithoutOffsetWithFees)}. Relisting would list at ${formatPrice(market.getPriceIncludingFees(sellPriceWithOffset))}.`);
-				setListingPriceDeltaLabel(listingUI, formatPriceDelta(priceDelta));
+				const steamPrices = (0, jquery.default)(".market_listing_price > span:nth-child(1)", (0, jquery.default)(".market_listing_my_price", listingUI).last());
+				renderPriceCellGrid(listingUI, {
+					listed: (0, jquery.default)("span:nth-child(1)", steamPrices).text().trim(),
+					net: (0, jquery.default)("span:nth-child(3)", steamPrices).text().trim().replace(/[()]/g, ""),
+					buyOrder: highestBuyOrderPrice,
+					delta: formatPriceDelta(priceDelta)
+				});
 				(0, jquery.default)(".market_listing_my_price", listingUI).last().css("background", VERDICT_COLORS[verdict]);
 				VERDICT_MESSAGES[verdict];
 				if (verdict == "overpriced" && getSettingWithDefault("SETTING_RELIST_AUTOMATICALLY") == 1) queueOverpricedItemListing(listing.listingid);
@@ -2971,15 +3002,20 @@
     #listings_sell { text-align: right; color: #589328; font-weight:600; }
     #listings_buy { text-align: right; color: #589328; font-weight:600; }
     .market_listing_my_price { height: 50px; padding-right:6px; }
-    /* The price cell is 50px tall (above) and Steam gives it line-height:50px, which the
-       delta label would otherwise inherit -- an 11px label in a 50px box. Worse, the
-       .market_table_value inside is an inline-block with a 10px vertical margin, so its
-       line box alone fills the cell and a block sibling after it starts below the row.
-       Both are corrected only on cells that actually carry a label, so rows without one
-       keep the vertical centring Steam gives them. */
-    .see_price_delta { display: block; font-size: 11px; line-height: 1.2; opacity: 0.85; }
-    .market_listing_my_price.has_price_delta { line-height: 1.2; }
-    .market_listing_my_price.has_price_delta .market_table_value { margin: 0; }
+    /* The priced cell as four labelled quadrants. The grid owns the whole 50px box, which
+       is what stops the old stacked layout from spilling into the next row: Steam gives
+       the cell line-height:50px, so a block appended after its inline-block value started
+       below the cell entirely, and a long price (A$ 128.00 -> A$ 104.55) wrapped and pushed
+       the last value out. A fixed 2x2 with nowrap values cannot do either.
+       .see_hidden keeps Steam's own markup in the DOM -- three positional selectors read
+       the prices back out of it -- while taking it off the screen. */
+    .see_hidden { display: none !important; }
+    .see_price_grid { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr;
+        height: 50px; padding: 3px 0; box-sizing: border-box; line-height: 1.05; text-align: left; gap: 0 6px; }
+    .see_grid_cell { display: flex; flex-direction: column; justify-content: center; overflow: hidden; }
+    .see_grid_label { font-size: 8px; text-transform: uppercase; letter-spacing: 0.4px; color: rgba(255,255,255,0.55); }
+    .see_grid_value { font-size: 11px; white-space: nowrap; }
+    .see_grid_lead { color: #fff; font-weight: 600; }
     .market_listing_edit_buttons.actual_content { width:276px; transition-property: background-color, border-color; transition-timing-function: linear; transition-duration: 0.5s;}
     .market_listing_buttons { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 6px; padding: 5px; background: rgba(0, 0, 0, 0.4); }
     .market_listing_label_right { float:right; font-size:12px; margin-top:1px; }
