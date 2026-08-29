@@ -2,14 +2,15 @@ import { test, beforeEach, afterEach, vi } from 'vitest';
 import assert from 'node:assert';
 import $ from 'jquery';
 import * as see from '../src/main.ts';
-import type { RequestError } from '../src/main.ts';
 
-// What SteamMarket's methods report today, pinned before the result convention changes.
+// What SteamMarket's methods report.
 //
-// These are characterisation tests: they describe current behaviour, including the parts
-// that are wrong. Three of them assert that a listing Steam rejected is reported as a
-// success -- that is the defect, written down deliberately so the commit that fixes it
-// shows up as a change in expectations rather than as new tests appearing from nowhere.
+// Written first as characterisation tests, describing current behaviour including the parts
+// that are wrong, so that each commit changing the convention shows up as a change in
+// expectations rather than as new tests appearing beside a rewrite. Three of them still
+// assert that a listing Steam rejected is reported as a success -- that is the defect, and
+// it survives the arity pass untouched because that pass changed shape, not meaning. The
+// commit that fixes it is the one that flips those three.
 // See docs/adr/0002-steam-success-is-checked-on-sellitem-only.md.
 //
 // The seam is request()'s transport, which defaults to $.ajax and is re-read on every call,
@@ -46,9 +47,9 @@ function answerWith(response: any) {
 // and tripping it is a one-way door that would break every later test in this file.
 const transportError = { error: true, status: 500 };
 
-// Records every callback invocation as its full argument list, so the tests can pin arity.
-// Several methods call back with one argument where their siblings pass two, and that
-// inconsistency is part of what is being characterised.
+// Records every callback invocation as its full argument list, so the tests can pin arity
+// as well as values. Methods here used to call back with one argument where their siblings
+// passed two; asserting on whole argument lists is what holds that closed.
 function recorder() {
     const calls: any[][] = [];
     const fn = (...args: any[]) => {
@@ -122,20 +123,17 @@ test('sellItem reports a listing Steam REJECTED as (null, data) -- the defect', 
     assert.strictEqual(cb.calls[0][1].success, false);
 });
 
-test('sellItem passes request()s Error through on a transport failure', () => {
+test('sellItem reports a transport failure as (ERROR_FAILED, null)', () => {
     answerWith(transportError);
 
     const cb = recorder();
     see.market.sellItem(anItem, 100, cb);
     vi.advanceTimersByTime(0);
 
-    // Not ERROR_FAILED -- an actual Error object, which is what makes this method's
-    // convention different from every other one on the prototype.
-    const error = cb.calls[0][0] as RequestError;
-
-    assert.ok(error instanceof Error);
-    assert.strictEqual(error.statusCode, 500);
-    assert.strictEqual(cb.calls[0][1], null);
+    // This used to be request()'s own Error object, because sellItem forwarded request()'s
+    // callback instead of reporting the way its siblings do. Both are truthy, which is why
+    // swapping one for the other changed nothing at either call site.
+    assert.deepStrictEqual(cb.calls, [[ERROR_FAILED, null]]);
 });
 
 // --- removeListing --------------------------------------------------------------------
@@ -162,15 +160,16 @@ test('removeListing reports a success:false body as ERROR_SUCCESS', () => {
     assert.strictEqual(cb.calls[0][0], ERROR_SUCCESS);
 });
 
-test('removeListing reports a transport failure as ERROR_FAILED, with no second argument', () => {
+test('removeListing reports a transport failure as (ERROR_FAILED, null)', () => {
     answerWith(transportError);
 
     const cb = recorder();
     see.market.removeListing('99', false, cb);
     vi.advanceTimersByTime(0);
 
-    // One argument, where getGooValue passes two on the same kind of failure.
-    assert.deepStrictEqual(cb.calls, [[ERROR_FAILED]]);
+    // Passed one argument here and two in getGooValue, for the same kind of failure, until
+    // the arity was normalised.
+    assert.deepStrictEqual(cb.calls, [[ERROR_FAILED, null]]);
 });
 
 // --- getGooValue ----------------------------------------------------------------------
@@ -192,7 +191,6 @@ test('getGooValue reports a transport failure as (ERROR_FAILED, null)', () => {
     see.market.getGooValue(anItem, cb);
     vi.advanceTimersByTime(0);
 
-    // Two arguments here, one in removeListing above. Same failure, different arity.
     assert.deepStrictEqual(cb.calls, [[ERROR_FAILED, null]]);
 });
 
@@ -209,7 +207,7 @@ test('getGooValue reports a missing owner_actions as ERROR_FAILED, without reque
     see.market.getGooValue({ ...anItem, owner_actions: undefined }, cb);
     vi.advanceTimersByTime(0);
 
-    assert.deepStrictEqual(cb.calls, [[ERROR_FAILED]]);
+    assert.deepStrictEqual(cb.calls, [[ERROR_FAILED, null]]);
     assert.strictEqual(requested, false);
 });
 
@@ -269,7 +267,7 @@ test('getCurrentPriceHistory reports a success:false body as ERROR_DATA', () => 
     see.market.getCurrentPriceHistory(730, 'Some Item', cb);
     vi.advanceTimersByTime(0);
 
-    assert.deepStrictEqual(cb.calls, [[ERROR_DATA]]);
+    assert.deepStrictEqual(cb.calls, [[ERROR_DATA, null, false]]);
 });
 
 test('getCurrentPriceHistory reports prices in pennies, uncached', () => {
@@ -282,22 +280,25 @@ test('getCurrentPriceHistory reports prices in pennies, uncached', () => {
     assert.deepStrictEqual(cb.calls, [[ERROR_SUCCESS, [['1 Jan 2026 01: +0', 150, 3]], false]]);
 });
 
-test('getCurrentOrderBook reports an unusable body as (ERROR_DATA, null)', () => {
+test('getCurrentOrderBook reports an unusable body as (ERROR_DATA, null, false)', () => {
     answerWith({ data: {} });
 
     const cb = recorder();
     see.market.getCurrentOrderBook(anItem, 'Some Item', cb);
     vi.advanceTimersByTime(0);
 
-    assert.deepStrictEqual(cb.calls, [[ERROR_DATA, null]]);
+    assert.deepStrictEqual(cb.calls, [[ERROR_DATA, null, false]]);
 });
 
-test('getCurrentOrderBook reports a transport failure as (ERROR_FAILED, null)', () => {
+test('getCurrentOrderBook reports a transport failure as (ERROR_FAILED, null, false)', () => {
     answerWith(transportError);
 
     const cb = recorder();
     see.market.getCurrentOrderBook(anItem, 'Some Item', cb);
     vi.advanceTimersByTime(0);
 
-    assert.deepStrictEqual(cb.calls, [[ERROR_FAILED, null]]);
+    // The read methods omitted their third argument entirely when they failed, so callers
+    // that destructure `cached` got undefined. Both are falsy, which is why nextQueueStep
+    // -- whose only uses are `!cached` and `cached ? 0 : delay` -- cannot tell them apart.
+    assert.deepStrictEqual(cb.calls, [[ERROR_FAILED, null, false]]);
 });

@@ -7,6 +7,22 @@
 // Still an old-style constructor function with prototype methods, as it always was.
 // Converting it to a class would be a change of shape rather than of location, so it is
 // left for its own commit.
+//
+// Every method reports the same way, so a caller learns one thing rather than three:
+//
+//   callback(errorCode, data)            the methods that change something
+//   callback(errorCode, value, cached)   price history and order books
+//
+// errorCode is ERROR_SUCCESS on success, ERROR_FAILED when the request itself failed, and
+// ERROR_DATA when Steam answered normally and said no. The later arguments are always
+// passed -- null and false on a failure -- because a caller cannot state what it receives
+// if half the methods stop short. sellItem used to hand request()'s own callback straight
+// to the caller, which is why its failures arrived as an Error while everything else's
+// arrived as a sentinel, and why two callers of that one method read it two different ways.
+//
+// ERROR_DATA is only ever produced where Steam is known to report refusals; see
+// docs/adr/0002-steam-success-is-checked-on-sellitem-only.md for which methods those are
+// and why the rest deliberately do not check.
 
 import { ERROR_DATA, ERROR_FAILED, ERROR_SUCCESS } from '../constants.ts';
 import { getMarketHashName } from '../items/index.ts';
@@ -101,7 +117,18 @@ SteamMarket.prototype.sellItem = function (item, price, callback /*err, data*/) 
         responseType: 'json',
     };
 
-    request(url, options, callback);
+    // Reported the same way as every other method here, rather than by handing request()'s
+    // own callback to the caller. Forwarding it made this the one method whose failures
+    // arrived as an Error rather than a sentinel, which is why two callers of the same
+    // method read its result two different ways.
+    request(url, options, (error, data) => {
+        if (error) {
+            callback(ERROR_FAILED, null);
+            return;
+        }
+
+        callback(ERROR_SUCCESS, data);
+    });
 };
 
 // Removes an item.
@@ -122,7 +149,7 @@ SteamMarket.prototype.removeListing = function (item, isBuyOrder, callback /*err
 
     request(url, options, (error, data) => {
         if (error) {
-            callback(ERROR_FAILED);
+            callback(ERROR_FAILED, null);
             return;
         }
 
@@ -149,7 +176,7 @@ SteamMarket.prototype.getPriceHistory = function (item, cache, callback) {
     try {
         const market_name = getMarketHashName(item);
         if (market_name == null) {
-            callback(ERROR_FAILED);
+            callback(ERROR_FAILED, null, false);
             return;
         }
 
@@ -174,7 +201,7 @@ SteamMarket.prototype.getPriceHistory = function (item, cache, callback) {
             market.getCurrentPriceHistory(appid, market_name, callback);
         }
     } catch {
-        return callback(ERROR_FAILED);
+        return callback(ERROR_FAILED, null, false);
     }
 };
 
@@ -214,14 +241,14 @@ SteamMarket.prototype.getGooValue = function (item, callback) {
 
         request(url, options, (error, data) => {
             if (error) {
-                callback(ERROR_FAILED, data);
+                callback(ERROR_FAILED, null);
                 return;
             }
 
             callback(ERROR_SUCCESS, data);
         });
     } catch {
-        return callback(ERROR_FAILED);
+        return callback(ERROR_FAILED, null);
     }
     //http://steamcommunity.com/auction/ajaxgetgoovalueforitemtype/?appid=582980&item_type=18&border_color=0
     // OR
@@ -251,14 +278,14 @@ SteamMarket.prototype.grindIntoGoo = function (item, gooValueExpected, callback)
 
         request(url, options, (error, data) => {
             if (error) {
-                callback(ERROR_FAILED, data);
+                callback(ERROR_FAILED, null);
                 return;
             }
 
             callback(ERROR_SUCCESS, data);
         });
     } catch {
-        return callback(ERROR_FAILED);
+        return callback(ERROR_FAILED, null);
     }
 
     //sessionid = xyz
@@ -286,14 +313,14 @@ SteamMarket.prototype.unpackBoosterPack = function (item, callback) {
 
         request(url, options, (error, data) => {
             if (error) {
-                callback(ERROR_FAILED, data);
+                callback(ERROR_FAILED, null);
                 return;
             }
 
             callback(ERROR_SUCCESS, data);
         });
     } catch {
-        return callback(ERROR_FAILED);
+        return callback(ERROR_FAILED, null);
     }
 
     //sessionid = xyz
@@ -317,12 +344,12 @@ SteamMarket.prototype.getCurrentPriceHistory = function (appid, market_name, cal
 
     request(url, options, (error, data) => {
         if (error) {
-            callback(ERROR_FAILED);
+            callback(ERROR_FAILED, null, false);
             return;
         }
 
         if (data && (!data.success || !data.prices)) {
-            callback(ERROR_DATA);
+            callback(ERROR_DATA, null, false);
             return;
         }
 
@@ -345,7 +372,7 @@ SteamMarket.prototype.getOrderBook = function (item, cache, callback) {
     try {
         const market_name = getMarketHashName(item);
         if (market_name == null) {
-            callback(ERROR_FAILED);
+            callback(ERROR_FAILED, null, false);
             return;
         }
 
@@ -369,7 +396,7 @@ SteamMarket.prototype.getOrderBook = function (item, cache, callback) {
             market.getCurrentOrderBook(item, market_name, callback);
         }
     } catch {
-        return callback(ERROR_FAILED);
+        return callback(ERROR_FAILED, null, false);
     }
 };
 
@@ -388,13 +415,13 @@ SteamMarket.prototype.getCurrentOrderBook = function (item, market_name, callbac
 
     request(url, options, (error, data) => {
         if (error) {
-            callback(ERROR_FAILED, null);
+            callback(ERROR_FAILED, null, false);
             return;
         }
 
         const orderbook = buildOrderBook(data?.data);
         if (orderbook == null) {
-            callback(ERROR_DATA, null);
+            callback(ERROR_DATA, null, false);
             return;
         }
 
