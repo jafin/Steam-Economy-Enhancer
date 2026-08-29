@@ -38,12 +38,84 @@ function history() {
     return [[new Date().toString(), 2000, 5]];
 }
 
+// Card-class fixtures for the bounds characterisation below. Tags are what getIsTradingCard
+// and getIsFoilTradingCard read on the inventory page.
+const normalCardItem = { tags: [{ category: 'item_class', internal_name: 'item_class_2' }] };
+const foilCardItem = {
+    tags: [
+        { category: 'item_class', internal_name: 'item_class_2' },
+        { category: 'cardborder', internal_name: 'cardborder_1' },
+    ],
+};
+const nonCardItem = {};
+
+// A single, thin listing with no buy order: calculateSellPriceBeforeFees has nothing to
+// calculate from, so the result is exactly the clamped minimum. That is what makes it a
+// clean probe for the bounds specifically, independent of the pricing algorithm.
+function thinOrderbook() {
+    return { highest_buy_order: 0, lowest_sell_order: 1, sell_order_graph: [[0.01, 1, '']] };
+}
+
+// The bounds now live on the same rules object as everything else, so a case that is not
+// about the bounds themselves just wants today's stand-ins (0 and 65535) folded into
+// whatever createPricingRules() already read from settings.
+function rulesWithBounds(minPriceBeforeFees: number, maxPriceBeforeFees: number) {
+    return { ...see.createPricingRules(), minPriceBeforeFees, maxPriceBeforeFees };
+}
+
 test.beforeEach(() => clearSettings());
+
+test('CHARACTERISATION: a normal trading card is priced within its own min/max settings', () => {
+    setAlgorithm(ALGORITHM_LOWEST_LISTING);
+    globalThis.localStorage.setItem('SETTING_MIN_NORMAL_PRICE', '1.00');
+    globalThis.localStorage.setItem('SETTING_MAX_NORMAL_PRICE', '3.00');
+
+    const rules = see.createPricingRules(normalCardItem);
+    assert.strictEqual(rules.minPriceBeforeFees, 100);
+    assert.strictEqual(rules.maxPriceBeforeFees, 300);
+
+    const price = see.calculateSellPriceBeforeFees(null, thinOrderbook(), false, rules);
+
+    assert.strictEqual(price, 100, 'clamped up to the normal card minimum');
+});
+
+test('CHARACTERISATION: a foil trading card is priced within its own min/max settings', () => {
+    setAlgorithm(ALGORITHM_LOWEST_LISTING);
+    globalThis.localStorage.setItem('SETTING_MIN_FOIL_PRICE', '2.00');
+    globalThis.localStorage.setItem('SETTING_MAX_FOIL_PRICE', '5.00');
+
+    const rules = see.createPricingRules(foilCardItem);
+    assert.strictEqual(rules.minPriceBeforeFees, 200);
+    assert.strictEqual(rules.maxPriceBeforeFees, 500);
+
+    const price = see.calculateSellPriceBeforeFees(null, thinOrderbook(), false, rules);
+
+    assert.strictEqual(price, 200, 'clamped up to the foil card minimum');
+});
+
+test('CHARACTERISATION: a non-card item is priced within the misc min/max settings', () => {
+    setAlgorithm(ALGORITHM_LOWEST_LISTING);
+    globalThis.localStorage.setItem('SETTING_MIN_MISC_PRICE', '0.50');
+    globalThis.localStorage.setItem('SETTING_MAX_MISC_PRICE', '8.00');
+
+    const rules = see.createPricingRules(nonCardItem);
+    assert.strictEqual(rules.minPriceBeforeFees, 50);
+    assert.strictEqual(rules.maxPriceBeforeFees, 800);
+
+    const price = see.calculateSellPriceBeforeFees(null, thinOrderbook(), false, rules);
+
+    assert.strictEqual(price, 50, 'clamped up to the misc minimum');
+});
 
 test('algorithm 2, lowest sell listing, follows the lowest listing', () => {
     setAlgorithm(ALGORITHM_LOWEST_LISTING);
 
-    const price = see.calculateSellPriceBeforeFees(history(), orderbook(), false, 0, 65535);
+    const price = see.calculateSellPriceBeforeFees(
+        history(),
+        orderbook(),
+        false,
+        rulesWithBounds(0, 65535),
+    );
 
     assert.strictEqual(price, see.calculateListingPriceBeforeFees(orderbook()));
 });
@@ -51,7 +123,12 @@ test('algorithm 2, lowest sell listing, follows the lowest listing', () => {
 test('algorithm 3 prefers the highest buy order', () => {
     setAlgorithm(ALGORITHM_BUY_ORDER);
 
-    const price = see.calculateSellPriceBeforeFees(history(), orderbook(), false, 0, 65535);
+    const price = see.calculateSellPriceBeforeFees(
+        history(),
+        orderbook(),
+        false,
+        rulesWithBounds(0, 65535),
+    );
 
     assert.strictEqual(price, see.calculateBuyOrderPriceBeforeFees(orderbook()));
 });
@@ -70,7 +147,12 @@ test('CHARACTERISATION: the buy-order branch fires at the price floor of 1, not 
         sell_order_graph: [[10.0, 1, '']],
     };
 
-    const price = see.calculateSellPriceBeforeFees(null, thinBook, false, 0, 65535);
+    const price = see.calculateSellPriceBeforeFees(
+        null,
+        thinBook,
+        false,
+        rulesWithBounds(0, 65535),
+    );
 
     assert.strictEqual(price, see.calculateBuyOrderPriceBeforeFees(thinBook));
     assert.strictEqual(price, 1);
@@ -79,7 +161,12 @@ test('CHARACTERISATION: the buy-order branch fires at the price floor of 1, not 
 test('algorithm 4 uses the history average and ignores the listings', () => {
     setAlgorithm(ALGORITHM_HISTORY);
 
-    const price = see.calculateSellPriceBeforeFees(history(), orderbook(), false, 0, 65535);
+    const price = see.calculateSellPriceBeforeFees(
+        history(),
+        orderbook(),
+        false,
+        rulesWithBounds(0, 65535),
+    );
 
     assert.strictEqual(price, see.calculateAverageHistoryPriceBeforeFees(history()));
 });
@@ -89,7 +176,12 @@ test('algorithm 1 takes the higher of the history average and the lowest listing
 
     const historyPrice = see.calculateAverageHistoryPriceBeforeFees(history());
     const listingPrice = see.calculateListingPriceBeforeFees(orderbook());
-    const price = see.calculateSellPriceBeforeFees(history(), orderbook(), false, 0, 65535);
+    const price = see.calculateSellPriceBeforeFees(
+        history(),
+        orderbook(),
+        false,
+        rulesWithBounds(0, 65535),
+    );
 
     assert.ok(historyPrice > listingPrice, 'the fixture has history above the listing');
     assert.strictEqual(price, historyPrice);
@@ -98,7 +190,12 @@ test('algorithm 1 takes the higher of the history average and the lowest listing
 test('with no listings at all the item is listed at the maximum', () => {
     setAlgorithm(ALGORITHM_LOWEST_LISTING);
 
-    const price = see.calculateSellPriceBeforeFees(null, undefined, false, 100, 5000);
+    const price = see.calculateSellPriceBeforeFees(
+        null,
+        undefined,
+        false,
+        rulesWithBounds(100, 5000),
+    );
 
     assert.strictEqual(price, 5000);
 });
@@ -112,7 +209,7 @@ test('a null orderbook is priced, not thrown on', () => {
 
     assert.strictEqual(see.calculateBuyOrderPriceBeforeFees(null), 0);
     assert.strictEqual(
-        see.calculateSellPriceBeforeFees(null, null, false, 100, 5000),
+        see.calculateSellPriceBeforeFees(null, null, false, rulesWithBounds(100, 5000)),
         5000,
         'falls back to the maximum, the same as an undefined orderbook',
     );
@@ -122,14 +219,29 @@ test('the offset is applied only when the price was not forced to the maximum', 
     setAlgorithm(ALGORITHM_LOWEST_LISTING);
     globalThis.localStorage.setItem('SETTING_PRICE_OFFSET', '1');
 
-    const withoutOffset = see.calculateSellPriceBeforeFees(null, orderbook(), false, 0, 65535);
-    const withOffset = see.calculateSellPriceBeforeFees(null, orderbook(), true, 0, 65535);
+    const withoutOffset = see.calculateSellPriceBeforeFees(
+        null,
+        orderbook(),
+        false,
+        rulesWithBounds(0, 65535),
+    );
+    const withOffset = see.calculateSellPriceBeforeFees(
+        null,
+        orderbook(),
+        true,
+        rulesWithBounds(0, 65535),
+    );
 
     assert.strictEqual(withOffset - withoutOffset, 100, 'one unit of currency, in cents');
 
     // Forced to the max because there are no listings: the offset must not be added, or the
     // item could never be listed at all.
-    const forcedToMax = see.calculateSellPriceBeforeFees(null, undefined, true, 100, 5000);
+    const forcedToMax = see.calculateSellPriceBeforeFees(
+        null,
+        undefined,
+        true,
+        rulesWithBounds(100, 5000),
+    );
 
     assert.strictEqual(forcedToMax, 5000);
 });
@@ -137,12 +249,22 @@ test('the offset is applied only when the price was not forced to the maximum', 
 test('the result is clamped to the configured minimum and maximum', () => {
     setAlgorithm(ALGORITHM_LOWEST_LISTING);
 
-    const belowMinimum = see.calculateSellPriceBeforeFees(null, orderbook(), false, 50000, 65535);
+    const belowMinimum = see.calculateSellPriceBeforeFees(
+        null,
+        orderbook(),
+        false,
+        rulesWithBounds(50000, 65535),
+    );
     assert.strictEqual(belowMinimum, 50000);
 
     // A buy order higher than the clamped price still wins, so the maximum is not a hard
     // ceiling. Pinning this because it is surprising, not because it is right.
-    const aboveMaximum = see.calculateSellPriceBeforeFees(null, orderbook(), false, 0, 100);
+    const aboveMaximum = see.calculateSellPriceBeforeFees(
+        null,
+        orderbook(),
+        false,
+        rulesWithBounds(0, 100),
+    );
     assert.ok(aboveMaximum >= 100);
 });
 
@@ -156,9 +278,11 @@ test('rules can be passed in, so pricing needs no stored settings at all', () =>
         offsetCents: 0,
         historyHours: 12,
         ignoreLowestOnLowQuantity: false,
+        minPriceBeforeFees: 0,
+        maxPriceBeforeFees: 65535,
     };
 
-    const price = see.calculateSellPriceBeforeFees(history(), orderbook(), false, 0, 65535, rules);
+    const price = see.calculateSellPriceBeforeFees(history(), orderbook(), false, rules);
 
     assert.strictEqual(price, see.calculateBuyOrderPriceBeforeFees(orderbook()));
 });
@@ -170,10 +294,12 @@ test('the same market data prices differently under different rules', () => {
         offsetCents: 0,
         historyHours: 12,
         ignoreLowestOnLowQuantity: false,
+        minPriceBeforeFees: 0,
+        maxPriceBeforeFees: 65535,
     };
 
     const priceUnder = (algorithm: any) =>
-        see.calculateSellPriceBeforeFees(history(), orderbook(), false, 0, 65535, {
+        see.calculateSellPriceBeforeFees(history(), orderbook(), false, {
             ...base,
             algorithm,
         });
@@ -200,6 +326,8 @@ test('createPricingRules reads every setting the calculation needs', () => {
     assert.strictEqual(typeof rules.historyHours, 'number');
     assert.strictEqual(typeof rules.now, 'number', 'the wall clock is read once, not per item');
     assert.strictEqual(typeof rules.useRound, 'boolean');
+    assert.strictEqual(typeof rules.minPriceBeforeFees, 'number', 'no item -- the misc bounds');
+    assert.strictEqual(typeof rules.maxPriceBeforeFees, 'number', 'no item -- the misc bounds');
 });
 
 test('the history window is judged against rules.now, not the wall clock', () => {

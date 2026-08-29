@@ -23,7 +23,7 @@
 // @grant        unsafeWindow
 // ==/UserScript==
 
-(function(jquery, localforage, async, luxon, list_js) {
+(function(jquery, async, localforage, luxon, list_js) {
 	"use strict";
 	var __create = Object.create;
 	var __defProp = Object.defineProperty;
@@ -46,8 +46,8 @@
 		enumerable: true
 	}) : target, mod));
 	jquery = __toESM(jquery);
-	localforage = __toESM(localforage);
 	async = __toESM(async);
+	localforage = __toESM(localforage);
 	luxon = __toESM(luxon);
 	list_js = __toESM(list_js);
 	var COLOR_ERROR = "#8A4243";
@@ -452,16 +452,6 @@
 		"KRW",
 		"VND"
 	].includes(currencyCode);
-	function readCookie(name) {
-		const nameEQ = `${name}=`;
-		const ca = document.cookie.split(";");
-		for (let i = 0; i < ca.length; i++) {
-			let c = ca[i];
-			while (c.charAt(0) == " ") c = c.substring(1, c.length);
-			if (c.indexOf(nameEQ) == 0) return decodeURIComponent(c.substring(nameEQ.length, c.length));
-		}
-		return null;
-	}
 	function priceBeforeFees(price, item, rules) {
 		let publisherFee = -1;
 		if (item != null) {
@@ -527,6 +517,190 @@
 			fees: nSteamFee + nPublisherFee,
 			amount: parseInt(String(nAmountToSend))
 		};
+	}
+	function formatPrice(valueInCents) {
+		return steamPage.formatPrice(valueInCents, currencyCode, currencyCountry);
+	}
+	function formatPriceDelta(cents) {
+		if (!cents) return "";
+		return `${cents > 0 ? "+" : "−"}${formatPrice(Math.abs(cents))}`;
+	}
+	function walletRules() {
+		return {
+			walletInfo: isLoggedIn ? steamPage.walletInfo() : void 0,
+			useRound
+		};
+	}
+	function getPriceInformationFromItem(item) {
+		return getPriceInformation(getIsTradingCard(item), getIsFoilTradingCard(item));
+	}
+	function getPriceInformation(isTradingCard, isFoilTradingCard) {
+		let maxPrice = 0;
+		let minPrice = 0;
+		if (!isTradingCard) {
+			maxPrice = getSetting(SETTING_MAX_MISC_PRICE);
+			minPrice = getSetting(SETTING_MIN_MISC_PRICE);
+		} else {
+			maxPrice = isFoilTradingCard ? getSetting(SETTING_MAX_FOIL_PRICE) : getSetting(SETTING_MAX_NORMAL_PRICE);
+			minPrice = isFoilTradingCard ? getSetting(SETTING_MIN_FOIL_PRICE) : getSetting(SETTING_MIN_NORMAL_PRICE);
+		}
+		maxPrice = maxPrice * 100;
+		minPrice = minPrice * 100;
+		const rules = walletRules();
+		const maxPriceBeforeFees = priceBeforeFees(maxPrice, null, rules);
+		const minPriceBeforeFees = priceBeforeFees(minPrice, null, rules);
+		return {
+			maxPrice,
+			minPrice,
+			maxPriceBeforeFees,
+			minPriceBeforeFees
+		};
+	}
+	var NO_LISTING_PRICE_SENTINEL = 65535;
+	function createPricingRules(item) {
+		const rules = {
+			algorithm: getSetting(SETTING_PRICE_ALGORITHM),
+			offsetCents: getSetting(SETTING_PRICE_OFFSET) * 100,
+			historyHours: getSetting(SETTING_PRICE_HISTORY_HOURS),
+			ignoreLowestOnLowQuantity: getSetting(SETTING_PRICE_IGNORE_LOWEST_Q) == 1,
+			...walletRules(),
+			now: Date.now()
+		};
+		const priceInfo = item != null ? getPriceInformationFromItem(item) : getPriceInformation(false, false);
+		rules.minPriceBeforeFees = priceInfo.minPriceBeforeFees;
+		rules.maxPriceBeforeFees = priceInfo.maxPriceBeforeFees;
+		return rules;
+	}
+	function calculateAverageHistoryPriceBeforeFees(history, rules = createPricingRules()) {
+		let highest = 0;
+		let total = 0;
+		if (history != null) {
+			const timeAgo = rules.now - rules.historyHours * 60 * 60 * 1e3;
+			history.forEach((historyItem) => {
+				if (new Date(historyItem[0]).getTime() > timeAgo) {
+					highest += historyItem[1] * historyItem[2];
+					total += historyItem[2];
+				}
+			});
+		}
+		if (total == 0) return 0;
+		highest = Math.floor(highest / total);
+		return priceBeforeFees(highest, null, rules);
+	}
+	function calculateListingPriceBeforeFees(orderbook, rules = createPricingRules()) {
+		if (typeof orderbook === "undefined" || orderbook == null || orderbook.lowest_sell_order == null || orderbook.sell_order_graph == null) return 0;
+		let listingPrice = priceBeforeFees(orderbook.lowest_sell_order, null, rules);
+		if (rules.ignoreLowestOnLowQuantity && orderbook.sell_order_graph.length >= 2) {
+			const listingPrice2ndLowest = priceBeforeFees(orderbook.sell_order_graph[1][0] * 100, null, rules);
+			if (listingPrice2ndLowest > listingPrice) {
+				const numberOfListingsLowest = orderbook.sell_order_graph[0][1];
+				const numberOfListings2ndLowest = orderbook.sell_order_graph[1][1];
+				const percentageLower = 100 * (numberOfListingsLowest / numberOfListings2ndLowest);
+				if (numberOfListings2ndLowest >= 1e3 && percentageLower <= 5) listingPrice = listingPrice2ndLowest;
+				else if (numberOfListings2ndLowest < 1e3 && percentageLower <= 10) listingPrice = listingPrice2ndLowest;
+				else if (numberOfListings2ndLowest < 100 && percentageLower <= 15) listingPrice = listingPrice2ndLowest;
+				else if (numberOfListings2ndLowest < 50 && percentageLower <= 20) listingPrice = listingPrice2ndLowest;
+				else if (numberOfListings2ndLowest < 25 && percentageLower <= 25) listingPrice = listingPrice2ndLowest;
+				else if (numberOfListings2ndLowest < 10 && percentageLower <= 30) listingPrice = listingPrice2ndLowest;
+			}
+		}
+		return listingPrice;
+	}
+	function calculateBuyOrderPriceBeforeFees(orderbook, rules = createPricingRules()) {
+		if (typeof orderbook === "undefined" || orderbook == null) return 0;
+		return priceBeforeFees(orderbook.highest_buy_order, null, rules);
+	}
+	function calculateSellPriceBeforeFees(history, orderbook, applyOffset, rules = createPricingRules()) {
+		const minPriceBeforeFees = rules.minPriceBeforeFees;
+		const maxPriceBeforeFees = rules.maxPriceBeforeFees;
+		const historyPrice = calculateAverageHistoryPriceBeforeFees(history, rules);
+		const listingPrice = calculateListingPriceBeforeFees(orderbook, rules);
+		const buyPrice = calculateBuyOrderPriceBeforeFees(orderbook, rules);
+		const shouldUseAverage = rules.algorithm === 1;
+		const shouldUseBuyOrder = rules.algorithm === 3;
+		const shouldUseHistory = rules.algorithm === 4;
+		let calculatedPrice = 0;
+		if (shouldUseBuyOrder) calculatedPrice = buyPrice;
+		else if ((historyPrice < listingPrice || !shouldUseAverage) && !shouldUseHistory) calculatedPrice = listingPrice;
+		else calculatedPrice = historyPrice;
+		let changedToMax = false;
+		if (calculatedPrice == 0) {
+			calculatedPrice = maxPriceBeforeFees;
+			changedToMax = true;
+		}
+		if (!changedToMax && applyOffset) calculatedPrice = calculatedPrice + rules.offsetCents;
+		calculatedPrice = clamp(calculatedPrice, minPriceBeforeFees, maxPriceBeforeFees);
+		if (!shouldUseHistory && typeof orderbook !== "undefined" && orderbook != null && orderbook.highest_buy_order != null) {
+			const buyOrderPrice = priceBeforeFees(orderbook.highest_buy_order, null, rules);
+			if (buyOrderPrice > calculatedPrice) calculatedPrice = buyOrderPrice;
+		}
+		return calculatedPrice;
+	}
+	function getRandomInt(min, max) {
+		return Math.floor(Math.random() * (max - min + 1)) + min;
+	}
+	function getNumberOfDigits(x) {
+		return (Math.log10((x ^ x >> 31) - (x >> 31)) | 0) + 1;
+	}
+	function padLeftZero(str, max) {
+		str = str.toString();
+		return str.length < max ? padLeftZero(`0${str}`, max) : str;
+	}
+	function replaceNonNumbers(str) {
+		return str.replace(/\D/g, "");
+	}
+	function createFailureCounter() {
+		return { failures: 0 };
+	}
+	function resetRetryDelay(counter) {
+		counter.failures = 0;
+	}
+	function nextRetryDelay(counter) {
+		counter.failures += 1;
+		const delay = counter.failures > 1 ? getRandomInt(RETRY_DELAY_LONG_MIN, RETRY_DELAY_LONG_MAX) : getRandomInt(RETRY_DELAY_SHORT_MIN, RETRY_DELAY_SHORT_MAX);
+		if (counter.failures > 3) counter.failures = 0;
+		return delay;
+	}
+	function nextQueueStep(success, cached, failures, alreadyRetried, options = {}) {
+		if (success) {
+			if (!cached) resetRetryDelay(failures);
+			const configured = options.successDelayMs ?? (() => getRandomInt(1e3, 1500));
+			const delay = typeof configured === "function" ? configured() : configured;
+			return {
+				delay: cached ? 0 : delay,
+				retry: false
+			};
+		}
+		const retry = (options.retryOnFailure ?? false) && !alreadyRetried;
+		return {
+			delay: cached ? 0 : nextRetryDelay(failures),
+			retry
+		};
+	}
+	function runQueue(worker, options = {}) {
+		const failures = createFailureCounter();
+		const queue = async.default.queue((task, next) => {
+			worker(task, task.ignoreErrors === true, (success, cached) => {
+				const step = nextQueueStep(success, cached, failures, task.ignoreErrors === true, options);
+				if (step.retry) {
+					task.ignoreErrors = true;
+					if (options.retryPlacement === "front") queue.unshift(task);
+					else queue.push(task);
+				} else options.onTaskDone?.(task, success);
+				setTimeout(() => next(), step.delay);
+			});
+		}, options.concurrency ?? 1);
+		return queue;
+	}
+	function readCookie(name) {
+		const nameEQ = `${name}=`;
+		const ca = document.cookie.split(";");
+		for (let i = 0; i < ca.length; i++) {
+			let c = ca[i];
+			while (c.charAt(0) == " ") c = c.substring(1, c.length);
+			if (c.indexOf(nameEQ) == 0) return decodeURIComponent(c.substring(nameEQ.length, c.length));
+		}
+		return null;
 	}
 	localforage.default.createInstance({ name: "see_persistent" });
 	var storageSession;
@@ -797,168 +971,6 @@
 			useRound
 		});
 	};
-	function formatPrice(valueInCents) {
-		return steamPage.formatPrice(valueInCents, currencyCode, currencyCountry);
-	}
-	function formatPriceDelta(cents) {
-		if (!cents) return "";
-		return `${cents > 0 ? "+" : "−"}${formatPrice(Math.abs(cents))}`;
-	}
-	function getPriceInformationFromItem(item) {
-		return getPriceInformation(getIsTradingCard(item), getIsFoilTradingCard(item));
-	}
-	function getPriceInformation(isTradingCard, isFoilTradingCard) {
-		let maxPrice = 0;
-		let minPrice = 0;
-		if (!isTradingCard) {
-			maxPrice = getSetting(SETTING_MAX_MISC_PRICE);
-			minPrice = getSetting(SETTING_MIN_MISC_PRICE);
-		} else {
-			maxPrice = isFoilTradingCard ? getSetting(SETTING_MAX_FOIL_PRICE) : getSetting(SETTING_MAX_NORMAL_PRICE);
-			minPrice = isFoilTradingCard ? getSetting(SETTING_MIN_FOIL_PRICE) : getSetting(SETTING_MIN_NORMAL_PRICE);
-		}
-		maxPrice = maxPrice * 100;
-		minPrice = minPrice * 100;
-		const maxPriceBeforeFees = market.getPriceBeforeFees(maxPrice);
-		const minPriceBeforeFees = market.getPriceBeforeFees(minPrice);
-		return {
-			maxPrice,
-			minPrice,
-			maxPriceBeforeFees,
-			minPriceBeforeFees
-		};
-	}
-	var NO_LISTING_PRICE_SENTINEL = 65535;
-	function createPricingRules() {
-		return {
-			algorithm: getSetting(SETTING_PRICE_ALGORITHM),
-			offsetCents: getSetting(SETTING_PRICE_OFFSET) * 100,
-			historyHours: getSetting(SETTING_PRICE_HISTORY_HOURS),
-			ignoreLowestOnLowQuantity: getSetting(SETTING_PRICE_IGNORE_LOWEST_Q) == 1,
-			walletInfo: market.walletInfo,
-			useRound,
-			now: Date.now()
-		};
-	}
-	function calculateAverageHistoryPriceBeforeFees(history, rules = createPricingRules()) {
-		let highest = 0;
-		let total = 0;
-		if (history != null) {
-			const timeAgo = rules.now - rules.historyHours * 60 * 60 * 1e3;
-			history.forEach((historyItem) => {
-				if (new Date(historyItem[0]).getTime() > timeAgo) {
-					highest += historyItem[1] * historyItem[2];
-					total += historyItem[2];
-				}
-			});
-		}
-		if (total == 0) return 0;
-		highest = Math.floor(highest / total);
-		return priceBeforeFees(highest, null, rules);
-	}
-	function calculateListingPriceBeforeFees(orderbook, rules = createPricingRules()) {
-		if (typeof orderbook === "undefined" || orderbook == null || orderbook.lowest_sell_order == null || orderbook.sell_order_graph == null) return 0;
-		let listingPrice = priceBeforeFees(orderbook.lowest_sell_order, null, rules);
-		if (rules.ignoreLowestOnLowQuantity && orderbook.sell_order_graph.length >= 2) {
-			const listingPrice2ndLowest = priceBeforeFees(orderbook.sell_order_graph[1][0] * 100, null, rules);
-			if (listingPrice2ndLowest > listingPrice) {
-				const numberOfListingsLowest = orderbook.sell_order_graph[0][1];
-				const numberOfListings2ndLowest = orderbook.sell_order_graph[1][1];
-				const percentageLower = 100 * (numberOfListingsLowest / numberOfListings2ndLowest);
-				if (numberOfListings2ndLowest >= 1e3 && percentageLower <= 5) listingPrice = listingPrice2ndLowest;
-				else if (numberOfListings2ndLowest < 1e3 && percentageLower <= 10) listingPrice = listingPrice2ndLowest;
-				else if (numberOfListings2ndLowest < 100 && percentageLower <= 15) listingPrice = listingPrice2ndLowest;
-				else if (numberOfListings2ndLowest < 50 && percentageLower <= 20) listingPrice = listingPrice2ndLowest;
-				else if (numberOfListings2ndLowest < 25 && percentageLower <= 25) listingPrice = listingPrice2ndLowest;
-				else if (numberOfListings2ndLowest < 10 && percentageLower <= 30) listingPrice = listingPrice2ndLowest;
-			}
-		}
-		return listingPrice;
-	}
-	function calculateBuyOrderPriceBeforeFees(orderbook, rules = createPricingRules()) {
-		if (typeof orderbook === "undefined" || orderbook == null) return 0;
-		return priceBeforeFees(orderbook.highest_buy_order, null, rules);
-	}
-	function calculateSellPriceBeforeFees(history, orderbook, applyOffset, minPriceBeforeFees, maxPriceBeforeFees, rules = createPricingRules()) {
-		const historyPrice = calculateAverageHistoryPriceBeforeFees(history, rules);
-		const listingPrice = calculateListingPriceBeforeFees(orderbook, rules);
-		const buyPrice = calculateBuyOrderPriceBeforeFees(orderbook, rules);
-		const shouldUseAverage = rules.algorithm === 1;
-		const shouldUseBuyOrder = rules.algorithm === 3;
-		const shouldUseHistory = rules.algorithm === 4;
-		let calculatedPrice = 0;
-		if (shouldUseBuyOrder) calculatedPrice = buyPrice;
-		else if ((historyPrice < listingPrice || !shouldUseAverage) && !shouldUseHistory) calculatedPrice = listingPrice;
-		else calculatedPrice = historyPrice;
-		let changedToMax = false;
-		if (calculatedPrice == 0) {
-			calculatedPrice = maxPriceBeforeFees;
-			changedToMax = true;
-		}
-		if (!changedToMax && applyOffset) calculatedPrice = calculatedPrice + rules.offsetCents;
-		calculatedPrice = clamp(calculatedPrice, minPriceBeforeFees, maxPriceBeforeFees);
-		if (!shouldUseHistory && typeof orderbook !== "undefined" && orderbook != null && orderbook.highest_buy_order != null) {
-			const buyOrderPrice = priceBeforeFees(orderbook.highest_buy_order, null, rules);
-			if (buyOrderPrice > calculatedPrice) calculatedPrice = buyOrderPrice;
-		}
-		return calculatedPrice;
-	}
-	function getRandomInt(min, max) {
-		return Math.floor(Math.random() * (max - min + 1)) + min;
-	}
-	function getNumberOfDigits(x) {
-		return (Math.log10((x ^ x >> 31) - (x >> 31)) | 0) + 1;
-	}
-	function padLeftZero(str, max) {
-		str = str.toString();
-		return str.length < max ? padLeftZero(`0${str}`, max) : str;
-	}
-	function replaceNonNumbers(str) {
-		return str.replace(/\D/g, "");
-	}
-	function createFailureCounter() {
-		return { failures: 0 };
-	}
-	function resetRetryDelay(counter) {
-		counter.failures = 0;
-	}
-	function nextRetryDelay(counter) {
-		counter.failures += 1;
-		const delay = counter.failures > 1 ? getRandomInt(RETRY_DELAY_LONG_MIN, RETRY_DELAY_LONG_MAX) : getRandomInt(RETRY_DELAY_SHORT_MIN, RETRY_DELAY_SHORT_MAX);
-		if (counter.failures > 3) counter.failures = 0;
-		return delay;
-	}
-	function nextQueueStep(success, cached, failures, alreadyRetried, options = {}) {
-		if (success) {
-			if (!cached) resetRetryDelay(failures);
-			const configured = options.successDelayMs ?? (() => getRandomInt(1e3, 1500));
-			const delay = typeof configured === "function" ? configured() : configured;
-			return {
-				delay: cached ? 0 : delay,
-				retry: false
-			};
-		}
-		const retry = (options.retryOnFailure ?? false) && !alreadyRetried;
-		return {
-			delay: cached ? 0 : nextRetryDelay(failures),
-			retry
-		};
-	}
-	function runQueue(worker, options = {}) {
-		const failures = createFailureCounter();
-		const queue = async.default.queue((task, next) => {
-			worker(task, task.ignoreErrors === true, (success, cached) => {
-				const step = nextQueueStep(success, cached, failures, task.ignoreErrors === true, options);
-				if (step.retry) {
-					task.ignoreErrors = true;
-					if (options.retryPlacement === "front") queue.unshift(task);
-					else queue.push(task);
-				} else options.onTaskDone?.(task, success);
-				setTimeout(() => next(), step.delay);
-			});
-		}, options.concurrency ?? 1);
-		return queue;
-	}
 	function markRow(assetKey, status) {
 		(0, jquery.default)(`#${assetKey}`).css("background", ROW_STATUS_COLORS[status]);
 	}
@@ -1589,7 +1601,6 @@
 			listingUI.addClass("not_checked");
 			return callback(true, true);
 		}
-		const priceInfo = getPriceInformationFromItem(asset);
 		const item = {
 			appid: parseInt(appid),
 			description: { market_hash_name }
@@ -1610,9 +1621,9 @@
 				JSON.stringify(listing);
 				`${game_name}${asset.name}`;
 				price / 100;
-				const rules = createPricingRules();
-				const sellPriceWithoutOffset = calculateSellPriceBeforeFees(history, orderbook, false, priceInfo.minPriceBeforeFees, priceInfo.maxPriceBeforeFees, rules);
-				const sellPriceWithOffset = calculateSellPriceBeforeFees(history, orderbook, true, priceInfo.minPriceBeforeFees, priceInfo.maxPriceBeforeFees, rules);
+				const rules = createPricingRules(asset);
+				const sellPriceWithoutOffset = calculateSellPriceBeforeFees(history, orderbook, false, rules);
+				const sellPriceWithOffset = calculateSellPriceBeforeFees(history, orderbook, true, rules);
 				const sellPriceWithoutOffsetWithFees = market.getPriceIncludingFees(sellPriceWithoutOffset);
 				sellPriceWithoutOffsetWithFees / 100, sellPriceWithoutOffset / 100;
 				const verdict = getListingVerdict(sellPriceWithoutOffsetWithFees, price);
@@ -1822,7 +1833,11 @@
 				if (err != null) failed += 1;
 			}
 			if (failed > 0 && !ignoreErrors) return callback(false, cachedListings);
-			const sellPrice = calculateSellPriceBeforeFees(null, orderbook, false, 0, NO_LISTING_PRICE_SENTINEL, createPricingRules());
+			const sellPrice = calculateSellPriceBeforeFees(null, orderbook, false, {
+				...createPricingRules(),
+				minPriceBeforeFees: 0,
+				maxPriceBeforeFees: NO_LISTING_PRICE_SENTINEL
+			});
 			const priceWithFees = sellPrice == 65535 ? 0 : market.getPriceIncludingFees(sellPrice);
 			const itemPrice = sellPrice == 65535 ? "∞" : formatPrice(priceWithFees);
 			listingState.set(getAssetKey(item), { sellPrice: priceWithFees });
@@ -2241,7 +2256,6 @@
 	}
 	var itemQueue = runQueue(itemQueueWorker, { retryOnFailure: true });
 	function itemQueueWorker(item, ignoreErrors, callback) {
-		const priceInfo = getPriceInformationFromItem(item);
 		let failed = 0;
 		const itemName = item.name || item.description.name;
 		market.getPriceHistory(item, true, (err, history, cachedHistory) => {
@@ -2255,7 +2269,7 @@
 					if (err != null) failed += 1;
 				}
 				if (failed > 0 && !ignoreErrors) return callback(false, cachedHistory && cachedListings);
-				const sellPrice = calculateSellPriceBeforeFees(history, orderbook, true, priceInfo.minPriceBeforeFees, priceInfo.maxPriceBeforeFees, createPricingRules());
+				const sellPrice = calculateSellPriceBeforeFees(history, orderbook, true, createPricingRules(item));
 				sellPrice / 100, market.getPriceIncludingFees(sellPrice) / 100;
 				sellQueue.push({
 					item,
@@ -3128,4 +3142,4 @@
 		};
 		iterator(0);
 	};
-})(jQuery, localforage, async, luxon, List);
+})(jQuery, async, localforage, luxon, List);

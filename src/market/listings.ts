@@ -19,7 +19,6 @@ import {
     createPricingRules,
     formatPrice,
     formatPriceDelta,
-    getPriceInformationFromItem,
 } from '../pricing/algorithms.ts';
 import { runQueue } from '../queue/index.ts';
 import {
@@ -190,7 +189,6 @@ export function marketListingsQueueWorker(listing, ignoreErrors, callback) {
         return callback(true, true);
     }
 
-    const priceInfo = getPriceInformationFromItem(asset);
     const item = {
         appid: parseInt(appid),
         description: {
@@ -247,22 +245,18 @@ export function marketListingsQueueWorker(listing, ignoreErrors, callback) {
             // Built once and passed to both calls: two independent
             // createPricingRules() calls could in principle read the settings
             // or the wall clock a moment apart and disagree on this one item.
-            const rules = createPricingRules();
+            const rules = createPricingRules(asset);
 
             const sellPriceWithoutOffset = calculateSellPriceBeforeFees(
                 history,
                 orderbook,
                 false,
-                priceInfo.minPriceBeforeFees,
-                priceInfo.maxPriceBeforeFees,
                 rules,
             );
             const sellPriceWithOffset = calculateSellPriceBeforeFees(
                 history,
                 orderbook,
                 true,
-                priceInfo.minPriceBeforeFees,
-                priceInfo.maxPriceBeforeFees,
                 rules,
             );
 

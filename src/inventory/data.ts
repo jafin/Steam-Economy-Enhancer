@@ -81,14 +81,14 @@ export function inventoryPriceQueueWorker(item, ignoreErrors, callback) {
             return callback(false, cachedListings);
         }
 
-        const sellPrice = calculateSellPriceBeforeFees(
-            null,
-            orderbook,
-            false,
-            0,
-            NO_LISTING_PRICE_SENTINEL,
-            createPricingRules(),
-        );
+        // Nobody to undercut, so the bounds are overridden explicitly rather than taken from
+        // an item's settings-derived class: no minimum, and a ceiling that reads back as
+        // "unpriced" instead of a real price.
+        const sellPrice = calculateSellPriceBeforeFees(null, orderbook, false, {
+            ...createPricingRules(),
+            minPriceBeforeFees: 0,
+            maxPriceBeforeFees: NO_LISTING_PRICE_SENTINEL,
+        });
 
         // Nobody is selling this one, so there is no price to show and nothing to
         // add to a trade offer total.
