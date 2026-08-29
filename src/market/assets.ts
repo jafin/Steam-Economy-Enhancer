@@ -5,9 +5,13 @@
 
 import { steamPage } from '../steam/instance.ts';
 import { replaceNonNumbers } from '../util/numbers.ts';
-import { getPriceValueAsInt } from './listings.ts';
-import { getListingFromLists } from './sort.ts';
+import { getListingFromLists } from './rows.ts';
 import $ from 'jquery';
+
+// Match number part from any currency format
+export const getPriceValueAsInt = (listing) =>
+    steamPage.parsePriceText(listing.match(/(?<price>[0-9][0-9 .,]*)/)?.groups?.price ?? 0);
+
 // Gets the asset info (appid/contextid/assetid) based on a listingid.
 export function getAssetInfoFromListingId(listingid) {
     const listing = getListingFromLists(listingid);

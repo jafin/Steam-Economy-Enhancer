@@ -4,6 +4,8 @@
 // progress bar. The counters are reset only once nothing is queueing relists any more, not
 // per queue -- see resetMarketRelistProgress.
 
+import { marketRelistQueuedListings, refreshMarketOverpricedButtons } from './relist.ts';
+
 /**
  * Progress of the current relist run.
  *
@@ -20,8 +22,6 @@ export const marketProgress = {
     /** Listings it has finished relisting. */
     relistDone: 0,
 };
-
-import { marketRelistQueuedListings, refreshMarketOverpricedButtons } from './relist.ts';
 
 // Progress of the current relist run, shown on the relist overpriced button.
 // Both are reset once nothing is queueing relists any more, see resetMarketRelistProgress.

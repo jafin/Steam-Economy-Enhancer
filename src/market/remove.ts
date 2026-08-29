@@ -6,9 +6,11 @@
 import { COLOR_ERROR, COLOR_SUCCESS } from '../constants.ts';
 import { runQueue } from '../queue/index.ts';
 import { market } from '../steam/market.ts';
+import { logConsole } from '../ui/logger.ts';
 import { getRandomInt } from '../util/numbers.ts';
 import { increaseMarketProgress } from './progress.ts';
-import { getListingFromLists, marketLists, removeListingFromLists } from './sort.ts';
+import { refreshMarketOverpricedButtons } from './relist.ts';
+import { getListingFromLists, marketLists, removeListingFromLists } from './rows.ts';
 import $ from 'jquery';
 export const marketRemoveQueue = runQueue(marketRemoveQueueWorker, {
     retryOnFailure: true,
@@ -22,7 +24,16 @@ export const marketRemoveQueue = runQueue(marketRemoveQueueWorker, {
 // to a primitive throws in a module, which is always strict.
 export function marketRemoveQueueWorker(task, ignoreErrors, callback) {
     const listingid = task.listingid;
-    const listingUI = getListingFromLists(listingid).elm;
+    const listing = getListingFromLists(listingid);
+    if (listing == null) {
+        logConsole(`Listing ${listingid} not found in the lists, skipping.`);
+
+        callback(true);
+
+        return;
+    }
+
+    const listingUI = listing.elm;
     const isBuyOrder = listingUI.id.startsWith('mybuyorder_');
 
     market.removeListing(listingid, isBuyOrder, (errorRemove) => {
@@ -31,6 +42,11 @@ export function marketRemoveQueueWorker(task, ignoreErrors, callback) {
 
             setTimeout(() => {
                 removeListingFromLists(listingid);
+
+                // Listings are removed from the lists a few seconds after they are relisted
+                // or removed, which can be after the queue drained, so refresh the counts
+                // here as well.
+                refreshMarketOverpricedButtons();
 
                 const numberOfListings = marketLists[0].size;
                 if (numberOfListings > 0) {

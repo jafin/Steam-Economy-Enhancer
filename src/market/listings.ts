@@ -32,11 +32,16 @@ import { market } from '../steam/market.ts';
 import { renderSpinner } from '../ui/index.ts';
 import { logConsole } from '../ui/logger.ts';
 import { replaceNonNumbers } from '../util/numbers.ts';
-import { getAssetInfoFromBuyOrderId, getAssetInfoFromListingId } from './assets.ts';
+import {
+    getAssetInfoFromBuyOrderId,
+    getAssetInfoFromListingId,
+    getPriceValueAsInt,
+} from './assets.ts';
 import { getListingPriceDelta, getListingVerdict, listingState } from './listingState.ts';
 import { increaseMarketProgress, increaseMarketProgressMax } from './progress.ts';
 import { queueOverpricedItemListing, refreshMarketOverpricedButtons } from './relist.ts';
-import { getListingFromLists, marketLists, sortMarketListings } from './sort.ts';
+import { getListingFromLists, marketLists } from './rows.ts';
+import { sortMarketListings } from './sort.ts';
 import { updateMarketSelectAllButton } from './ui.ts';
 import $ from 'jquery';
 import List from 'list.js';
@@ -44,10 +49,6 @@ import List from 'list.js';
 // --- Page-scoped code, hoisted to module scope (see the note above) ---
 // Original guard: currentPage == PAGE_MARKET || currentPage == PAGE_MARKET_LISTING
 export const marketListingsRelistedAssets: any[] = [];
-
-// Match number part from any currency format
-export const getPriceValueAsInt = (listing) =>
-    steamPage.parsePriceText(listing.match(/(?<price>[0-9][0-9 .,]*)/)?.groups?.price ?? 0);
 
 // Renders the price cell as four labelled quadrants: what the buyer pays, what the seller
 // receives, the highest buy order, and the distance from the best price.
@@ -60,8 +61,8 @@ export const getPriceValueAsInt = (listing) =>
 //
 // Steam's original `.market_table_value` is *hidden, not removed*, and that is the whole
 // safety argument for this function. Three separate readers depend on its exact internal
-// shape through positional selectors: `getPriceValueAsInt` above reads the listed price at
-// `.market_listing_price > span:nth-child(1) > span:nth-child(1)`, `getAssetInfoFromListingId`
+// shape through positional selectors: `getPriceValueAsInt` in assets.ts reads the listed
+// price at `.market_listing_price > span:nth-child(1) > span:nth-child(1)`, `getAssetInfoFromListingId`
 // reads the seller price at `span:nth-child(3)` of the same parent, and the price sort in
 // sort.ts truncates that element's text at the first `(`. Moving those spans into grid
 // cells would shift every nth-child and silently feed the wrong price into the verdict and
