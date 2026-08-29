@@ -3056,7 +3056,7 @@
 
         // Match number part from any currency format
         const getPriceValueAsInt = listing =>
-            unsafeWindow.GetPriceValueAsInt(
+            steamPage.parsePriceText(
                 listing.match(/(?<price>[0-9][0-9 .,]*)/)?.groups?.price ?? 0
             );
 
@@ -3081,7 +3081,7 @@
 
 
         function marketListingsQueueWorker(listing, ignoreErrors, callback) {
-            const asset = unsafeWindow.g_rgAssets[listing.appid][listing.contextid][listing.assetid];
+            const asset = steamPage.assetFor(listing.appid, listing.contextid, listing.assetid);
 
             // An asset:
             //{
@@ -3348,7 +3348,7 @@
                             const decodedMarketHashName = decodeURIComponent(itemName.substring(marketHashNameIndex));
                             let newAssetId = -1;
 
-                            unsafeWindow.RequestFullInventory(`${market.inventoryUrl + item.appid}/${item.contextid}/`, {}, null, null, (transport) => {
+                            steamPage.requestFullInventory(`${market.inventoryUrl + item.appid}/${item.contextid}/`, (transport) => {
                                 if (transport.responseJSON && transport.responseJSON.success) {
                                     const inventory = transport.responseJSON.rgInventory;
 
@@ -3522,7 +3522,7 @@
                         myMarketListings.append(rows);
 
                         // g_rgAssets
-                        unsafeWindow.MergeWithAssetArray(data.assets); // This is a method from Steam.
+                        steamPage.mergeAssets(data.assets); // This is a method from Steam.
 
                         callback();
                     }
@@ -3686,7 +3686,7 @@
             const appid = replaceNonNumbers(itemIds[2]);
             const contextid = replaceNonNumbers(itemIds[3]);
             const assetid = replaceNonNumbers(itemIds[4]);
-            const amount = Number(unsafeWindow.g_rgAssets[appid][contextid][assetid]?.amount ?? 1);
+            const amount = Number(steamPage.assetFor(appid, contextid, assetid)?.amount ?? 1);
             return {
                 appid,
                 contextid,
@@ -3769,8 +3769,9 @@
                 let currentCount = 0;
                 let totalCount = 0;
 
-                if (typeof unsafeWindow.g_oMyListings !== 'undefined' && unsafeWindow.g_oMyListings != null && unsafeWindow.g_oMyListings.m_cTotalCount != null) {
-                    totalCount = unsafeWindow.g_oMyListings.m_cTotalCount;
+                const myListingsTotalCount = steamPage.myListingsTotalCount();
+                if (myListingsTotalCount != null) {
+                    totalCount = myListingsTotalCount;
                 } else {
                     totalCount = parseInt($('#my_market_selllistings_number').text());
                 }
@@ -3818,18 +3819,10 @@
                     const assetInfo = getAssetInfoFromListingId(listingid);
 
                     // There's only one item in the g_rgAssets on a market listing page.
-                    let existingAsset = null;
-                    for (const appid in unsafeWindow.g_rgAssets) {
-                        for (const contextid in unsafeWindow.g_rgAssets[appid]) {
-                            for (const assetid in unsafeWindow.g_rgAssets[appid][contextid]) {
-                                existingAsset = unsafeWindow.g_rgAssets[appid][contextid][assetid];
-                                break;
-                            }
-                        }
-                    }
+                    const existingAsset = steamPage.firstAsset();
 
                     // appid and contextid are identical, only the assetid is different for each asset.
-                    unsafeWindow.g_rgAssets[assetInfo.appid][assetInfo.contextid][assetInfo.assetid] = existingAsset;
+                    steamPage.setAsset(assetInfo.appid, assetInfo.contextid, assetInfo.assetid, existingAsset);
                     marketListingsQueue.push({
                         listingid,
                         appid: assetInfo.appid,
@@ -4286,9 +4279,7 @@
                     }
                     const targetIndex = targetPage - 1;
 
-                    if (typeof unsafeWindow.g_oMyHistory !== 'undefined') {
-                        unsafeWindow.g_oMyHistory.GoToPage(targetIndex);
-                    }
+                    steamPage.goToHistoryPage(targetIndex);
                 });
 
                 input.on('keypress', (e) => {
