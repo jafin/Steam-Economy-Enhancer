@@ -103,8 +103,110 @@
 
     const enableConsoleLog = false;
 
-    const country = typeof unsafeWindow.g_strCountryCode !== 'undefined' ? unsafeWindow.g_strCountryCode : undefined;
-    const isLoggedIn = typeof unsafeWindow.g_rgWalletInfo !== 'undefined' && unsafeWindow.g_rgWalletInfo != null || typeof unsafeWindow.g_bLoggedIn !== 'undefined' && unsafeWindow.g_bLoggedIn;
+    // Everything Steam's own page exposes, in one place. `unsafeWindow` global reach-ins used
+    // to happen at ~44 sites across the whole file: this is what caused the bug fixed in
+    // PR #334, where Steam changed which DOM element the sell listings' header actually was
+    // and `$('.my_market_header').first()` silently grabbed the wrong one. Nothing failed;
+    // the Relist/Select buttons just stopped appearing.
+    //
+    // createSteamPage(win) is the live adapter, built once from unsafeWindow at load time.
+    // A second, fixture adapter (createFixtureSteamPage, in test/steam-page-fixture.js)
+    // implements the same shape from data instead of a real page, so a change to the shape
+    // this file expects Steam's page to have can be caught by a test rather than by a user
+    // reporting silence. See test/steam-page.test.js.
+    function createSteamPage(win) {
+        return {
+            // Session / config
+            isLoggedIn: () =>
+                (typeof win.g_rgWalletInfo !== 'undefined' && win.g_rgWalletInfo != null) ||
+                (typeof win.g_bLoggedIn !== 'undefined' && win.g_bLoggedIn),
+            countryCode: () => (typeof win.g_strCountryCode !== 'undefined' ? win.g_strCountryCode : undefined),
+            walletInfo: () => win.g_rgWalletInfo,
+            appContextData: () => win.g_rgAppContextData,
+            inventoryLoadUrl: () => (win.g_strInventoryLoadURL || undefined),
+            profileUrl: () => (win.g_strProfileURL || undefined),
+            currencyCode: (currencyId) => win.GetCurrencyCode(currencyId),
+            formatPrice: (valueInCents, currencyCode, currencyCountry) =>
+                win.v_currencyformat(valueInCents, currencyCode, currencyCountry),
+            parsePriceText: (text) => win.GetPriceValueAsInt(text),
+            showDialog: (title, html) => win.ShowDialog(title, html),
+            showConfirmDialog: (title, html) => win.ShowConfirmDialog(title, html),
+
+            // Inventory
+            activeInventory: () => win.g_ActiveInventory,
+            activeUser: () => win.g_ActiveUser,
+            steamId: () => win.g_steamID,
+            activeSelectView: () => win.iActiveSelectView,
+
+            // Patches CInventory.prototype.SelectItem to also call handler(rgItem) after
+            // Steam's own selection handling, and returns a teardown that restores the
+            // original. A no-op, reversible teardown if CInventory never loaded.
+            onInventorySelectItem(handler) {
+                if (typeof win.CInventory === 'undefined') {
+                    return () => { };
+                }
+
+                const original = win.CInventory.prototype.SelectItem;
+
+                win.CInventory.prototype.SelectItem = function (event, elItem, rgItem) {
+                    original.apply(this, arguments);
+                    handler(rgItem);
+                };
+
+                return () => {
+                    win.CInventory.prototype.SelectItem = original;
+                };
+            },
+
+            // Market assets
+            assetFor: (appid, contextid, assetid) => win.g_rgAssets?.[appid]?.[contextid]?.[assetid],
+            setAsset: (appid, contextid, assetid, asset) => {
+                win.g_rgAssets[appid][contextid][assetid] = asset;
+            },
+
+            // There is only one item in g_rgAssets on a market listing page - the first (and
+            // only) leaf this finds, whatever its appid/contextid/assetid.
+            firstAsset: () => {
+                for (const appid in win.g_rgAssets) {
+                    for (const contextid in win.g_rgAssets[appid]) {
+                        for (const assetid in win.g_rgAssets[appid][contextid]) {
+                            return win.g_rgAssets[appid][contextid][assetid];
+                        }
+                    }
+                }
+
+                return null;
+            },
+
+            mergeAssets: (assets) => win.MergeWithAssetArray(assets),
+            requestFullInventory: (url, callback) => win.RequestFullInventory(url, {}, null, null, callback),
+            myListingsTotalCount: () =>
+                (typeof win.g_oMyListings !== 'undefined' && win.g_oMyListings != null
+                    ? win.g_oMyListings.m_cTotalCount
+                    : null),
+            goToHistoryPage: (index) => {
+                if (typeof win.g_oMyHistory !== 'undefined') {
+                    win.g_oMyHistory.GoToPage(index);
+                }
+            },
+
+            // Trade offer. `side` is 'me' or 'them', the same keys g_rgCurrentTradeStatus
+            // itself uses, so both sides of a trade can be walked with one loop over
+            // ['me', 'them'] instead of the same code written out twice.
+            tradeAssets: (side) => win.g_rgCurrentTradeStatus[side].assets,
+            findTradeAsset: (side, appid, contextid, assetid) => {
+                const user = side === 'me' ? win.UserYou : win.UserThem;
+
+                return user.findAsset(appid, contextid, assetid);
+            },
+            moveItemToTrade: (item) => win.MoveItemToTrade(item)
+        };
+    }
+
+    const steamPage = createSteamPage(unsafeWindow);
+
+    const country = steamPage.countryCode();
+    const isLoggedIn = steamPage.isLoggedIn();
 
     const currentPage = window.location.href.includes('.com/market')
         ? window.location.href.includes('market/listings')
@@ -4660,6 +4762,7 @@
             createFailureCounter,
             createListingState,
             createPricingRules,
+            createSteamPage,
             getIsCrate,
             getListingVerdict,
             getIsFoilTradingCard,
