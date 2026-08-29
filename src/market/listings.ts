@@ -54,42 +54,61 @@ export const marketListingsRelistedAssets: any[] = [];
 export const getPriceValueAsInt = (listing) =>
     steamPage.parsePriceText(listing.match(/(?<price>[0-9][0-9 .,]*)/)?.groups?.price ?? 0);
 
-// Writes how far a listing is from its best price into the price cell, under the price.
+// Renders the price cell as four labelled quadrants: what the buyer pays, what the seller
+// receives, the highest buy order, and the distance from the best price.
 //
-// Idempotent on purpose. A row can be priced more than once -- the queue above retries a
-// failed listing once with ignoreErrors set, and both attempts reach here -- so this
-// selects the label and creates it only when it is missing, rather than appending. An
-// append would render the delta twice on every retried row.
+// Steam's own layout packs three of those four into one string -- `A$ 0.10 ➤ A$ 0.08
+// (A$ 0.08)` -- where the arrow and the parentheses are conventions the reader either
+// knows or does not. It also breaks: on a high-value listing the price line wraps and the
+// fourth value is pushed out of the 50px cell entirely. The grid gives each value a
+// caption and a fixed quadrant, so nothing wraps and nothing has to be decoded.
 //
-// It appends to the *end* of the cell, and that position is load-bearing twice over.
-// getPriceValueAsInt reads the listed price through
-// `.market_listing_price > span:nth-child(1) > span:nth-child(1)`, so anything inserted at
-// the front of that cell shifts nth-child and the script reads the wrong price, giving a
-// wrong verdict and a wrong relist price with nothing thrown. And the price sort in
-// sort.ts truncates the cell text at the first `(` to drop Steam's seller price, so a
-// label containing parentheses must come after the pair Steam already wrote. The buy order
-// price further down appends into this same region for the same reasons.
+// Steam's original `.market_table_value` is *hidden, not removed*, and that is the whole
+// safety argument for this function. Three separate readers depend on its exact internal
+// shape through positional selectors: `getPriceValueAsInt` above reads the listed price at
+// `.market_listing_price > span:nth-child(1) > span:nth-child(1)`, `getAssetInfoFromListingId`
+// reads the seller price at `span:nth-child(3)` of the same parent, and the price sort in
+// sort.ts truncates that element's text at the first `(`. Moving those spans into grid
+// cells would shift every nth-child and silently feed the wrong price into the verdict and
+// the relist -- nothing would throw. So the original stays exactly where it is and the
+// grid is drawn beside it, purely presentational.
 //
-// Called with an empty string to clear, which is how a label from an earlier pass is kept
-// from surviving under a cell that has since gone grey.
-// The cell is marked with has_price_delta whenever it carries a label, because the label
-// does not fit the cell as Steam lays it out and the corrections that make room for it
-// must not apply to rows without one. See the rules in the stylesheet in main.ts.
-function setListingPriceDeltaLabel(listingUI, text) {
+// The order matters: the grid is built first and Steam's node is hidden only once it is in
+// place, so a failure here leaves the user looking at Steam's price rather than an empty
+// cell.
+//
+// Idempotent, because a row can be priced twice -- the queue above retries a failed
+// listing once with ignoreErrors set and both attempts reach here.
+function renderPriceCellGrid(listingUI, values) {
     const priceCell = $('.market_listing_my_price', listingUI).last();
-    let label = $('.see_price_delta', priceCell);
+    const quadrants = [
+        { label: 'Listed', value: values.listed, cls: 'see_grid_lead' },
+        { label: 'You get', value: values.net, cls: '' },
+        { label: 'Buy order', value: values.buyOrder, cls: '' },
+        { label: 'vs best', value: values.delta || '—', cls: '' },
+    ];
 
-    if (label.length === 0) {
-        if (text === '') {
-            return;
-        }
+    const grid = $('<div class="see_price_grid"></div>');
+    quadrants.forEach((q) => {
+        $('<div class="see_grid_cell"></div>')
+            .append($('<span class="see_grid_label"></span>').text(q.label))
+            .append($(`<span class="see_grid_value ${q.cls}"></span>`).text(q.value))
+            .appendTo(grid);
+    });
 
-        label = $('<span class="see_price_delta"></span>');
-        priceCell.append(label);
-    }
+    $('.see_price_grid', priceCell).remove();
+    priceCell.append(grid);
+    $('.market_table_value', priceCell).addClass('see_hidden');
+}
 
-    label.text(text);
-    priceCell.toggleClass('has_price_delta', text !== '');
+// Puts the cell back the way Steam drew it. The not-checked path returns without pricing,
+// so a grid built on an earlier pass would be showing four numbers the script no longer
+// stands behind.
+function clearPriceCellGrid(listingUI) {
+    const priceCell = $('.market_listing_my_price', listingUI).last();
+
+    $('.see_price_grid', priceCell).remove();
+    $('.market_table_value', priceCell).removeClass('see_hidden');
 }
 
 export const marketListingsQueue = async.queue((listing: QueueTask, next) => {
@@ -181,9 +200,10 @@ export function marketListingsQueueWorker(listing, ignoreErrors, callback) {
     ) {
         $('.market_listing_my_price', listingUI).last().css('background', COLOR_PRICE_NOT_CHECKED);
         $('.market_listing_my_price', listingUI).last().prop('title', 'The price is not checked.');
-        // This path returns without pricing, so any delta from an earlier pass is now
-        // stale. Clear it rather than leave a number sitting under a grey cell.
-        setListingPriceDeltaLabel(listingUI, '');
+        // This path returns without pricing, so a grid from an earlier pass is now stale.
+        // Put Steam's own price display back rather than leave four numbers under a grey
+        // cell that the script no longer stands behind.
+        clearPriceCellGrid(listingUI);
         listingUI.addClass('not_checked');
 
         return callback(true, true);
@@ -223,18 +243,16 @@ export function marketListingsQueueWorker(listing, ignoreErrors, callback) {
 
             // Shows the highest buy order price on the market listings.
             // The 'orderbook.highest_buy_order' is not reliable as Steam is caching this value, but it gives some idea for older titles/listings.
+            //
+            // This used to be appended into Steam's own price span as ` ➤ <price>`. It is
+            // now a quadrant of the grid below instead. That is a move rather than a
+            // removal, and it takes text back out of `.market_listing_price` -- which the
+            // price sort in sort.ts parses by truncating at the first `(` -- so the sort
+            // now sees only what Steam wrote.
             const highestBuyOrderPrice =
                 orderbook == null || orderbook.highest_buy_order == null
                     ? '-'
                     : formatPrice(orderbook.highest_buy_order);
-            $(
-                '.market_table_value > span:nth-child(1) > span:nth-child(1) > span:nth-child(1)',
-                listingUI,
-            ).append(
-                ` ➤ <span title="This is likely the highest buy order price.">${
-                    highestBuyOrderPrice
-                }</span>`,
-            );
 
             logConsole('============================');
             logConsole(JSON.stringify(listing));
@@ -303,7 +321,22 @@ export function marketListingsQueueWorker(listing, ignoreErrors, callback) {
                         `Relisting would list at ${formatPrice(market.getPriceIncludingFees(sellPriceWithOffset))}.`,
                 );
 
-            setListingPriceDeltaLabel(listingUI, formatPriceDelta(priceDelta));
+            // The two prices Steam itself renders are read back out of its own markup
+            // rather than re-formatted from `price`. `price` was parsed *from* that text,
+            // so formatting it again would be a round trip through a parser and a locale
+            // formatter for no gain -- and any cent it disagreed on would be a cent the
+            // user sees change for no reason.
+            const steamPrices = $(
+                '.market_listing_price > span:nth-child(1)',
+                $('.market_listing_my_price', listingUI).last(),
+            );
+
+            renderPriceCellGrid(listingUI, {
+                listed: $('span:nth-child(1)', steamPrices).text().trim(),
+                net: $('span:nth-child(3)', steamPrices).text().trim().replace(/[()]/g, ''),
+                buyOrder: highestBuyOrderPrice,
+                delta: formatPriceDelta(priceDelta),
+            });
 
             $('.market_listing_my_price', listingUI)
                 .last()
