@@ -545,8 +545,11 @@
 		this.inventoryUrlBase = inventoryUrl.replace("/inventory/json", "");
 		if (!this.inventoryUrlBase.endsWith("/")) this.inventoryUrlBase += "/";
 	}
+	function steamRefused(data) {
+		return !data?.success;
+	}
 	function buildOrderBook(data) {
-		if (!data || !data.success || !data.data) return null;
+		if (!data || steamRefused(data) || !data.data) return null;
 		const orderBook = data.data;
 		const buildGraph = (compactOrders) => {
 			const graph = [];
@@ -587,7 +590,17 @@
 				price
 			},
 			responseType: "json"
-		}, callback);
+		}, (error, data) => {
+			if (error) {
+				callback(1, null);
+				return;
+			}
+			if (steamRefused(data)) {
+				callback(2, data);
+				return;
+			}
+			callback(null, data);
+		});
 	};
 	SteamMarket.prototype.removeListing = function(item, isBuyOrder, callback) {
 		request(isBuyOrder ? `${window.location.origin}/market/cancelbuyorder/` : `${window.location.origin}/market/removelisting/${item}`, {
@@ -599,7 +612,7 @@
 			responseType: "json"
 		}, (error, data) => {
 			if (error) {
-				callback(1);
+				callback(1, null);
 				return;
 			}
 			callback(null, data);
@@ -610,7 +623,7 @@
 		try {
 			const market_name = getMarketHashName(item);
 			if (market_name == null) {
-				callback(1);
+				callback(1, null, false);
 				return;
 			}
 			const appid = item.appid;
@@ -624,7 +637,7 @@
 				});
 			} else market.getCurrentPriceHistory(appid, market_name, callback);
 		} catch {
-			return callback(1);
+			return callback(1, null, false);
 		}
 	};
 	SteamMarket.prototype.getGooValue = function(item, callback) {
@@ -648,13 +661,13 @@
 				responseType: "json"
 			}, (error, data) => {
 				if (error) {
-					callback(1, data);
+					callback(1, null);
 					return;
 				}
 				callback(null, data);
 			});
 		} catch {
-			return callback(1);
+			return callback(1, null);
 		}
 	};
 	SteamMarket.prototype.grindIntoGoo = function(item, gooValueExpected, callback) {
@@ -671,13 +684,13 @@
 				responseType: "json"
 			}, (error, data) => {
 				if (error) {
-					callback(1, data);
+					callback(1, null);
 					return;
 				}
 				callback(null, data);
 			});
 		} catch {
-			return callback(1);
+			return callback(1, null);
 		}
 	};
 	SteamMarket.prototype.unpackBoosterPack = function(item, callback) {
@@ -692,13 +705,13 @@
 				responseType: "json"
 			}, (error, data) => {
 				if (error) {
-					callback(1, data);
+					callback(1, null);
 					return;
 				}
 				callback(null, data);
 			});
 		} catch {
-			return callback(1);
+			return callback(1, null);
 		}
 	};
 	SteamMarket.prototype.getCurrentPriceHistory = function(appid, market_name, callback) {
@@ -711,11 +724,11 @@
 			responseType: "json"
 		}, (error, data) => {
 			if (error) {
-				callback(1);
+				callback(1, null, false);
 				return;
 			}
-			if (data && (!data.success || !data.prices)) {
-				callback(2);
+			if (data && (steamRefused(data) || !data.prices)) {
+				callback(2, null, false);
 				return;
 			}
 			for (let i = 0; i < data.prices.length; i++) {
@@ -731,7 +744,7 @@
 		try {
 			const market_name = getMarketHashName(item);
 			if (market_name == null) {
-				callback(1);
+				callback(1, null, false);
 				return;
 			}
 			const appid = item.appid;
@@ -745,7 +758,7 @@
 				});
 			} else market.getCurrentOrderBook(item, market_name, callback);
 		} catch {
-			return callback(1);
+			return callback(1, null, false);
 		}
 	};
 	SteamMarket.prototype.getCurrentOrderBook = function(item, market_name, callback) {
@@ -758,12 +771,12 @@
 			responseType: "json"
 		}, (error, data) => {
 			if (error) {
-				callback(1, null);
+				callback(1, null, false);
 				return;
 			}
 			const orderbook = buildOrderBook(data?.data);
 			if (orderbook == null) {
-				callback(2, null);
+				callback(2, null, false);
 				return;
 			}
 			const storage_hash = `orderbook_${item.appid}+${market_name}`;
@@ -889,6 +902,62 @@
 		}
 		return calculatedPrice;
 	}
+	function getRandomInt(min, max) {
+		return Math.floor(Math.random() * (max - min + 1)) + min;
+	}
+	function getNumberOfDigits(x) {
+		return (Math.log10((x ^ x >> 31) - (x >> 31)) | 0) + 1;
+	}
+	function padLeftZero(str, max) {
+		str = str.toString();
+		return str.length < max ? padLeftZero(`0${str}`, max) : str;
+	}
+	function replaceNonNumbers(str) {
+		return str.replace(/\D/g, "");
+	}
+	function createFailureCounter() {
+		return { failures: 0 };
+	}
+	function resetRetryDelay(counter) {
+		counter.failures = 0;
+	}
+	function nextRetryDelay(counter) {
+		counter.failures += 1;
+		const delay = counter.failures > 1 ? getRandomInt(RETRY_DELAY_LONG_MIN, RETRY_DELAY_LONG_MAX) : getRandomInt(RETRY_DELAY_SHORT_MIN, RETRY_DELAY_SHORT_MAX);
+		if (counter.failures > 3) counter.failures = 0;
+		return delay;
+	}
+	function nextQueueStep(success, cached, failures, alreadyRetried, options = {}) {
+		if (success) {
+			if (!cached) resetRetryDelay(failures);
+			const configured = options.successDelayMs ?? (() => getRandomInt(1e3, 1500));
+			const delay = typeof configured === "function" ? configured() : configured;
+			return {
+				delay: cached ? 0 : delay,
+				retry: false
+			};
+		}
+		const retry = (options.retryOnFailure ?? false) && !alreadyRetried;
+		return {
+			delay: cached ? 0 : nextRetryDelay(failures),
+			retry
+		};
+	}
+	function runQueue(worker, options = {}) {
+		const failures = createFailureCounter();
+		const queue = async.default.queue((task, next) => {
+			worker(task, task.ignoreErrors === true, (success, cached) => {
+				const step = nextQueueStep(success, cached, failures, task.ignoreErrors === true, options);
+				if (step.retry) {
+					task.ignoreErrors = true;
+					if (options.retryPlacement === "front") queue.unshift(task);
+					else queue.push(task);
+				} else options.onTaskDone?.(task, success);
+				setTimeout(() => next(), step.delay);
+			});
+		}, options.concurrency ?? 1);
+		return queue;
+	}
 	function markRow(assetKey, status) {
 		(0, jquery.default)(`#${assetKey}`).css("background", ROW_STATUS_COLORS[status]);
 	}
@@ -940,19 +1009,6 @@
 			spinnerid
 		};
 	}
-	function getRandomInt(min, max) {
-		return Math.floor(Math.random() * (max - min + 1)) + min;
-	}
-	function getNumberOfDigits(x) {
-		return (Math.log10((x ^ x >> 31) - (x >> 31)) | 0) + 1;
-	}
-	function padLeftZero(str, max) {
-		str = str.toString();
-		return str.length < max ? padLeftZero(`0${str}`, max) : str;
-	}
-	function replaceNonNumbers(str) {
-		return str.replace(/\D/g, "");
-	}
 	var marketProgress = {
 		bar: null,
 		relistTotal: 0,
@@ -990,17 +1046,14 @@
 		if (typeof window.requestAnimationFrame === "function") window.requestAnimationFrame(refresh);
 		else setTimeout(refresh, 0);
 	}
-	var marketOverpricedQueue = async.default.queue((item, next) => {
-		marketOverpricedQueueWorker(item, false, (success) => {
-			const callback = () => {
-				marketProgress.relistDone += 1;
-				increaseMarketProgress();
-				next();
-			};
-			if (success) setTimeout(callback, getRandomInt(RETRY_DELAY_SHORT_MIN, RETRY_DELAY_SHORT_MAX));
-			else setTimeout(() => marketOverpricedQueueWorker(item, true, callback), getRandomInt(RETRY_DELAY_LONG_MIN, RETRY_DELAY_LONG_MAX));
-		});
-	}, 1);
+	var marketOverpricedQueue = runQueue(marketOverpricedQueueWorker, {
+		retryOnFailure: true,
+		retryPlacement: "front",
+		onTaskDone: () => {
+			marketProgress.relistDone += 1;
+			increaseMarketProgress();
+		}
+	});
 	function marketOverpricedQueueWorker(item, ignoreErrors, callback) {
 		let listingUI = getListingFromLists(item.listing);
 		if (listingUI == null) {
@@ -1031,7 +1084,7 @@
 							}
 							item.assetid = newAssetId;
 							marketListingsRelistedAssets.push(newAssetId);
-							market.sellItem(item, item.sellPrice, (errorSell) => {
+							market.sellItem(item, item.sellPrice, (errorSell, dataSell) => {
 								if (!errorSell) {
 									(0, jquery.default)(".actual_content", listingUI).css("background", COLOR_SUCCESS);
 									setTimeout(() => {
@@ -1039,6 +1092,8 @@
 									}, 3e3);
 									return callback(true);
 								} else {
+									const message = dataSell?.message || "";
+									`${item.listing}`, message && `${message}`;
 									(0, jquery.default)(".actual_content", listingUI).css("background", COLOR_ERROR);
 									return callback(false);
 								}
@@ -1303,17 +1358,14 @@
 			}
 		});
 	}
-	var marketRemoveQueue = async.default.queue((listingid, next) => {
-		marketRemoveQueueWorker(listingid, false, (success) => {
-			const callback = () => {
-				increaseMarketProgress();
-				next();
-			};
-			if (success) setTimeout(callback, getRandomInt(50, 100));
-			else setTimeout(() => marketRemoveQueueWorker(listingid, true, callback), getRandomInt(RETRY_DELAY_LONG_MIN, RETRY_DELAY_LONG_MAX));
-		});
-	}, 1);
-	function marketRemoveQueueWorker(listingid, ignoreErrors, callback) {
+	var marketRemoveQueue = runQueue(marketRemoveQueueWorker, {
+		retryOnFailure: true,
+		retryPlacement: "front",
+		successDelayMs: () => getRandomInt(50, 100),
+		onTaskDone: () => increaseMarketProgress()
+	});
+	function marketRemoveQueueWorker(task, ignoreErrors, callback) {
+		const listingid = task.listingid;
 		const listingUI = getListingFromLists(listingid).elm;
 		const isBuyOrder = listingUI.id.startsWith("mybuyorder_");
 		market.removeListing(listingid, isBuyOrder, (errorRemove) => {
@@ -1434,7 +1486,7 @@
 			for (let i = 0; i < marketList.matchingItems.length; i++) if ((0, jquery.default)(".market_select_item", (0, jquery.default)(marketList.matchingItems[i].elm)).prop("checked")) {
 				const listingid = replaceNonNumbers(marketList.matchingItems[i].values().market_listing_item_name);
 				(0, jquery.default)(getListingFromLists(listingid).elm).addClass("removing");
-				marketRemoveQueue.push(listingid);
+				marketRemoveQueue.push({ listingid });
 				increaseMarketProgressMax();
 			}
 		});
@@ -1497,16 +1549,11 @@
 		(0, jquery.default)(".see_price_grid", priceCell).remove();
 		(0, jquery.default)(".market_table_value", priceCell).removeClass("see_hidden");
 	}
-	var marketListingsQueue = async.default.queue((listing, next) => {
-		marketListingsQueueWorker(listing, false, (success, cached) => {
-			const callback = () => {
-				increaseMarketProgress();
-				next();
-			};
-			if (success) setTimeout(callback, cached ? 0 : getRandomInt(RETRY_DELAY_SHORT_MIN, RETRY_DELAY_SHORT_MAX));
-			else setTimeout(() => marketListingsQueueWorker(listing, true, callback), cached ? 0 : getRandomInt(RETRY_DELAY_LONG_MIN, RETRY_DELAY_LONG_MAX));
-		});
-	}, 1);
+	var marketListingsQueue = runQueue(marketListingsQueueWorker, {
+		retryOnFailure: true,
+		retryPlacement: "front",
+		onTaskDone: () => increaseMarketProgress()
+	});
 	function marketListingsQueueWorker(listing, ignoreErrors, callback) {
 		const asset = steamPage.assetFor(listing.appid, listing.contextid, listing.assetid);
 		const market_hash_name = getMarketHashName(asset);
@@ -1737,48 +1784,6 @@
 			});
 		}
 	}
-	function createFailureCounter() {
-		return { failures: 0 };
-	}
-	function resetRetryDelay(counter) {
-		counter.failures = 0;
-	}
-	function nextRetryDelay(counter) {
-		counter.failures += 1;
-		const delay = counter.failures > 1 ? getRandomInt(RETRY_DELAY_LONG_MIN, RETRY_DELAY_LONG_MAX) : getRandomInt(RETRY_DELAY_SHORT_MIN, RETRY_DELAY_SHORT_MAX);
-		if (counter.failures > 3) counter.failures = 0;
-		return delay;
-	}
-	function nextQueueStep(success, cached, failures, alreadyRetried, options = {}) {
-		if (success) {
-			if (!cached) resetRetryDelay(failures);
-			const configured = options.successDelayMs ?? (() => getRandomInt(1e3, 1500));
-			const delay = typeof configured === "function" ? configured() : configured;
-			return {
-				delay: cached ? 0 : delay,
-				retry: false
-			};
-		}
-		const retry = (options.retryOnFailure ?? false) && !alreadyRetried;
-		return {
-			delay: cached ? 0 : nextRetryDelay(failures),
-			retry
-		};
-	}
-	function runQueue(worker, options = {}) {
-		const failures = createFailureCounter();
-		const queue = async.default.queue((task, next) => {
-			worker(task, task.ignoreErrors === true, (success, cached) => {
-				const step = nextQueueStep(success, cached, failures, task.ignoreErrors === true, options);
-				if (step.retry) {
-					task.ignoreErrors = true;
-					queue.push(task);
-				}
-				setTimeout(() => next(), step.delay);
-			});
-		}, options.concurrency ?? 1);
-		return queue;
-	}
 	async function loadAllInventories() {
 		const main = getActiveInventory();
 		const childs = Object.values(main.m_rgChildInventories);
@@ -1998,6 +2003,23 @@
 			callback(filteredItems);
 		});
 	}
+	function selectAllCards() {
+		const cardIds = new Set(getInventoryItems().filter((item) => item.marketable && getIsTradingCard(item)).map((item) => item.assetid || item.id));
+		(0, jquery.default)(".itemHolder.ui-selected").each(function() {
+			this.classList.remove("ui-selected");
+		});
+		(0, jquery.default)(".inventory_ctn").each(function() {
+			(0, jquery.default)(this).find(".inventory_page:not([style*=none])").each(function() {
+				(0, jquery.default)(this).find(".itemHolder:not([style*=none])").each(function() {
+					const itemHolder = this;
+					(0, jquery.default)(itemHolder).find(".item").each(function() {
+						const matches = this.id.match(/_(-?\d+)$/);
+						if (matches && cardIds.has(matches[1])) itemHolder.classList.add("ui-selected");
+					});
+				});
+			});
+		});
+	}
 	var boosterQueue = runQueue(boosterQueueWorker, { successDelayMs: 250 });
 	function boosterQueueWorker(item, ignoreErrors, callback) {
 		const itemName = item.name || item.description.name;
@@ -2079,7 +2101,7 @@
 			return;
 		}
 		market.sellItem(task.item, task.sellPrice, (error, data) => {
-			const success = Boolean(data?.success);
+			const success = error === null;
 			const message = data?.message || "";
 			const callback = () => setTimeout(() => next(), getRandomInt(RETRY_DELAY_SHORT_MIN, RETRY_DELAY_SHORT_MAX));
 			if (success) {
@@ -2521,6 +2543,7 @@
     `;
 		if (showMiscOptions) buttonsHtml += `
             <a class="btn_green_white_innerfade btn_medium_wide sell_all_cards"><span>Sell All Cards</span></a>
+            <a class="btn_darkblue_white_innerfade btn_medium_wide select_all_cards"><span>Select All Cards</span></a>
             <div class="see_inventory_buttons">
                 <a class="btn_darkblue_white_innerfade btn_medium_wide turn_into_gems" style="display:none"><span>Turn Selected Items Into Gems</span></a>
                 <a class="btn_darkblue_white_innerfade btn_medium_wide unpack_all_booster_packs"><span>Unpack All Booster Packs</span></a>
@@ -2549,6 +2572,10 @@
 			(0, jquery.default)(".gem_all_duplicates").on("click", "*", gemAllDuplicateItems);
 			(0, jquery.default)(".sell_manual").on("click", "*", sellSelectedItemsManually);
 			(0, jquery.default)(".sell_all_cards").on("click", "*", sellAllCards);
+			(0, jquery.default)(".select_all_cards").on("click", "*", () => {
+				selectAllCards();
+				updateButtons();
+			});
 			(0, jquery.default)(".sell_all_crates").on("click", "*", sellAllCrates);
 			(0, jquery.default)(".turn_into_gems").on("click", "*", turnSelectedItemsIntoGems);
 			(0, jquery.default)(".unpack_all_booster_packs").on("click", "*", unpackAllBoosterPacks);
