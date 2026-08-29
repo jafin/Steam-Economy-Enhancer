@@ -217,9 +217,9 @@
             : PAGE_INVENTORY;
 
     const market = new SteamMarket(
-        unsafeWindow.g_rgAppContextData,
+        steamPage.appContextData(),
         getInventoryUrl(),
-        isLoggedIn ? unsafeWindow.g_rgWalletInfo : undefined
+        isLoggedIn ? steamPage.walletInfo() : undefined
     );
 
     const currencyId =
@@ -238,7 +238,7 @@
             ? market.walletInfo.wallet_country
             : 'US';
 
-    const currencyCode = unsafeWindow.GetCurrencyCode(currencyId);
+    const currencyCode = steamPage.currencyCode(currencyId);
 
     // Currencies affected by the December 2025 Steam Market rule changes.
     // These currencies use round instead of floor.
@@ -418,14 +418,16 @@
     };
 
     function getInventoryUrl() {
-        if (unsafeWindow.g_strInventoryLoadURL) {
-            return unsafeWindow.g_strInventoryLoadURL;
+        const inventoryLoadUrl = steamPage.inventoryLoadUrl();
+        if (inventoryLoadUrl) {
+            return inventoryLoadUrl;
         }
 
         let profileUrl = `${window.location.origin}/my/`;
 
-        if (unsafeWindow.g_strProfileURL) {
-            profileUrl = unsafeWindow.g_strProfileURL;
+        const steamProfileUrl = steamPage.profileUrl();
+        if (steamProfileUrl) {
+            profileUrl = steamProfileUrl;
         } else {
             const avatar = document.querySelector('#global_actions a.user_avatar');
 
@@ -559,7 +561,7 @@
 
     //#region Price helpers
     function formatPrice(valueInCents) {
-        return unsafeWindow.v_currencyformat(valueInCents, currencyCode, currencyCountry);
+        return steamPage.formatPrice(valueInCents, currencyCode, currencyCountry);
     }
 
     function getPriceInformationFromItem(item) {
