@@ -4,7 +4,6 @@ import * as see from '../src/main.ts';
 
 import { createFixtureSteamPage } from './steam-page-fixture.ts';
 
-
 function fixturePage(fixture) {
     return createFixtureSteamPage(fixture, { pickSellListingsHeader: see.pickSellListingsHeader });
 }
@@ -18,22 +17,20 @@ test('PR #334 shape: a pending-confirmations header ahead of the sell listings d
     const page = fixturePage({
         sections: [
             { id: 'header-confirmations', hasSellListingsTable: false },
-            { id: 'header-sell-listings', hasSellListingsTable: true }
-        ]
+            { id: 'header-sell-listings', hasSellListingsTable: true },
+        ],
     });
 
     assert.strictEqual(
         page.sellListingsHeader(),
         'header-sell-listings',
-        'the anchored header, not whichever one is first in DOM order'
+        'the anchored header, not whichever one is first in DOM order',
     );
 });
 
 test('a page with only the sell listings header still works', () => {
     const page = fixturePage({
-        sections: [
-            { id: 'header-sell-listings', hasSellListingsTable: true }
-        ]
+        sections: [{ id: 'header-sell-listings', hasSellListingsTable: true }],
     });
 
     assert.strictEqual(page.sellListingsHeader(), 'header-sell-listings');
@@ -46,14 +43,14 @@ test('when Steam changes the markup so the sell listings table cannot be found a
     const page = fixturePage({
         sections: [
             { id: 'header-confirmations', hasSellListingsTable: false },
-            { id: 'header-buyorders', hasSellListingsTable: false }
-        ]
+            { id: 'header-buyorders', hasSellListingsTable: false },
+        ],
     });
 
     assert.strictEqual(
         page.sellListingsHeader(),
         'header-confirmations',
-        'falls back to the first header rather than an empty set'
+        'falls back to the first header rather than an empty set',
     );
 });
 
@@ -62,12 +59,15 @@ test('the live adapter and the fixture adapter make the same call from the same 
     // (pickSellListingsHeader), so this is really pinning that the fixture's "which section
     // holds the sell listings table" shape produces the same anchored/all inputs a real
     // $('#tabContentsMyActiveMarketListingsRows').closest(...).find(...) lookup would.
-    const anchoredFound = see.pickSellListingsHeader(['header-sell-listings'], ['header-confirmations', 'header-sell-listings']);
+    const anchoredFound = see.pickSellListingsHeader(
+        ['header-sell-listings'],
+        ['header-confirmations', 'header-sell-listings'],
+    );
     const page = fixturePage({
         sections: [
             { id: 'header-confirmations', hasSellListingsTable: false },
-            { id: 'header-sell-listings', hasSellListingsTable: true }
-        ]
+            { id: 'header-sell-listings', hasSellListingsTable: true },
+        ],
     });
 
     assert.strictEqual(page.sellListingsHeader(), anchoredFound);

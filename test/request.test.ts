@@ -56,7 +56,7 @@ beforeEach(() => {
     see.request.errors = 0;
 });
 
-test('a successful request calls back with the transport\'s data', () => {
+test("a successful request calls back with the transport's data", () => {
     vi.useFakeTimers();
 
     let result;
@@ -66,7 +66,7 @@ test('a successful request calls back with the transport\'s data', () => {
         (err, data) => {
             result = [err, data];
         },
-        { transport: scriptedTransport([{ data: { ok: true } }]) }
+        { transport: scriptedTransport([{ data: { ok: true } }]) },
     );
 
     vi.advanceTimersByTime(0);
@@ -84,7 +84,7 @@ test('a failed request calls back with an Error describing the status', () => {
         (err, data) => {
             result = [err, data];
         },
-        { transport: scriptedTransport([{ error: true, status: 500 }]) }
+        { transport: scriptedTransport([{ error: true, status: 500 }]) },
     );
 
     vi.advanceTimersByTime(0);
@@ -98,24 +98,28 @@ test('a request made while one is pending queues instead of sending', () => {
     vi.useFakeTimers();
     const transport = heldTransport();
 
-    see.request('https://steamcommunity.com/first', {}, () => { }, { transport });
-    see.request('https://steamcommunity.com/second', {}, () => { }, { transport });
+    see.request('https://steamcommunity.com/first', {}, () => {}, { transport });
+    see.request('https://steamcommunity.com/second', {}, () => {}, { transport });
 
     assert.strictEqual(transport.calls.length, 1, 'the second call is queued, not sent');
     assert.strictEqual(see.request.queue.length, 1);
 });
 
-test('the queued request is sent only after the first one\'s delay has passed', () => {
+test("the queued request is sent only after the first one's delay has passed", () => {
     vi.useFakeTimers();
     const transport = heldTransport();
 
-    see.request('https://steamcommunity.com/first', {}, () => { }, { transport });
-    see.request('https://steamcommunity.com/second', {}, () => { }, { transport });
+    see.request('https://steamcommunity.com/first', {}, () => {}, { transport });
+    see.request('https://steamcommunity.com/second', {}, () => {}, { transport });
 
     transport.respond(0, { data: 'first' });
     vi.advanceTimersByTime(0); // the success callback's own setTimeout(..., 0)
 
-    assert.strictEqual(transport.calls.length, 1, 'not sent yet - the release delay has not passed');
+    assert.strictEqual(
+        transport.calls.length,
+        1,
+        'not sent yet - the release delay has not passed',
+    );
 
     vi.advanceTimersByTime(see.requestPolicy.REQUEST_DELAY_DEFAULT);
 
@@ -126,16 +130,22 @@ test('a market request is released after the longer market delay, not the defaul
     vi.useFakeTimers();
     const transport = heldTransport();
 
-    see.request('https://steamcommunity.com/market/priceoverview', {}, () => { }, { transport });
-    see.request('https://steamcommunity.com/market/second', {}, () => { }, { transport });
+    see.request('https://steamcommunity.com/market/priceoverview', {}, () => {}, { transport });
+    see.request('https://steamcommunity.com/market/second', {}, () => {}, { transport });
 
     transport.respond(0, { data: 'first' });
     vi.advanceTimersByTime(0);
     vi.advanceTimersByTime(see.requestPolicy.REQUEST_DELAY_DEFAULT);
 
-    assert.strictEqual(transport.calls.length, 1, 'the default delay alone is not enough for a market URL');
+    assert.strictEqual(
+        transport.calls.length,
+        1,
+        'the default delay alone is not enough for a market URL',
+    );
 
-    vi.advanceTimersByTime(see.requestPolicy.REQUEST_DELAY_MARKET - see.requestPolicy.REQUEST_DELAY_DEFAULT);
+    vi.advanceTimersByTime(
+        see.requestPolicy.REQUEST_DELAY_MARKET - see.requestPolicy.REQUEST_DELAY_DEFAULT,
+    );
 
     assert.strictEqual(transport.calls.length, 2);
 });
@@ -144,7 +154,7 @@ test('request() still works with no options object, for every existing call site
     // Existing callers pass request(url, options, callback) with no 4th argument, and must
     // keep working unchanged. The default transport is $.ajax, which the test harness stubs
     // as an inert no-op - this only proves the call does not throw before reaching it.
-    assert.doesNotThrow(() => see.request('https://steamcommunity.com/', {}, () => { }));
+    assert.doesNotThrow(() => see.request('https://steamcommunity.com/', {}, () => {}));
 });
 
 // Kept last, like the equivalent test in request-policy.test.js: the breaker is a one-way
@@ -158,7 +168,7 @@ test('five broken responses in a row trip the breaker, through request() itself'
     assert.strictEqual(see.request.stopped, false);
 
     for (let i = 0; i < 5; i++) {
-        see.request('https://steamcommunity.com/market/', {}, () => { }, { transport });
+        see.request('https://steamcommunity.com/market/', {}, () => {}, { transport });
         vi.advanceTimersByTime(0); // the error callback's setTimeout(..., 0)
         vi.advanceTimersByTime(see.requestPolicy.REQUEST_DELAY_ERROR); // release the next one
     }
@@ -166,9 +176,14 @@ test('five broken responses in a row trip the breaker, through request() itself'
     assert.strictEqual(see.request.stopped, true, 'five 429s within the window trip it');
 
     let reported = null;
-    see.request('https://steamcommunity.com/market/', {}, (err) => {
-        reported = err;
-    }, { transport });
+    see.request(
+        'https://steamcommunity.com/market/',
+        {},
+        (err) => {
+            reported = err;
+        },
+        { transport },
+    );
     vi.advanceTimersByTime(1); // the stopped path's own setTimeout(..., 1)
 
     assert.ok(reported instanceof Error, 'a request made after tripping is refused, not sent');

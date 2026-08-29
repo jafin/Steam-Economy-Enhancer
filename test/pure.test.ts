@@ -9,8 +9,8 @@ const wallet = {
     wallet_fee_base: 0,
     wallet_fee_percent: 0.05,
     wallet_fee_minimum: 1,
-    wallet_publisher_fee_percent_default: 0.10,
-    wallet_currency: 3
+    wallet_publisher_fee_percent_default: 0.1,
+    wallet_currency: 3,
 };
 
 test('clamp keeps a value inside its bounds', () => {
@@ -38,7 +38,7 @@ test('replaceNonNumbers pulls the listing id out of a DOM id', () => {
 test('isRetryMessage recognises only the three known Steam messages', () => {
     assert.strictEqual(
         see.isRetryMessage('You cannot sell any items until your previous action completes.'),
-        true
+        true,
     );
     assert.strictEqual(see.isRetryMessage('Some other failure'), false);
 });
@@ -47,9 +47,9 @@ test('getMarketHashName prefers the nested description over the flat item', () =
     assert.strictEqual(
         see.getMarketHashName({
             market_hash_name: 'flat',
-            description: { market_hash_name: 'nested' }
+            description: { market_hash_name: 'nested' },
         }),
-        'nested'
+        'nested',
     );
     assert.strictEqual(see.getMarketHashName({ market_hash_name: 'flat' }), 'flat');
     assert.strictEqual(see.getMarketHashName({ name: 'only a name' }), 'only a name');
@@ -67,38 +67,22 @@ test('buildOrderBook pairs the compact orders into price and quantity', () => {
         data: {
             amtMaxBuyOrder: '12',
             amtMinSellOrder: '20',
-            rgCompactBuyOrders: [
-                1200,
-                3,
-                1100,
-                5
-            ],
-            rgCompactSellOrders: [
-                2000,
-                1
-            ]
-        }
+            rgCompactBuyOrders: [1200, 3, 1100, 5],
+            rgCompactSellOrders: [2000, 1],
+        },
     });
 
     assert.strictEqual(book.highest_buy_order, 12);
     assert.strictEqual(book.lowest_sell_order, 20);
     assert.deepStrictEqual(book.buy_order_graph, [
-        [
-            12,
-            3,
-            ''
-        ],
-        [
-            11,
-            5,
-            ''
-        ]
+        [12, 3, ''],
+        [11, 5, ''],
     ]);
     assert.strictEqual(book.sell_order_graph.length, 1);
 });
 
 test('CalculateFeeAmount splits a price into steam and publisher fees', () => {
-    const fee = see.CalculateFeeAmount(1000, 0.10, wallet, false);
+    const fee = see.CalculateFeeAmount(1000, 0.1, wallet, false);
 
     assert.strictEqual(fee.amount, 1000);
     assert.strictEqual(fee.steam_fee, 43);
@@ -107,7 +91,7 @@ test('CalculateFeeAmount splits a price into steam and publisher fees', () => {
 });
 
 test('CalculateAmountToSendForDesiredReceivedAmount floors the fee by default', () => {
-    const sent = see.CalculateAmountToSendForDesiredReceivedAmount(87, 0.10, wallet, false);
+    const sent = see.CalculateAmountToSendForDesiredReceivedAmount(87, 0.1, wallet, false);
 
     assert.strictEqual(sent.amount, 99);
     assert.strictEqual(sent.fees, 12);
@@ -118,11 +102,15 @@ test('CalculateAmountToSendForDesiredReceivedAmount rounds instead of floors whe
     // the round branch could never be reached from a test. It is a parameter now: the eleven
     // currencies Steam rounds for (JPY, KRW, ...) are exercised the same way any other rule
     // input is, by passing the value in.
-    const floored = see.CalculateAmountToSendForDesiredReceivedAmount(87, 0.10, wallet, false);
-    const rounded = see.CalculateAmountToSendForDesiredReceivedAmount(87, 0.10, wallet, true);
+    const floored = see.CalculateAmountToSendForDesiredReceivedAmount(87, 0.1, wallet, false);
+    const rounded = see.CalculateAmountToSendForDesiredReceivedAmount(87, 0.1, wallet, true);
 
     assert.strictEqual(floored.amount, 99);
-    assert.strictEqual(rounded.amount, 100, 'the publisher fee half-cent rounds up instead of down');
+    assert.strictEqual(
+        rounded.amount,
+        100,
+        'the publisher fee half-cent rounds up instead of down',
+    );
 });
 
 test('priceBeforeFees and priceIncludingFees answer from `rules` alone', () => {
@@ -133,9 +121,9 @@ test('priceBeforeFees and priceIncludingFees answer from `rules` alone', () => {
     const otherWallet = {
         wallet_fee: 1,
         wallet_fee_base: 0,
-        wallet_fee_percent: 0.10,
+        wallet_fee_percent: 0.1,
         wallet_fee_minimum: 1,
-        wallet_publisher_fee_percent_default: 0.05
+        wallet_publisher_fee_percent_default: 0.05,
     };
 
     const before = see.priceBeforeFees(1000, null, { walletInfo: otherWallet, useRound: true });
@@ -162,9 +150,9 @@ test('getIsTradingCard detects a card by its item_class tag', () => {
         tags: [
             {
                 category: 'item_class',
-                internal_name: 'item_class_2'
-            }
-        ]
+                internal_name: 'item_class_2',
+            },
+        ],
     };
 
     assert.strictEqual(see.getIsTradingCard(card), true);
@@ -175,11 +163,9 @@ test('getIsTradingCard detects a card by its item_class tag', () => {
 test('getIsTradingCard falls back to the gamecards link and the type string', () => {
     assert.strictEqual(
         see.getIsTradingCard({
-            owner_actions: [
-                { link: 'http://steamcommunity.com/my/gamecards/503820/' }
-            ]
+            owner_actions: [{ link: 'http://steamcommunity.com/my/gamecards/503820/' }],
         }),
-        true
+        true,
     );
 
     assert.strictEqual(see.getIsTradingCard({ type: 'Portal 2 Trading Card' }), true);
@@ -190,9 +176,9 @@ test('getIsFoilTradingCard separates foil cards from ordinary ones', () => {
         tags: [
             {
                 category: 'item_class',
-                internal_name: 'item_class_2'
-            }
-        ]
+                internal_name: 'item_class_2',
+            },
+        ],
     };
 
     assert.strictEqual(see.getIsFoilTradingCard(plain), false);
@@ -209,8 +195,8 @@ test('getIsFoilTradingCard separates foil cards from ordinary ones', () => {
 test('CHARACTERISATION: a wallet with no wallet_fee produces fee-free prices', () => {
     // A logged-out or wallet-less run silently prices items with no fees at all rather
     // than refusing. Owner: not yet assigned.
-    assert.deepStrictEqual(see.CalculateFeeAmount(100, 0.10, null), { fees: 0 });
-    assert.deepStrictEqual(see.CalculateFeeAmount(100, 0.10, {}), { fees: 0 });
+    assert.deepStrictEqual(see.CalculateFeeAmount(100, 0.1, null), { fees: 0 });
+    assert.deepStrictEqual(see.CalculateFeeAmount(100, 0.1, {}), { fees: 0 });
 });
 
 test('getIsCrate returns a boolean on every path', () => {
@@ -223,11 +209,11 @@ test('getIsCrate returns a boolean on every path', () => {
             tags: [
                 {
                     category: 'Type',
-                    internal_name: 'Trading Card'
-                }
-            ]
+                    internal_name: 'Trading Card',
+                },
+            ],
         }),
-        false
+        false,
     );
 
     assert.strictEqual(
@@ -235,10 +221,10 @@ test('getIsCrate returns a boolean on every path', () => {
             tags: [
                 {
                     category: 'Type',
-                    internal_name: 'Supply Crate'
-                }
-            ]
+                    internal_name: 'Supply Crate',
+                },
+            ],
         }),
-        true
+        true,
     );
 });

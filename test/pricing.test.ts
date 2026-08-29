@@ -25,17 +25,9 @@ function orderbook() {
         highest_buy_order: 800,
         lowest_sell_order: 1000,
         sell_order_graph: [
-            [
-                10.00,
-                40,
-                ''
-            ],
-            [
-                12.00,
-                60,
-                ''
-            ]
-        ]
+            [10.0, 40, ''],
+            [12.0, 60, ''],
+        ],
     };
 }
 
@@ -43,13 +35,7 @@ function orderbook() {
 // History prices are in cents, the same as the orderbook: getCurrentPriceHistory multiplies
 // them by 100 on the way in. 2000 is therefore above the 1000 lowest listing above.
 function history() {
-    return [
-        [
-            new Date().toString(),
-            2000,
-            5
-        ]
-    ];
+    return [[new Date().toString(), 2000, 5]];
 }
 
 test.beforeEach(() => clearSettings());
@@ -81,7 +67,7 @@ test('CHARACTERISATION: the buy-order branch fires at the price floor of 1, not 
     const thinBook = {
         highest_buy_order: 1,
         lowest_sell_order: 1000,
-        sell_order_graph: [[10.00, 1, '']]
+        sell_order_graph: [[10.0, 1, '']],
     };
 
     const price = see.calculateSellPriceBeforeFees(null, thinBook, false, 0, 65535);
@@ -128,7 +114,7 @@ test('a null orderbook is priced, not thrown on', () => {
     assert.strictEqual(
         see.calculateSellPriceBeforeFees(null, null, false, 100, 5000),
         5000,
-        'falls back to the maximum, the same as an undefined orderbook'
+        'falls back to the maximum, the same as an undefined orderbook',
     );
 });
 
@@ -169,17 +155,10 @@ test('rules can be passed in, so pricing needs no stored settings at all', () =>
         algorithm: 3,
         offsetCents: 0,
         historyHours: 12,
-        ignoreLowestOnLowQuantity: false
+        ignoreLowestOnLowQuantity: false,
     };
 
-    const price = see.calculateSellPriceBeforeFees(
-        history(),
-        orderbook(),
-        false,
-        0,
-        65535,
-        rules
-    );
+    const price = see.calculateSellPriceBeforeFees(history(), orderbook(), false, 0, 65535, rules);
 
     assert.strictEqual(price, see.calculateBuyOrderPriceBeforeFees(orderbook()));
 });
@@ -190,17 +169,14 @@ test('the same market data prices differently under different rules', () => {
     const base = {
         offsetCents: 0,
         historyHours: 12,
-        ignoreLowestOnLowQuantity: false
+        ignoreLowestOnLowQuantity: false,
     };
 
-    const priceUnder = (algorithm) => see.calculateSellPriceBeforeFees(
-        history(),
-        orderbook(),
-        false,
-        0,
-        65535,
-        { ...base, algorithm }
-    );
+    const priceUnder = (algorithm) =>
+        see.calculateSellPriceBeforeFees(history(), orderbook(), false, 0, 65535, {
+            ...base,
+            algorithm,
+        });
 
     const byBuyOrder = priceUnder(3);
     const byHistory = priceUnder(4);
@@ -238,12 +214,12 @@ test('the history window is judged against rules.now, not the wall clock', () =>
 
     assert.ok(
         see.calculateAverageHistoryPriceBeforeFees(insideWindow, rules) > 0,
-        'a sale 6 hours before `now` is inside a 12 hour window'
+        'a sale 6 hours before `now` is inside a 12 hour window',
     );
     assert.strictEqual(
         see.calculateAverageHistoryPriceBeforeFees(outsideWindow, rules),
         0,
-        'a sale 18 hours before `now` is outside a 12 hour window, whatever time it actually is'
+        'a sale 18 hours before `now` is outside a 12 hour window, whatever time it actually is',
     );
 });
 
@@ -260,40 +236,32 @@ test('the ignore-lowest-quantity ladder reaches every one of its six branches', 
         [50, 12],
         [30, 18],
         [20, 23],
-        [5, 28]
+        [5, 28],
     ];
 
     for (const [secondQuantity, percentage] of probes) {
-        const lowestQuantity = Math.round(secondQuantity * percentage / 100);
+        const lowestQuantity = Math.round((secondQuantity * percentage) / 100);
 
         const book = {
             highest_buy_order: 0,
             lowest_sell_order: 1000,
             sell_order_graph: [
-                [
-                    10.00,
-                    lowestQuantity,
-                    ''
-                ],
-                [
-                    12.00,
-                    secondQuantity,
-                    ''
-                ]
-            ]
+                [10.0, lowestQuantity, ''],
+                [12.0, secondQuantity, ''],
+            ],
         };
 
         const price = see.calculateListingPriceBeforeFees(book);
         const secondLowest = see.calculateListingPriceBeforeFees({
             highest_buy_order: 0,
             lowest_sell_order: 1200,
-            sell_order_graph: []
+            sell_order_graph: [],
         });
 
         assert.strictEqual(
             price,
             secondLowest,
-            `q2=${secondQuantity} pct=${percentage}: expected the thin lowest listing to be ignored`
+            `q2=${secondQuantity} pct=${percentage}: expected the thin lowest listing to be ignored`,
         );
     }
 });

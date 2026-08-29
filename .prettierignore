@@ -1,5 +1,8 @@
 node_modules/
 dist/
 pnpm-lock.yaml
+assets/
 # Vendored third-party code, kept byte-identical to its pinned upstream commit.
 src/vendor/*.js
+# Reference material from the architecture refactor, kept as authored.
+.docs/

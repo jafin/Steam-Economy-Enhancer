@@ -8,21 +8,24 @@ import * as see from '../src/main.ts';
 
 test('a missing active inventory answers an empty array, not a throw', () => {
     assert.deepStrictEqual(see.readInventoryItems(null, 'm_rgChildInventories', 'm_rgAssets'), []);
-    assert.deepStrictEqual(see.readInventoryItems(undefined, 'rgChildInventories', 'rgInventory'), []);
+    assert.deepStrictEqual(
+        see.readInventoryItems(undefined, 'rgChildInventories', 'rgInventory'),
+        [],
+    );
 });
 
-test('flattens items out of child inventories, merging each one\'s own description', () => {
+test("flattens items out of child inventories, merging each one's own description", () => {
     const activeInventory = {
         m_rgChildInventories: {
             753: {
                 m_rgAssets: {
                     123: {
                         appid: 753,
-                        description: { name: 'Gems', tags: [] }
-                    }
-                }
-            }
-        }
+                        description: { name: 'Gems', tags: [] },
+                    },
+                },
+            },
+        },
     };
 
     const items = see.readInventoryItems(activeInventory, 'm_rgChildInventories', 'm_rgAssets');
@@ -40,9 +43,9 @@ test('falls back to the top-level assets when there are no child inventories', (
         m_rgAssets: {
             456: {
                 appid: 12,
-                description: { name: 'Only item' }
-            }
-        }
+                description: { name: 'Only item' },
+            },
+        },
     };
 
     const items = see.readInventoryItems(activeInventory, 'm_rgChildInventories', 'm_rgAssets');
@@ -56,13 +59,13 @@ test('collects both child-inventory items and top-level items together', () => {
         m_rgChildInventories: {
             753: {
                 m_rgAssets: {
-                    1: { description: { name: 'From a child inventory' } }
-                }
-            }
+                    1: { description: { name: 'From a child inventory' } },
+                },
+            },
         },
         m_rgAssets: {
-            2: { description: { name: 'From the top level' } }
-        }
+            2: { description: { name: 'From the top level' } },
+        },
     };
 
     const items = see.readInventoryItems(activeInventory, 'm_rgChildInventories', 'm_rgAssets');
@@ -77,8 +80,8 @@ test('skips entries that are not objects', () => {
         m_rgChildInventories: {},
         m_rgAssets: {
             length: 1,
-            1: { description: { name: 'A real item' } }
-        }
+            1: { description: { name: 'A real item' } },
+        },
     };
 
     const items = see.readInventoryItems(activeInventory, 'm_rgChildInventories', 'm_rgAssets');
@@ -87,15 +90,15 @@ test('skips entries that are not objects', () => {
     assert.strictEqual(items[0].name, 'A real item');
 });
 
-test('the same reader works for the trade offer page\'s different property names', () => {
+test("the same reader works for the trade offer page's different property names", () => {
     const activeInventory = {
         rgChildInventories: {
             753: {
                 rgInventory: {
-                    1: { description: { name: 'Trade offer item' } }
-                }
-            }
-        }
+                    1: { description: { name: 'Trade offer item' } },
+                },
+            },
+        },
     };
 
     const items = see.readInventoryItems(activeInventory, 'rgChildInventories', 'rgInventory');
@@ -104,20 +107,20 @@ test('the same reader works for the trade offer page\'s different property names
     assert.strictEqual(items[0].name, 'Trade offer item');
 });
 
-test('does not mutate Steam\'s own inventory objects', () => {
+test("does not mutate Steam's own inventory objects", () => {
     // readInventoryItems used to Object.assign the description straight onto Steam's own
     // item and stamp an id on it - a real mutation of an object Steam still owns. It
     // returns new objects now; the source is untouched.
     const steamOwnedItem = { appid: 730, description: { name: 'Gems' } };
     const activeInventory = {
         m_rgChildInventories: {},
-        m_rgAssets: { 123: steamOwnedItem }
+        m_rgAssets: { 123: steamOwnedItem },
     };
 
     const items = see.readInventoryItems(activeInventory, 'm_rgChildInventories', 'm_rgAssets');
 
     assert.notStrictEqual(items[0], steamOwnedItem, 'a new object, not the same reference');
-    assert.strictEqual(steamOwnedItem.name, undefined, 'Steam\'s own item was never touched');
+    assert.strictEqual(steamOwnedItem.name, undefined, "Steam's own item was never touched");
     assert.strictEqual(steamOwnedItem.id, undefined);
     assert.strictEqual(items[0].name, 'Gems', 'the returned copy is flattened, though');
 });

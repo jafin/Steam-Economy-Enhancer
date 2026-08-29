@@ -2,19 +2,13 @@ import { test } from 'vitest';
 import assert from 'node:assert';
 import * as see from '../src/main.ts';
 
-const SHORT = [
-    1000,
-    1500
-];
-const LONG = [
-    30000,
-    45000
-];
+const SHORT = [1000, 1500];
+const LONG = [30000, 45000];
 
 function assertWithin(value, [min, max], what) {
     assert.ok(
         value >= min && value <= max,
-        `${what}: expected ${value} to be within ${min}-${max}`
+        `${what}: expected ${value} to be within ${min}-${max}`,
     );
 }
 
@@ -115,7 +109,9 @@ test('a second failure in a row still backs off hard even with retryOnFailure se
 
 test('runQueue returns a queue-shaped object without touching the network', () => {
     const worker = () => {
-        throw new Error('the fake async.queue must not invoke the worker just by constructing the queue');
+        throw new Error(
+            'the fake async.queue must not invoke the worker just by constructing the queue',
+        );
     };
 
     const queue = see.runQueue(worker, {});

@@ -2,21 +2,13 @@ import { test } from 'vitest';
 import assert from 'node:assert';
 import * as see from '../src/main.ts';
 
-
-
-const SHORT = [
-    1000,
-    1500
-];
-const LONG = [
-    30000,
-    45000
-];
+const SHORT = [1000, 1500];
+const LONG = [30000, 45000];
 
 function assertWithin(value, [min, max], what) {
     assert.ok(
         value >= min && value <= max,
-        `${what}: expected ${value} to be within ${min}-${max}`
+        `${what}: expected ${value} to be within ${min}-${max}`,
     );
 }
 

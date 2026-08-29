@@ -1,5 +1,3 @@
-
-
 // A second steamPage adapter, built from data instead of a real page.
 //
 // AGENT-2's plan is explicit that one adapter is a hypothetical seam - the point of a fixture
@@ -25,7 +23,6 @@ export function createFixtureSteamPage(fixture, { pickSellListingsHeader }) {
     const all = fixture.sections.map((section) => section.id);
 
     return {
-        sellListingsHeader: () => pickSellListingsHeader(anchored, all)
+        sellListingsHeader: () => pickSellListingsHeader(anchored, all),
     };
 }
-

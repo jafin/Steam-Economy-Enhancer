@@ -7,10 +7,10 @@ already pinned to a commit SHA, so no upstream updates were being picked up.
 They are small, unmaintained, and MIT licensed, so they are vendored here and
 bundled instead. Types live in `vendor.d.ts`.
 
-| File | Upstream | Commit | Licence |
-|---|---|---|---|
-| `jquery-observe.js` | https://github.com/kapetan/jquery-observe | `ca67b735bb3ae8d678d1843384ebbe7c02466c61` | MIT, © 2012 Mirza Kapetanovic |
-| `jquery.checkboxes.js` | https://github.com/rmariuzzo/checkboxes.js | `91bec667e9172ceb063df1ecb7505e8ed0bae9ba` | MIT, © 2016 Rubens Mariuzzo |
+| File                   | Upstream                                   | Commit                                     | Licence                       |
+| ---------------------- | ------------------------------------------ | ------------------------------------------ | ----------------------------- |
+| `jquery-observe.js`    | https://github.com/kapetan/jquery-observe  | `ca67b735bb3ae8d678d1843384ebbe7c02466c61` | MIT, © 2012 Mirza Kapetanovic |
+| `jquery.checkboxes.js` | https://github.com/rmariuzzo/checkboxes.js | `91bec667e9172ceb063df1ecb7505e8ed0bae9ba` | MIT, © 2016 Rubens Mariuzzo   |
 
 `jquery-observe.js` is vendored in the minified form its repository publishes;
 there is no unminified build at that commit. Neither file carried its licence

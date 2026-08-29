@@ -1,23 +1,23 @@
 {
-  "compilerOptions": {
-    "target": "ESNext",
-    "module": "ESNext",
-    "moduleResolution": "bundler",
-    "strict": true,
-    // Deliberately off for the port: this codebase is array-heavy and the rule
-    // generates a large volume of low-value churn. Turn it on as its own commit.
-    "noUncheckedIndexedAccess": false,
-    "esModuleInterop": true,
-    "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true,
-    "resolveJsonModule": true,
-    "isolatedModules": true,
-    "noEmit": true,
-    "allowImportingTsExtensions": true,
-    "lib": ["ESNext", "DOM", "DOM.Iterable"],
-    "paths": {
-      "@/*": ["./src/*"]
-    }
-  },
-  "include": ["src", "test", "vite.config.ts", "vitest.config.ts", "userscript.config.ts"]
+    "compilerOptions": {
+        "target": "ESNext",
+        "module": "ESNext",
+        "moduleResolution": "bundler",
+        "strict": true,
+        // Deliberately off for the port: this codebase is array-heavy and the rule
+        // generates a large volume of low-value churn. Turn it on as its own commit.
+        "noUncheckedIndexedAccess": false,
+        "esModuleInterop": true,
+        "skipLibCheck": true,
+        "forceConsistentCasingInFileNames": true,
+        "resolveJsonModule": true,
+        "isolatedModules": true,
+        "noEmit": true,
+        "allowImportingTsExtensions": true,
+        "lib": ["ESNext", "DOM", "DOM.Iterable"],
+        "paths": {
+            "@/*": ["./src/*"]
+        }
+    },
+    "include": ["src", "test", "vite.config.ts", "vitest.config.ts", "userscript.config.ts"]
 }

@@ -42,10 +42,10 @@ test('firstAsset finds the one asset g_rgAssets holds on a market listing page',
         g_rgAssets: {
             730: {
                 2: {
-                    123: asset
-                }
-            }
-        }
+                    123: asset,
+                },
+            },
+        },
     });
 
     assert.strictEqual(page.firstAsset(), asset);
@@ -67,16 +67,16 @@ test('setAsset writes into g_rgAssets at the given path', () => {
     assert.strictEqual(win.g_rgAssets['730']['2']['999'], asset);
 });
 
-test('onInventorySelectItem calls Steam\'s own handler, then the given one, and can be undone', () => {
+test("onInventorySelectItem calls Steam's own handler, then the given one, and can be undone", () => {
     const calls = [];
     const win = {
         CInventory: {
             prototype: {
                 SelectItem(event, elItem, rgItem) {
                     calls.push(['original', rgItem]);
-                }
-            }
-        }
+                },
+            },
+        },
     };
     const page = see.createSteamPage(win);
     const originalSelectItem = win.CInventory.prototype.SelectItem;
@@ -89,7 +89,7 @@ test('onInventorySelectItem calls Steam\'s own handler, then the given one, and 
 
     assert.deepStrictEqual(calls, [
         ['original', 'item-1'],
-        ['handler', 'item-1']
+        ['handler', 'item-1'],
     ]);
 
     teardown();
@@ -115,10 +115,10 @@ test('tradeAssets and findTradeAsset read the right side of the trade', () => {
     const page = see.createSteamPage({
         g_rgCurrentTradeStatus: {
             me: { assets: meAssets },
-            them: { assets: themAssets }
+            them: { assets: themAssets },
         },
         UserYou: { findAsset: () => foundByYou },
-        UserThem: { findAsset: () => foundByThem }
+        UserThem: { findAsset: () => foundByThem },
     });
 
     assert.strictEqual(page.tradeAssets('me'), meAssets);
