@@ -72,13 +72,13 @@ function walletRules(): PricingRules {
     return { walletInfo: isLoggedIn ? steamPage.walletInfo() : undefined, useRound };
 }
 
-export function getPriceInformationFromItem(item) {
+function getPriceInformationFromItem(item) {
     const isTradingCard = getIsTradingCard(item);
     const isFoilTradingCard = getIsFoilTradingCard(item);
     return getPriceInformation(isTradingCard, isFoilTradingCard);
 }
 
-export function getPriceInformation(isTradingCard, isFoilTradingCard) {
+function getPriceInformation(isTradingCard, isFoilTradingCard) {
     let maxPrice = 0;
     let minPrice = 0;
 
