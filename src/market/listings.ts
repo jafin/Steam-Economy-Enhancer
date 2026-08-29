@@ -22,6 +22,7 @@ import {
     calculateSellPriceBeforeFees,
     createPricingRules,
     formatPrice,
+    formatPriceDelta,
     getPriceInformationFromItem,
 } from '../pricing/algorithms.ts';
 import { QueueTask } from '../queue/index.ts';
@@ -36,7 +37,7 @@ import { renderSpinner } from '../ui/index.ts';
 import { logConsole } from '../ui/logger.ts';
 import { getRandomInt, replaceNonNumbers } from '../util/numbers.ts';
 import { getAssetInfoFromBuyOrderId, getAssetInfoFromListingId } from './assets.ts';
-import { getListingVerdict, listingState } from './listingState.ts';
+import { getListingPriceDelta, getListingVerdict, listingState } from './listingState.ts';
 import { increaseMarketProgress, increaseMarketProgressMax } from './progress.ts';
 import { queueOverpricedItemListing, refreshMarketOverpricedButtons } from './relist.ts';
 import { getListingFromLists, marketLists, sortMarketListings } from './sort.ts';
@@ -52,6 +53,40 @@ export const marketListingsRelistedAssets: any[] = [];
 // Match number part from any currency format
 export const getPriceValueAsInt = (listing) =>
     steamPage.parsePriceText(listing.match(/(?<price>[0-9][0-9 .,]*)/)?.groups?.price ?? 0);
+
+// Writes how far a listing is from its best price into the price cell, under the price.
+//
+// Idempotent on purpose. A row can be priced more than once -- the queue above retries a
+// failed listing once with ignoreErrors set, and both attempts reach here -- so this
+// selects the label and creates it only when it is missing, rather than appending. An
+// append would render the delta twice on every retried row.
+//
+// It appends to the *end* of the cell, and that position is load-bearing twice over.
+// getPriceValueAsInt reads the listed price through
+// `.market_listing_price > span:nth-child(1) > span:nth-child(1)`, so anything inserted at
+// the front of that cell shifts nth-child and the script reads the wrong price, giving a
+// wrong verdict and a wrong relist price with nothing thrown. And the price sort in
+// sort.ts truncates the cell text at the first `(` to drop Steam's seller price, so a
+// label containing parentheses must come after the pair Steam already wrote. The buy order
+// price further down appends into this same region for the same reasons.
+//
+// Called with an empty string to clear, which is how a label from an earlier pass is kept
+// from surviving under a cell that has since gone grey.
+function setListingPriceDeltaLabel(listingUI, text) {
+    const priceCell = $('.market_listing_my_price', listingUI).last();
+    let label = $('.see_price_delta', priceCell);
+
+    if (label.length === 0) {
+        if (text === '') {
+            return;
+        }
+
+        label = $('<span class="see_price_delta"></span>');
+        priceCell.append(label);
+    }
+
+    label.text(text);
+}
 
 export const marketListingsQueue = async.queue((listing: QueueTask, next) => {
     marketListingsQueueWorker(listing, false, (success, cached) => {
@@ -142,6 +177,9 @@ export function marketListingsQueueWorker(listing, ignoreErrors, callback) {
     ) {
         $('.market_listing_my_price', listingUI).last().css('background', COLOR_PRICE_NOT_CHECKED);
         $('.market_listing_my_price', listingUI).last().prop('title', 'The price is not checked.');
+        // This path returns without pricing, so any delta from an earlier pass is now
+        // stale. Clear it rather than leave a number sitting under a grey cell.
+        setListingPriceDeltaLabel(listingUI, '');
         listingUI.addClass('not_checked');
 
         return callback(true, true);
@@ -234,9 +272,14 @@ export function marketListingsQueueWorker(listing, ignoreErrors, callback) {
 
             const verdict = getListingVerdict(sellPriceWithoutOffsetWithFees, price);
 
+            // Same two numbers the verdict is computed from, so the delta and the colour
+            // can never disagree about which side of the best price this listing is on.
+            const priceDelta = getListingPriceDelta(sellPriceWithoutOffsetWithFees, price);
+
             listingState.set(listing.listingid, {
                 sellPrice: sellPriceWithOffset,
                 verdict: verdict,
+                priceDelta: priceDelta,
             });
 
             // The verdict is still a class. It styles the listing and it is
@@ -244,9 +287,19 @@ export function marketListingsQueueWorker(listing, ignoreErrors, callback) {
             // can style `price_1234` and nothing reads it back any more.
             listingUI.addClass(verdict);
 
+            // The label carries the delta, so the tooltip is free to carry what will not
+            // fit beside it: the exact best price, and the price a relist would actually
+            // list at once the user's offset is applied. That second number is the one
+            // question the label deliberately does not answer -- see ADR 0001.
             $('.market_listing_my_price', listingUI)
                 .last()
-                .prop('title', `The best price is ${formatPrice(sellPriceWithoutOffsetWithFees)}.`);
+                .prop(
+                    'title',
+                    `The best price is ${formatPrice(sellPriceWithoutOffsetWithFees)}. ` +
+                        `Relisting would list at ${formatPrice(market.getPriceIncludingFees(sellPriceWithOffset))}.`,
+                );
+
+            setListingPriceDeltaLabel(listingUI, formatPriceDelta(priceDelta));
 
             $('.market_listing_my_price', listingUI)
                 .last()

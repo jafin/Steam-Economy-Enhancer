@@ -59,6 +59,7 @@ test('a listing asking more than the best price has a positive delta', () => {
     const delta = see.getListingPriceDelta(233, 275);
 
     assert.strictEqual(delta.cents, 42);
+    assert.ok(delta.percent != null);
     assert.ok(delta.percent > 0);
 });
 
@@ -66,6 +67,7 @@ test('a listing asking less than the best price has a negative delta', () => {
     const delta = see.getListingPriceDelta(233, 200);
 
     assert.strictEqual(delta.cents, -33);
+    assert.ok(delta.percent != null);
     assert.ok(delta.percent < 0);
 });
 
@@ -79,6 +81,7 @@ test('a listing asking the best price has no delta', () => {
 test('the delta percentage is a fraction of the best price, not of the listed price', () => {
     const delta = see.getListingPriceDelta(233, 275);
 
+    assert.ok(delta.percent != null);
     assert.strictEqual(delta.percent.toFixed(1), '18.0');
 });
 

@@ -240,6 +240,7 @@ injectCss(`
     #listings_sell { text-align: right; color: #589328; font-weight:600; }
     #listings_buy { text-align: right; color: #589328; font-weight:600; }
     .market_listing_my_price { height: 50px; padding-right:6px; }
+    .see_price_delta { display: block; font-size: 11px; opacity: 0.85; }
     .market_listing_edit_buttons.actual_content { width:276px; transition-property: background-color, border-color; transition-timing-function: linear; transition-duration: 0.5s;}
     .market_listing_buttons { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 6px; padding: 5px; background: rgba(0, 0, 0, 0.4); }
     .market_listing_label_right { float:right; font-size:12px; margin-top:1px; }
