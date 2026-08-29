@@ -72,6 +72,9 @@ export const getPriceValueAsInt = (listing) =>
 //
 // Called with an empty string to clear, which is how a label from an earlier pass is kept
 // from surviving under a cell that has since gone grey.
+// The cell is marked with has_price_delta whenever it carries a label, because the label
+// does not fit the cell as Steam lays it out and the corrections that make room for it
+// must not apply to rows without one. See the rules in the stylesheet in main.ts.
 function setListingPriceDeltaLabel(listingUI, text) {
     const priceCell = $('.market_listing_my_price', listingUI).last();
     let label = $('.see_price_delta', priceCell);
@@ -86,6 +89,7 @@ function setListingPriceDeltaLabel(listingUI, text) {
     }
 
     label.text(text);
+    priceCell.toggleClass('has_price_delta', text !== '');
 }
 
 export const marketListingsQueue = async.queue((listing: QueueTask, next) => {
