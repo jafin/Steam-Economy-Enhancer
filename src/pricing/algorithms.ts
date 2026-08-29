@@ -237,10 +237,11 @@ export function calculateSellPriceBeforeFees(
     history,
     orderbook,
     applyOffset,
-    minPriceBeforeFees,
-    maxPriceBeforeFees,
     rules: PricingRules = createPricingRules(),
 ) {
+    const minPriceBeforeFees = rules.minPriceBeforeFees!;
+    const maxPriceBeforeFees = rules.maxPriceBeforeFees!;
+
     const historyPrice = calculateAverageHistoryPriceBeforeFees(history, rules);
     const listingPrice = calculateListingPriceBeforeFees(orderbook, rules);
     const buyPrice = calculateBuyOrderPriceBeforeFees(orderbook, rules);

@@ -18,7 +18,6 @@ import {
     calculateSellPriceBeforeFees,
     createPricingRules,
     formatPrice,
-    getPriceInformationFromItem,
 } from '../pricing/algorithms.ts';
 import { QueueTask, runQueue } from '../queue/index.ts';
 import { SETTING_PRICE_MIN_LIST_PRICE, getSettingWithDefault } from '../settings/index.ts';
@@ -283,8 +282,6 @@ export function sellItems(items) {
 export const itemQueue = runQueue(itemQueueWorker, { retryOnFailure: true });
 
 export function itemQueueWorker(item, ignoreErrors, callback) {
-    const priceInfo = getPriceInformationFromItem(item);
-
     let failed = 0;
     const itemName = item.name || item.description.name;
 
@@ -317,9 +314,7 @@ export function itemQueueWorker(item, ignoreErrors, callback) {
                 history,
                 orderbook,
                 true,
-                priceInfo.minPriceBeforeFees,
-                priceInfo.maxPriceBeforeFees,
-                createPricingRules(),
+                createPricingRules(item),
             );
 
             logConsole(
