@@ -195,7 +195,12 @@ export function initializeMarketUI() {
                     marketList.matchingItems[i].values().market_listing_item_name,
                 );
 
-                const listingUI = $(getListingFromLists(listingid).elm);
+                const listing = getListingFromLists(listingid);
+                if (listing == null) {
+                    continue;
+                }
+
+                const listingUI = $(listing.elm);
                 listingUI.addClass('removing');
 
                 marketRemoveQueue.push({ listingid });

@@ -6,6 +6,7 @@
 import { COLOR_ERROR, COLOR_SUCCESS } from '../constants.ts';
 import { runQueue } from '../queue/index.ts';
 import { market } from '../steam/market.ts';
+import { logConsole } from '../ui/logger.ts';
 import { getRandomInt } from '../util/numbers.ts';
 import { increaseMarketProgress } from './progress.ts';
 import { refreshMarketOverpricedButtons } from './relist.ts';
@@ -23,7 +24,16 @@ export const marketRemoveQueue = runQueue(marketRemoveQueueWorker, {
 // to a primitive throws in a module, which is always strict.
 export function marketRemoveQueueWorker(task, ignoreErrors, callback) {
     const listingid = task.listingid;
-    const listingUI = getListingFromLists(listingid).elm;
+    const listing = getListingFromLists(listingid);
+    if (listing == null) {
+        logConsole(`Listing ${listingid} not found in the lists, skipping.`);
+
+        callback(true);
+
+        return;
+    }
+
+    const listingUI = listing.elm;
     const isBuyOrder = listingUI.id.startsWith('mybuyorder_');
 
     market.removeListing(listingid, isBuyOrder, (errorRemove) => {
