@@ -81,6 +81,129 @@
 	var RETRY_DELAY_SHORT_MAX = 1500;
 	var RETRY_DELAY_LONG_MIN = 3e4;
 	var RETRY_DELAY_LONG_MAX = 45e3;
+	function priceBeforeFees(price, item, rules) {
+		let publisherFee = -1;
+		if (item != null) {
+			if (item.market_fee != null) publisherFee = item.market_fee;
+			else if (item.description != null && item.description.market_fee != null) publisherFee = item.description.market_fee;
+		}
+		if (publisherFee == -1) publisherFee = rules.walletInfo != null ? rules.walletInfo["wallet_publisher_fee_percent_default"] : .1;
+		price = Math.round(price);
+		const feeInfo = CalculateFeeAmount(price, publisherFee, rules.walletInfo, rules.useRound);
+		return price > feeInfo.fees ? price - feeInfo.fees : 1;
+	}
+	function priceIncludingFees(price, item, rules) {
+		let publisherFee = -1;
+		if (item != null) {
+			if (item.market_fee != null) publisherFee = item.market_fee;
+			else if (item.description != null && item.description.market_fee != null) publisherFee = item.description.market_fee;
+		}
+		if (publisherFee == -1) publisherFee = rules.walletInfo != null ? rules.walletInfo["wallet_publisher_fee_percent_default"] : .1;
+		price = Math.round(price);
+		return CalculateAmountToSendForDesiredReceivedAmount(price, publisherFee, rules.walletInfo, rules.useRound).amount;
+	}
+	function CalculateFeeAmount(amount, publisherFee, walletInfo, useRound) {
+		if (walletInfo == null || !walletInfo["wallet_fee"]) return { fees: 0 };
+		publisherFee = publisherFee == null ? 0 : publisherFee;
+		let iterations = 0;
+		let nEstimatedAmountOfWalletFundsReceivedByOtherParty = parseInt(String((amount - parseInt(String(walletInfo["wallet_fee_base"]))) / (parseFloat(String(walletInfo["wallet_fee_percent"])) + parseFloat(String(publisherFee)) + 1)));
+		let bEverUndershot = false;
+		let fees = CalculateAmountToSendForDesiredReceivedAmount(nEstimatedAmountOfWalletFundsReceivedByOtherParty, publisherFee, walletInfo, useRound);
+		while (fees.amount != amount && iterations < 10) {
+			if (fees.amount > amount) {
+				if (bEverUndershot) {
+					fees = CalculateAmountToSendForDesiredReceivedAmount(nEstimatedAmountOfWalletFundsReceivedByOtherParty - 1, publisherFee, walletInfo, useRound);
+					fees.steam_fee += amount - fees.amount;
+					fees.fees += amount - fees.amount;
+					fees.amount = amount;
+					break;
+				} else nEstimatedAmountOfWalletFundsReceivedByOtherParty--;
+			} else {
+				bEverUndershot = true;
+				nEstimatedAmountOfWalletFundsReceivedByOtherParty++;
+			}
+			fees = CalculateAmountToSendForDesiredReceivedAmount(nEstimatedAmountOfWalletFundsReceivedByOtherParty, publisherFee, walletInfo, useRound);
+			iterations++;
+		}
+		return fees;
+	}
+	function clamp(cur, min, max) {
+		if (cur < min) cur = min;
+		if (cur > max) cur = max;
+		return cur;
+	}
+	function CalculateAmountToSendForDesiredReceivedAmount(receivedAmount, publisherFee, walletInfo, useRound) {
+		if (walletInfo == null || !walletInfo["wallet_fee"]) return { amount: receivedAmount };
+		const roundFee = useRound ? Math.round : Math.floor;
+		const minFee = walletInfo["wallet_fee_minimum"] || 1;
+		publisherFee = publisherFee == null ? 0 : publisherFee;
+		const nSteamFee = Math.max(parseInt(String(roundFee(receivedAmount * parseFloat(String(walletInfo["wallet_fee_percent"])) + parseInt(String(walletInfo["wallet_fee_base"]))))), minFee);
+		const nPublisherFee = publisherFee > 0 ? Math.max(parseInt(String(roundFee(receivedAmount * publisherFee))), minFee) : 0;
+		const nAmountToSend = receivedAmount + nSteamFee + nPublisherFee;
+		return {
+			steam_fee: nSteamFee,
+			publisher_fee: nPublisherFee,
+			fees: nSteamFee + nPublisherFee,
+			amount: parseInt(String(nAmountToSend))
+		};
+	}
+	function pickSellListingsHeader(anchored, all) {
+		return anchored.length > 0 ? anchored[0] : all[0];
+	}
+	function createSteamPage(win) {
+		return {
+			isLoggedIn: () => typeof win.g_rgWalletInfo !== "undefined" && win.g_rgWalletInfo != null || typeof win.g_bLoggedIn !== "undefined" && win.g_bLoggedIn,
+			countryCode: () => typeof win.g_strCountryCode !== "undefined" ? win.g_strCountryCode : void 0,
+			walletInfo: () => win.g_rgWalletInfo,
+			appContextData: () => win.g_rgAppContextData,
+			inventoryLoadUrl: () => win.g_strInventoryLoadURL || void 0,
+			profileUrl: () => win.g_strProfileURL || void 0,
+			currencyCode: (currencyId) => win.GetCurrencyCode(currencyId),
+			formatPrice: (valueInCents, currencyCode, currencyCountry) => win.v_currencyformat(valueInCents, currencyCode, currencyCountry),
+			parsePriceText: (text) => win.GetPriceValueAsInt(text),
+			showDialog: (title, html) => win.ShowDialog(title, html),
+			showConfirmDialog: (title, html) => win.ShowConfirmDialog(title, html),
+			activeInventory: () => win.g_ActiveInventory,
+			activeUser: () => win.g_ActiveUser,
+			steamId: () => win.g_steamID,
+			activeSelectView: () => win.iActiveSelectView,
+			onInventorySelectItem(handler) {
+				if (typeof win.CInventory === "undefined") return () => {};
+				const original = win.CInventory.prototype.SelectItem;
+				win.CInventory.prototype.SelectItem = function(event, elItem, rgItem) {
+					original.apply(this, arguments);
+					handler(rgItem);
+				};
+				return () => {
+					win.CInventory.prototype.SelectItem = original;
+				};
+			},
+			assetFor: (appid, contextid, assetid) => win.g_rgAssets?.[appid]?.[contextid]?.[assetid],
+			setAsset: (appid, contextid, assetid, asset) => {
+				win.g_rgAssets[appid][contextid][assetid] = asset;
+			},
+			firstAsset: () => {
+				for (const appid in win.g_rgAssets) for (const contextid in win.g_rgAssets[appid]) for (const assetid in win.g_rgAssets[appid][contextid]) return win.g_rgAssets[appid][contextid][assetid];
+				return null;
+			},
+			mergeAssets: (assets) => win.MergeWithAssetArray(assets),
+			requestFullInventory: (url, callback) => win.RequestFullInventory(url, {}, null, null, callback),
+			myListingsTotalCount: () => typeof win.g_oMyListings !== "undefined" && win.g_oMyListings != null ? win.g_oMyListings.m_cTotalCount : null,
+			goToHistoryPage: (index) => {
+				if (typeof win.g_oMyHistory !== "undefined") win.g_oMyHistory.GoToPage(index);
+			},
+			sellListingsHeader: () => {
+				const anchored = (0, jquery.default)("#tabContentsMyActiveMarketListingsRows").closest(".market_home_listing_table").find(".my_market_header");
+				const all = (0, jquery.default)(".my_market_header");
+				return (0, jquery.default)(pickSellListingsHeader(anchored, all));
+			},
+			tradeAssets: (side) => win.g_rgCurrentTradeStatus[side].assets,
+			findTradeAsset: (side, appid, contextid, assetid) => {
+				return (side === "me" ? win.UserYou : win.UserThem).findAsset(appid, contextid, assetid);
+			},
+			moveItemToTrade: (item) => win.MoveItemToTrade(item)
+		};
+	}
 	function getRandomInt(min, max) {
 		return Math.floor(Math.random() * (max - min + 1)) + min;
 	}
@@ -540,63 +663,6 @@
 	var totalPriceWithFeesOnMarket = 0;
 	var totalPriceWithoutFeesOnMarket = 0;
 	var totalScrap = 0;
-	function pickSellListingsHeader(anchored, all) {
-		return anchored.length > 0 ? anchored[0] : all[0];
-	}
-	function createSteamPage(win) {
-		return {
-			isLoggedIn: () => typeof win.g_rgWalletInfo !== "undefined" && win.g_rgWalletInfo != null || typeof win.g_bLoggedIn !== "undefined" && win.g_bLoggedIn,
-			countryCode: () => typeof win.g_strCountryCode !== "undefined" ? win.g_strCountryCode : void 0,
-			walletInfo: () => win.g_rgWalletInfo,
-			appContextData: () => win.g_rgAppContextData,
-			inventoryLoadUrl: () => win.g_strInventoryLoadURL || void 0,
-			profileUrl: () => win.g_strProfileURL || void 0,
-			currencyCode: (currencyId) => win.GetCurrencyCode(currencyId),
-			formatPrice: (valueInCents, currencyCode, currencyCountry) => win.v_currencyformat(valueInCents, currencyCode, currencyCountry),
-			parsePriceText: (text) => win.GetPriceValueAsInt(text),
-			showDialog: (title, html) => win.ShowDialog(title, html),
-			showConfirmDialog: (title, html) => win.ShowConfirmDialog(title, html),
-			activeInventory: () => win.g_ActiveInventory,
-			activeUser: () => win.g_ActiveUser,
-			steamId: () => win.g_steamID,
-			activeSelectView: () => win.iActiveSelectView,
-			onInventorySelectItem(handler) {
-				if (typeof win.CInventory === "undefined") return () => {};
-				const original = win.CInventory.prototype.SelectItem;
-				win.CInventory.prototype.SelectItem = function(event, elItem, rgItem) {
-					original.apply(this, arguments);
-					handler(rgItem);
-				};
-				return () => {
-					win.CInventory.prototype.SelectItem = original;
-				};
-			},
-			assetFor: (appid, contextid, assetid) => win.g_rgAssets?.[appid]?.[contextid]?.[assetid],
-			setAsset: (appid, contextid, assetid, asset) => {
-				win.g_rgAssets[appid][contextid][assetid] = asset;
-			},
-			firstAsset: () => {
-				for (const appid in win.g_rgAssets) for (const contextid in win.g_rgAssets[appid]) for (const assetid in win.g_rgAssets[appid][contextid]) return win.g_rgAssets[appid][contextid][assetid];
-				return null;
-			},
-			mergeAssets: (assets) => win.MergeWithAssetArray(assets),
-			requestFullInventory: (url, callback) => win.RequestFullInventory(url, {}, null, null, callback),
-			myListingsTotalCount: () => typeof win.g_oMyListings !== "undefined" && win.g_oMyListings != null ? win.g_oMyListings.m_cTotalCount : null,
-			goToHistoryPage: (index) => {
-				if (typeof win.g_oMyHistory !== "undefined") win.g_oMyHistory.GoToPage(index);
-			},
-			sellListingsHeader: () => {
-				const anchored = (0, jquery.default)("#tabContentsMyActiveMarketListingsRows").closest(".market_home_listing_table").find(".my_market_header");
-				const all = (0, jquery.default)(".my_market_header");
-				return (0, jquery.default)(pickSellListingsHeader(anchored, all));
-			},
-			tradeAssets: (side) => win.g_rgCurrentTradeStatus[side].assets,
-			findTradeAsset: (side, appid, contextid, assetid) => {
-				return (side === "me" ? win.UserYou : win.UserThem).findAsset(appid, contextid, assetid);
-			},
-			moveItemToTrade: (item) => win.MoveItemToTrade(item)
-		};
-	}
 	var steamPage = createSteamPage(unsafeWindow);
 	steamPage.countryCode();
 	var isLoggedIn = steamPage.isLoggedIn();
@@ -842,27 +908,6 @@
 			useRound,
 			now: Date.now()
 		};
-	}
-	function priceBeforeFees(price, item, rules) {
-		let publisherFee = -1;
-		if (item != null) {
-			if (item.market_fee != null) publisherFee = item.market_fee;
-			else if (item.description != null && item.description.market_fee != null) publisherFee = item.description.market_fee;
-		}
-		if (publisherFee == -1) publisherFee = rules.walletInfo != null ? rules.walletInfo["wallet_publisher_fee_percent_default"] : .1;
-		price = Math.round(price);
-		const feeInfo = CalculateFeeAmount(price, publisherFee, rules.walletInfo, rules.useRound);
-		return price > feeInfo.fees ? price - feeInfo.fees : 1;
-	}
-	function priceIncludingFees(price, item, rules) {
-		let publisherFee = -1;
-		if (item != null) {
-			if (item.market_fee != null) publisherFee = item.market_fee;
-			else if (item.description != null && item.description.market_fee != null) publisherFee = item.description.market_fee;
-		}
-		if (publisherFee == -1) publisherFee = rules.walletInfo != null ? rules.walletInfo["wallet_publisher_fee_percent_default"] : .1;
-		price = Math.round(price);
-		return CalculateAmountToSendForDesiredReceivedAmount(price, publisherFee, rules.walletInfo, rules.useRound).amount;
 	}
 	function calculateAverageHistoryPriceBeforeFees(history, rules = createPricingRules()) {
 		let highest = 0;
@@ -1300,51 +1345,6 @@
 		}
 		if (item.type != null && item.type.toLowerCase().includes("foil trading card")) return true;
 		return false;
-	}
-	function CalculateFeeAmount(amount, publisherFee, walletInfo, useRound) {
-		if (walletInfo == null || !walletInfo["wallet_fee"]) return { fees: 0 };
-		publisherFee = publisherFee == null ? 0 : publisherFee;
-		let iterations = 0;
-		let nEstimatedAmountOfWalletFundsReceivedByOtherParty = parseInt((amount - parseInt(walletInfo["wallet_fee_base"])) / (parseFloat(walletInfo["wallet_fee_percent"]) + parseFloat(publisherFee) + 1));
-		let bEverUndershot = false;
-		let fees = CalculateAmountToSendForDesiredReceivedAmount(nEstimatedAmountOfWalletFundsReceivedByOtherParty, publisherFee, walletInfo, useRound);
-		while (fees.amount != amount && iterations < 10) {
-			if (fees.amount > amount) {
-				if (bEverUndershot) {
-					fees = CalculateAmountToSendForDesiredReceivedAmount(nEstimatedAmountOfWalletFundsReceivedByOtherParty - 1, publisherFee, walletInfo, useRound);
-					fees.steam_fee += amount - fees.amount;
-					fees.fees += amount - fees.amount;
-					fees.amount = amount;
-					break;
-				} else nEstimatedAmountOfWalletFundsReceivedByOtherParty--;
-			} else {
-				bEverUndershot = true;
-				nEstimatedAmountOfWalletFundsReceivedByOtherParty++;
-			}
-			fees = CalculateAmountToSendForDesiredReceivedAmount(nEstimatedAmountOfWalletFundsReceivedByOtherParty, publisherFee, walletInfo, useRound);
-			iterations++;
-		}
-		return fees;
-	}
-	function clamp(cur, min, max) {
-		if (cur < min) cur = min;
-		if (cur > max) cur = max;
-		return cur;
-	}
-	function CalculateAmountToSendForDesiredReceivedAmount(receivedAmount, publisherFee, walletInfo, useRound) {
-		if (walletInfo == null || !walletInfo["wallet_fee"]) return { amount: receivedAmount };
-		const roundFee = useRound ? Math.round : Math.floor;
-		const minFee = walletInfo["wallet_fee_minimum"] || 1;
-		publisherFee = publisherFee == null ? 0 : publisherFee;
-		const nSteamFee = Math.max(parseInt(roundFee(receivedAmount * parseFloat(walletInfo["wallet_fee_percent"]) + parseInt(walletInfo["wallet_fee_base"]))), minFee);
-		const nPublisherFee = publisherFee > 0 ? Math.max(parseInt(roundFee(receivedAmount * publisherFee)), minFee) : 0;
-		const nAmountToSend = receivedAmount + nSteamFee + nPublisherFee;
-		return {
-			steam_fee: nSteamFee,
-			publisher_fee: nPublisherFee,
-			fees: nSteamFee + nPublisherFee,
-			amount: parseInt(nAmountToSend)
-		};
 	}
 	function readCookie(name) {
 		const nameEQ = `${name}=`;

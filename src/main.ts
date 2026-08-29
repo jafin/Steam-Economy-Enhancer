@@ -46,6 +46,14 @@ import {
     VERDICT_UNDERPRICED,
 } from './constants.ts';
 import {
+    priceBeforeFees,
+    priceIncludingFees,
+    CalculateFeeAmount,
+    clamp,
+    CalculateAmountToSendForDesiredReceivedAmount,
+} from './pricing/fees.ts';
+import { pickSellListingsHeader, createSteamPage } from './steam/page.ts';
+import {
     createFailureCounter,
     resetRetryDelay,
     nextRetryDelay,
@@ -88,116 +96,6 @@ let totalScrap = 0;
 // implements the same shape from data instead of a real page, so a change to the shape
 // this file expects Steam's page to have can be caught by a test rather than by a user
 // reporting silence. See test/steam-page.test.js.
-
-// The rule PR #334 needed, pulled out of the DOM lookup that feeds it: prefer the header
-// anchored to the sell listings table itself, and only fall back to "whichever header
-// is first" when the anchored lookup truly finds nothing. `anchored`/`all` need only
-// `.length` and index access, so this runs the same whether they came from a real
-// jQuery selection or plain fixture data - see test/steam-page-fixture.js.
-function pickSellListingsHeader(anchored, all) {
-    return anchored.length > 0 ? anchored[0] : all[0];
-}
-
-function createSteamPage(win) {
-    return {
-        // Session / config
-        isLoggedIn: () =>
-            (typeof win.g_rgWalletInfo !== 'undefined' && win.g_rgWalletInfo != null) ||
-            (typeof win.g_bLoggedIn !== 'undefined' && win.g_bLoggedIn),
-        countryCode: () =>
-            typeof win.g_strCountryCode !== 'undefined' ? win.g_strCountryCode : undefined,
-        walletInfo: () => win.g_rgWalletInfo,
-        appContextData: () => win.g_rgAppContextData,
-        inventoryLoadUrl: () => win.g_strInventoryLoadURL || undefined,
-        profileUrl: () => win.g_strProfileURL || undefined,
-        currencyCode: (currencyId) => win.GetCurrencyCode(currencyId),
-        formatPrice: (valueInCents, currencyCode, currencyCountry) =>
-            win.v_currencyformat(valueInCents, currencyCode, currencyCountry),
-        parsePriceText: (text) => win.GetPriceValueAsInt(text),
-        showDialog: (title, html) => win.ShowDialog(title, html),
-        showConfirmDialog: (title, html) => win.ShowConfirmDialog(title, html),
-
-        // Inventory
-        activeInventory: () => win.g_ActiveInventory,
-        activeUser: () => win.g_ActiveUser,
-        steamId: () => win.g_steamID,
-        activeSelectView: () => win.iActiveSelectView,
-
-        // Patches CInventory.prototype.SelectItem to also call handler(rgItem) after
-        // Steam's own selection handling, and returns a teardown that restores the
-        // original. A no-op, reversible teardown if CInventory never loaded.
-        onInventorySelectItem(handler) {
-            if (typeof win.CInventory === 'undefined') {
-                return () => {};
-            }
-
-            const original = win.CInventory.prototype.SelectItem;
-
-            win.CInventory.prototype.SelectItem = function (event, elItem, rgItem) {
-                original.apply(this, arguments);
-                handler(rgItem);
-            };
-
-            return () => {
-                win.CInventory.prototype.SelectItem = original;
-            };
-        },
-
-        // Market assets
-        assetFor: (appid, contextid, assetid) => win.g_rgAssets?.[appid]?.[contextid]?.[assetid],
-        setAsset: (appid, contextid, assetid, asset) => {
-            win.g_rgAssets[appid][contextid][assetid] = asset;
-        },
-
-        // There is only one item in g_rgAssets on a market listing page - the first (and
-        // only) leaf this finds, whatever its appid/contextid/assetid.
-        firstAsset: () => {
-            for (const appid in win.g_rgAssets) {
-                for (const contextid in win.g_rgAssets[appid]) {
-                    for (const assetid in win.g_rgAssets[appid][contextid]) {
-                        return win.g_rgAssets[appid][contextid][assetid];
-                    }
-                }
-            }
-
-            return null;
-        },
-
-        mergeAssets: (assets) => win.MergeWithAssetArray(assets),
-        requestFullInventory: (url, callback) =>
-            win.RequestFullInventory(url, {}, null, null, callback),
-        myListingsTotalCount: () =>
-            typeof win.g_oMyListings !== 'undefined' && win.g_oMyListings != null
-                ? win.g_oMyListings.m_cTotalCount
-                : null,
-        goToHistoryPage: (index) => {
-            if (typeof win.g_oMyHistory !== 'undefined') {
-                win.g_oMyHistory.GoToPage(index);
-            }
-        },
-
-        // The header the sell listings buttons attach to. See pickSellListingsHeader.
-        sellListingsHeader: () => {
-            const anchored = $('#tabContentsMyActiveMarketListingsRows')
-                .closest('.market_home_listing_table')
-                .find('.my_market_header');
-            const all = $('.my_market_header');
-
-            return $(pickSellListingsHeader(anchored, all));
-        },
-
-        // Trade offer. `side` is 'me' or 'them', the same keys g_rgCurrentTradeStatus
-        // itself uses, so both sides of a trade can be walked with one loop over
-        // ['me', 'them'] instead of the same code written out twice.
-        tradeAssets: (side) => win.g_rgCurrentTradeStatus[side].assets,
-        findTradeAsset: (side, appid, contextid, assetid) => {
-            const user = side === 'me' ? win.UserYou : win.UserThem;
-
-            return user.findAsset(appid, contextid, assetid);
-        },
-        moveItemToTrade: (item) => win.MoveItemToTrade(item),
-    };
-}
 
 const steamPage = createSteamPage(unsafeWindow);
 
@@ -638,27 +536,6 @@ const ALGORITHM_AVERAGE_HISTORY = 4;
 // to show and nothing to add to a trade offer total.
 const NO_LISTING_PRICE_SENTINEL = 65535;
 
-// Everything the price calculation takes from settings, read in one place.
-//
-// The calculation used to reach for these itself, four settings across three functions,
-// one synchronous localStorage read per item priced, plus the wall clock, the wallet's
-// fee schedule and the round-vs-floor currency rule, both taken from a module-level
-// `market`/`useRound` closure. Passing them in means the same inputs always give the
-// same answer, which is what makes the calculation testable.
-// The inputs a price calculation needs, read from settings by createPricingRules(). Every
-// field is optional because the calculations each use a subset and callers -- the tests
-// especially -- pass only the fields the calculation under test actually reads. That is the
-// existing runtime contract, not a loosening of it.
-interface PricingRules {
-    algorithm?: number;
-    offsetCents?: number;
-    historyHours?: number;
-    ignoreLowestOnLowQuantity?: boolean;
-    walletInfo?: any;
-    useRound?: boolean;
-    now?: number;
-}
-
 function createPricingRules() {
     return {
         algorithm: Number(getSettingWithDefault(SETTING_PRICE_ALGORITHM)),
@@ -669,65 +546,6 @@ function createPricingRules() {
         useRound,
         now: Date.now(),
     };
-}
-
-// Calculate the price before fees (seller price) from the buyer price.
-//
-// Pure: the fee schedule and rounding rule come from `rules` rather than from the
-// `market` singleton or the module-level `useRound`. SteamMarket.prototype.getPriceBeforeFees
-// is a thin adapter over this for the call sites that use the market instance directly.
-function priceBeforeFees(price, item, rules) {
-    let publisherFee = -1;
-
-    if (item != null) {
-        if (item.market_fee != null) {
-            publisherFee = item.market_fee;
-        } else if (item.description != null && item.description.market_fee != null) {
-            publisherFee = item.description.market_fee;
-        }
-    }
-
-    if (publisherFee == -1) {
-        publisherFee =
-            rules.walletInfo != null
-                ? rules.walletInfo['wallet_publisher_fee_percent_default']
-                : 0.1;
-    }
-
-    price = Math.round(price);
-    const feeInfo = CalculateFeeAmount(price, publisherFee, rules.walletInfo, rules.useRound);
-
-    return price > feeInfo.fees ? price - feeInfo.fees : 1;
-}
-
-// Calculate the buyer price from the seller price. See priceBeforeFees.
-function priceIncludingFees(price, item, rules) {
-    let publisherFee = -1;
-
-    if (item != null) {
-        if (item.market_fee != null) {
-            publisherFee = item.market_fee;
-        } else if (item.description != null && item.description.market_fee != null) {
-            publisherFee = item.description.market_fee;
-        }
-    }
-
-    if (publisherFee == -1) {
-        publisherFee =
-            rules.walletInfo != null
-                ? rules.walletInfo['wallet_publisher_fee_percent_default']
-                : 0.1;
-    }
-
-    price = Math.round(price);
-    const feeInfo = CalculateAmountToSendForDesiredReceivedAmount(
-        price,
-        publisherFee,
-        rules.walletInfo,
-        rules.useRound,
-    );
-
-    return feeInfo.amount;
 }
 
 function calculateAverageHistoryPriceBeforeFees(
@@ -1575,128 +1393,6 @@ function getIsFoilTradingCard(item) {
     }
 
     return false;
-}
-
-function CalculateFeeAmount(amount, publisherFee, walletInfo, useRound?) {
-    if (walletInfo == null || !walletInfo['wallet_fee']) {
-        return {
-            fees: 0,
-        };
-    }
-
-    publisherFee = publisherFee == null ? 0 : publisherFee;
-    // Since CalculateFeeAmount has a Math.floor, we could be off a cent or two. Let's check:
-    let iterations = 0; // shouldn't be needed, but included to be sure nothing unforseen causes us to get stuck
-    let nEstimatedAmountOfWalletFundsReceivedByOtherParty = parseInt(
-        (amount - parseInt(walletInfo['wallet_fee_base'])) /
-            (parseFloat(walletInfo['wallet_fee_percent']) + parseFloat(publisherFee) + 1),
-    );
-    let bEverUndershot = false;
-    let fees = CalculateAmountToSendForDesiredReceivedAmount(
-        nEstimatedAmountOfWalletFundsReceivedByOtherParty,
-        publisherFee,
-        walletInfo,
-        useRound,
-    );
-    while (fees.amount != amount && iterations < 10) {
-        if (fees.amount > amount) {
-            if (bEverUndershot) {
-                fees = CalculateAmountToSendForDesiredReceivedAmount(
-                    nEstimatedAmountOfWalletFundsReceivedByOtherParty - 1,
-                    publisherFee,
-                    walletInfo,
-                    useRound,
-                );
-                fees.steam_fee += amount - fees.amount;
-                fees.fees += amount - fees.amount;
-                fees.amount = amount;
-                break;
-            } else {
-                nEstimatedAmountOfWalletFundsReceivedByOtherParty--;
-            }
-        } else {
-            bEverUndershot = true;
-            nEstimatedAmountOfWalletFundsReceivedByOtherParty++;
-        }
-        fees = CalculateAmountToSendForDesiredReceivedAmount(
-            nEstimatedAmountOfWalletFundsReceivedByOtherParty,
-            publisherFee,
-            walletInfo,
-            useRound,
-        );
-        iterations++;
-    }
-    // fees.amount should equal the passed in amount
-    return fees;
-}
-
-// Clamps cur between min and max (inclusive).
-function clamp(cur, min, max) {
-    if (cur < min) {
-        cur = min;
-    }
-
-    if (cur > max) {
-        cur = max;
-    }
-
-    return cur;
-}
-
-// Strangely named function, it actually works out the fees and buyer price for a seller price
-// Updated for December 2025 Steam Market rule changes:
-// - 12 specific currencies now use round instead of floor for fees
-// - Global minimum fee increased to $0.01 for both Steam fee and publisher fee
-// Reference: https://steamcommunity.com/groups/community_market/discussions/0/682988196226679356/
-function CalculateAmountToSendForDesiredReceivedAmount(
-    receivedAmount,
-    publisherFee,
-    walletInfo,
-    useRound,
-) {
-    if (walletInfo == null || !walletInfo['wallet_fee']) {
-        return {
-            amount: receivedAmount,
-        };
-    }
-
-    // Select the appropriate rounding function based on currency.
-    const roundFee = useRound ? Math.round : Math.floor;
-
-    // December 2025 change: Both Steam fee and publisher fee now have a minimum of $0.01.
-    // The wallet_fee_minimum from Steam represents $0.01 in the user's local currency.
-    // Previously, publisher fee minimum was hardcoded to 1 (the smallest currency unit),
-    // but now it should also be at least $0.01 equivalent in local currency.
-    const minFee = walletInfo['wallet_fee_minimum'] || 1;
-
-    publisherFee = publisherFee == null ? 0 : publisherFee;
-
-    // IMPORTANT: Apply rounding/flooring BEFORE comparing with minimum fee.
-    // Correct order per Steam's December 2025 rule changes:
-    // 1. Calculate percentage fee (e.g., 0.05 * receivedAmount)
-    // 2. Add base fee (usually 0)
-    // 3. Apply round/floor based on currency
-    // 4. Compare with minimum fee and take maximum
-    const nSteamFee = Math.max(
-        parseInt(
-            roundFee(
-                receivedAmount * parseFloat(walletInfo['wallet_fee_percent']) +
-                    parseInt(walletInfo['wallet_fee_base']),
-            ),
-        ),
-        minFee,
-    );
-
-    // Publisher fee: same logic, round/floor first, then compare with minFee
-    const nPublisherFee =
-        publisherFee > 0 ? Math.max(parseInt(roundFee(receivedAmount * publisherFee)), minFee) : 0;
-    const nAmountToSend = receivedAmount + nSteamFee + nPublisherFee;
-    return {
-        steam_fee: nSteamFee,
-        publisher_fee: nPublisherFee,
-        fees: nSteamFee + nPublisherFee,
-        amount: parseInt(nAmountToSend),
-    };
 }
 
 function readCookie(name) {
@@ -4836,18 +4532,14 @@ export const requestPolicy = {
 };
 
 export {
-    CalculateAmountToSendForDesiredReceivedAmount,
-    CalculateFeeAmount,
     aggregateTradeOfferAssets,
     buildOrderBook,
     calculateAverageHistoryPriceBeforeFees,
     calculateBuyOrderPriceBeforeFees,
     calculateListingPriceBeforeFees,
     calculateSellPriceBeforeFees,
-    clamp,
     createListingState,
     createPricingRules,
-    createSteamPage,
     flattenItem,
     getAssetKey,
     getIsCrate,
@@ -4865,14 +4557,19 @@ export {
     isRetryMessage,
     markRow,
     NO_LISTING_PRICE_SENTINEL,
-    pickSellListingsHeader,
-    priceBeforeFees,
-    priceIncludingFees,
 };
 
 // Re-exported from the modules they now live in, so the test suite can keep reaching
 // them through the entry point while the split is in progress.
 export { ROW_STATUS_COLORS } from './constants.ts';
+
+export {
+    CalculateAmountToSendForDesiredReceivedAmount,
+    CalculateFeeAmount,
+    clamp,
+    priceBeforeFees,
+    priceIncludingFees,
+} from './pricing/fees.ts';
 
 export {
     createFailureCounter,
@@ -4881,6 +4578,8 @@ export {
     resetRetryDelay,
     runQueue,
 } from './queue/index.ts';
+
+export { createSteamPage, pickSellListingsHeader } from './steam/page.ts';
 
 export { getNumberOfDigits, padLeftZero, replaceNonNumbers } from './util/numbers.ts';
 //#endregion
