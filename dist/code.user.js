@@ -16,7 +16,6 @@
 // @match        https://steamcommunity.com/market*
 // @match        https://steamcommunity.com/tradeoffer*
 // @require      https://cdnjs.cloudflare.com/ajax/libs/jquery/4.0.0/jquery.min.js
-// @require      https://cdnjs.cloudflare.com/ajax/libs/jqueryui/1.14.2/jquery-ui.min.js
 // @require      https://cdnjs.cloudflare.com/ajax/libs/async/3.2.6/async.js
 // @require      https://cdnjs.cloudflare.com/ajax/libs/localforage/1.10.0/localforage.min.js
 // @require      https://cdnjs.cloudflare.com/ajax/libs/luxon/3.5.0/luxon.min.js
@@ -2331,31 +2330,43 @@
 	}
 	function initializeInventoryUI() {
 		const isOwnInventory = steamPage.activeUser().strSteamId == steamPage.steamId();
-		let previousSelection = -1;
 		updateInventoryUI(isOwnInventory);
 		(0, jquery.default)(".games_list_tabs").on("click", "*", () => {
 			updateInventoryUI(isOwnInventory);
 		});
 		if (!isOwnInventory) return;
-		const filter = ".itemHolder:not([style*=none])";
-		(0, jquery.default)("#inventories").selectable({
-			filter,
-			selecting: function(e, ui) {
-				const selectedIndex = (0, jquery.default)(ui.selecting.tagName, e.target).index(ui.selecting);
-				if (e.shiftKey && previousSelection > -1) {
-					(0, jquery.default)(ui.selecting.tagName, e.target).slice(Math.min(previousSelection, selectedIndex), 1 + Math.max(previousSelection, selectedIndex)).each(function() {
-						if ((0, jquery.default)(this).is(filter)) (0, jquery.default)(this).addClass("ui-selected");
-					});
-					previousSelection = -1;
-				} else previousSelection = selectedIndex;
-			},
-			selected: function() {
-				updateButtons();
-			}
-		});
+		initializeInventorySelection();
 		steamPage.onInventorySelectItem((rgItem) => {
 			updateButtons();
 			updateInventorySelection(flattenItem(rgItem, rgItem.assetid || rgItem.id));
+		});
+	}
+	function initializeInventorySelection() {
+		const filter = ".itemHolder:not([style*=none])";
+		const inventories = (0, jquery.default)("#inventories");
+		let anchor = null;
+		inventories.on("mousedown", filter, (event) => {
+			event.preventDefault();
+		});
+		inventories.on("click", filter, function(event) {
+			const items = inventories.find(filter).toArray();
+			const anchored = anchor !== null && items.includes(anchor);
+			const select = (element) => element.classList.add("ui-selected");
+			const clear = () => items.forEach((item) => item.classList.remove("ui-selected"));
+			if (event.shiftKey && anchored) {
+				const from = items.indexOf(anchor);
+				const to = items.indexOf(this);
+				clear();
+				items.slice(Math.min(from, to), 1 + Math.max(from, to)).forEach(select);
+			} else if (event.ctrlKey || event.metaKey) {
+				this.classList.toggle("ui-selected");
+				anchor = this;
+			} else {
+				clear();
+				select(this);
+				anchor = this;
+			}
+			updateButtons();
 		});
 	}
 	function updateSellSelectedButton() {
