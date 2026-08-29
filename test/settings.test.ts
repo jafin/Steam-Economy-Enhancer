@@ -1,10 +1,11 @@
 // The settings store's read side.
 //
-// getSettingWithDefault has no per-key return type: localStorage.getItem answers with a
-// string, and the defaults table (settings/index.ts) holds numbers, so a key answers with a
-// number until it has been written once and a string forever after. These three tests pin
-// that behaviour before it is fixed, so the fix is a deliberate, visible change to a test
-// rather than a silent one.
+// getSettingWithDefault used to have no per-key return type: localStorage.getItem answers
+// with a string, and the defaults table (settings/index.ts) holds numbers, so a key used to
+// answer with a number until it had been written once and a string forever after. getSetting
+// (and the getSettingWithDefault alias that now delegates to it) coerces every read to a
+// number instead. The first two tests below are updated in place, from what the coercion bug
+// produced to what the fix produces, rather than left to bit-rot as stale characterisation.
 
 import { test, beforeEach, vi } from 'vitest';
 import assert from 'node:assert';
@@ -28,23 +29,23 @@ test('a key that has never been written answers with its numeric default', () =>
     );
 });
 
-test('a key written once answers with a string, today', () => {
+test('a key written once still answers with a number', () => {
     setSetting(SETTING_PRICE_HISTORY_HOURS, 5);
 
-    assert.strictEqual(getSettingWithDefault(SETTING_PRICE_HISTORY_HOURS), '5');
+    assert.strictEqual(getSettingWithDefault(SETTING_PRICE_HISTORY_HOURS), 5);
 });
 
-test('SETTING_LAST_CACHE runs away under string concatenation, today', () => {
-    // Reproduces the trace from TASK-08's problem statement: run 1 reads the numeric
-    // default, run 2 reads back the string that run 1 wrote, and "1" + 1 concatenates
-    // instead of adding.
+test('SETTING_LAST_CACHE now adds instead of concatenating', () => {
+    // Same trace as the coercion bug this replaced (see TASK-08-typed-settings.md's problem
+    // statement), but every step is now a number: run 1 reads the numeric default, run 2
+    // reads back the number run 1 wrote, and 1 + 1 adds instead of concatenating.
     assert.strictEqual(getSettingWithDefault(SETTING_LAST_CACHE), 0);
     setSetting(SETTING_LAST_CACHE, getSettingWithDefault(SETTING_LAST_CACHE) + 1);
 
-    assert.strictEqual(getSettingWithDefault(SETTING_LAST_CACHE), '1');
+    assert.strictEqual(getSettingWithDefault(SETTING_LAST_CACHE), 1);
     setSetting(SETTING_LAST_CACHE, getSettingWithDefault(SETTING_LAST_CACHE) + 1);
 
-    assert.strictEqual(getSettingWithDefault(SETTING_LAST_CACHE), '11');
+    assert.strictEqual(getSettingWithDefault(SETTING_LAST_CACHE), 2);
 });
 
 // storage/session.ts reads and writes SETTING_LAST_CACHE at module-evaluation time, so a
