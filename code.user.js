@@ -1005,6 +1005,22 @@
     function getAssetKey(item) {
         return `${item.appid}_${item.contextid}_${item.id}`;
     }
+
+    // Whether an item has already been queued for an inventory action (sell, turn into
+    // gems, unpack), kept by asset key instead of on the item itself. readInventoryItems
+    // used to stamp `item.queued` directly onto Steam's own object, so a second pass over
+    // the same inventory - the user clicking "Sell All" and "Turn Into Gems" moments apart -
+    // saw the flag on the very same object and skipped it. readInventoryItems now returns a
+    // new object every call, so that no longer works; this is where the flag lives instead.
+    const itemQueueState = createListingState();
+
+    function isItemQueued(item) {
+        return itemQueueState.get(getAssetKey(item))?.queued === true;
+    }
+
+    function markItemQueued(item) {
+        itemQueueState.set(getAssetKey(item), { queued: true });
+    }
     //#endregion
 
     //#region Trade offer totals
@@ -1216,7 +1232,7 @@
 
 
     // Grinds the item into gems.
-    SteamMarket.prototype.grindIntoGoo = function (item, callback) {
+    SteamMarket.prototype.grindIntoGoo = function (item, gooValueExpected, callback) {
         try {
             const url = `${this.inventoryUrlBase}ajaxgrindintogoo/`;
 
@@ -1227,7 +1243,7 @@
                     appid: item.market_fee_app,
                     assetid: item.assetid,
                     contextid: item.contextid,
-                    goo_value_expected: item.goo_value_expected
+                    goo_value_expected: gooValueExpected
                 },
                 responseType: 'json'
             };
@@ -1465,18 +1481,24 @@
 
     //#region Steam Market / Inventory helpers
 
-    // Flattens Steam's inventory shape into one array. The inventory page's active inventory
-    // (m_rgChildInventories/m_rgAssets) and the trade offer page's (rgChildInventories/
-    // rgInventory) were byte-for-byte identical but for these two property names - one
-    // reader, parameterised by them, instead of the same walk written out twice.
-    //
-    // Each item's own `description` is merged onto it in place, to keep the shape consistent
-    // with the market page's items, which are also flattened this way. This mutates Steam's
-    // own inventory objects rather than returning new ones: Steam's CInventory click handler
-    // hands back the very same object later (see onInventorySelectItem), and
-    // updateInventorySelection reads it expecting the flattening to have already happened.
-    // Returning copies here would leave that object unflattened until this function
-    // happened to run again.
+    // Flattens one Steam item: a new object with its own `description` merged onto it, so
+    // its fields read the same way whichever page it came from - the market page's items
+    // already arrive this way. `id` is stamped from the caller, because Steam's raw item is
+    // not always trusted to carry its own (see readInventoryItems). Steam's own object is
+    // left untouched; nothing here mutates `value`.
+    function flattenItem(value, id) {
+        const item = Object.assign({}, value, value.description);
+        item.id = id;
+        item.assetid = id;
+
+        return item;
+    }
+
+    // Flattens Steam's inventory shape into one array of new objects. The inventory page's
+    // active inventory (m_rgChildInventories/m_rgAssets) and the trade offer page's
+    // (rgChildInventories/rgInventory) were byte-for-byte identical but for these two
+    // property names - one reader, parameterised by them, instead of the same walk written
+    // out twice.
     function readInventoryItems(activeInventory, childrenProperty, assetsProperty) {
         const items = [];
 
@@ -1488,10 +1510,7 @@
             for (const key in assets) {
                 const value = assets[key];
                 if (typeof value === 'object') {
-                    Object.assign(value, value.description);
-                    value['id'] = key;
-                    value['assetid'] = key;
-                    items.push(value);
+                    items.push(flattenItem(value, key));
                 }
             }
         };
@@ -1976,7 +1995,7 @@
                 filteredItems = items.filter((e, i) => items.map((m) => m.classid).indexOf(e.classid) !== i);
 
                 filteredItems.forEach((item) => {
-                    if (item.queued != null) {
+                    if (isItemQueued(item)) {
                         return;
                     }
 
@@ -1995,7 +2014,7 @@
                         return;
                     }
 
-                    item.queued = true;
+                    markItemQueued(item);
                     scrapQueue.push(item);
                     numberOfQueuedItems++;
                 });
@@ -2074,10 +2093,11 @@
                         return callback(false);
                     }
 
-                    item.goo_value_expected = parseInt(goo.goo_value, 10);
+                    const gooValueExpected = parseInt(goo.goo_value, 10);
 
                     market.grindIntoGoo(
                         item,
+                        gooValueExpected,
                         (err) => {
                             if (err != ERROR_SUCCESS) {
                                 logConsole(`Failed to turn item into gems for ${itemName}`);
@@ -2090,10 +2110,10 @@
                             logConsole('============================');
                             logConsole(itemName);
                             logConsole(`Turned into ${goo.goo_value} gems`);
-                            logDOM(`${padLeft} - ${itemName} turned into ${item.goo_value_expected} gems.`);
+                            logDOM(`${padLeft} - ${itemName} turned into ${gooValueExpected} gems.`);
                             markRow(`${item.appid}_${item.contextid}_${itemId}`, 'success');
 
-                            totalScrap += item.goo_value_expected;
+                            totalScrap += gooValueExpected;
                             updateTotals();
 
                             callback(true);
@@ -2152,7 +2172,7 @@
                 let numberOfQueuedItems = 0;
                 items.forEach((item) => {
                     // Ignored queued items.
-                    if (item.queued != null) {
+                    if (isItemQueued(item)) {
                         return;
                     }
 
@@ -2173,7 +2193,7 @@
 
                     const itemId = item.assetid || item.id;
                     if (ids.indexOf(itemId) !== -1) {
-                        item.queued = true;
+                        markItemQueued(item);
                         scrapQueue.push(item);
                         numberOfQueuedItems++;
                     }
@@ -2199,7 +2219,7 @@
                 let numberOfQueuedItems = 0;
 
                 items.forEach((item) => {
-                    if (item.queued != null || item.owner_actions == null) {
+                    if (isItemQueued(item) || item.owner_actions == null) {
                         return;
                     }
 
@@ -2215,7 +2235,7 @@
                         return;
                     }
 
-                    item.queued = true;
+                    markItemQueued(item);
                     boosterQueue.push(item);
                     numberOfQueuedItems++;
                 });
@@ -2246,7 +2266,7 @@
                 let numberOfQueuedItems = 0;
                 items.forEach((item) => {
                     // Ignored queued items.
-                    if (item.queued != null || item.owner_actions == null) {
+                    if (isItemQueued(item) || item.owner_actions == null) {
                         return;
                     }
 
@@ -2263,7 +2283,7 @@
 
                     const itemId = item.assetid || item.id;
                     if (ids.indexOf(itemId) !== -1) {
-                        item.queued = true;
+                        markItemQueued(item);
                         boosterQueue.push(item);
                         numberOfQueuedItems++;
                     }
@@ -2341,12 +2361,14 @@
 
             items.forEach((item) => {
                 // Ignored queued items.
-                if (item.queued != null) {
+                if (isItemQueued(item)) {
                     return;
                 }
 
-                item.queued = true;
-                item.ignoreErrors = false;
+                markItemQueued(item);
+                // item.ignoreErrors starts undefined, which reads the same as false to
+                // runQueue's retryOnFailure check - no need to initialise it explicitly on a
+                // freshly-read item the way there was when items were mutated in place.
                 itemQueue.push(item);
                 numberOfQueuedItems++;
             });
@@ -2482,7 +2504,12 @@
             // SPA-style re-init - to undo it rather than stack another wrapper on top.
             steamPage.onInventorySelectItem((rgItem) => {
                 updateButtons();
-                updateInventorySelection(rgItem);
+
+                // rgItem comes straight from Steam, not from readInventoryItems, so it is
+                // flattened here rather than assumed to already be - readInventoryItems no
+                // longer mutates Steam's own objects, so this used to be the one path that
+                // quietly depended on some earlier, unrelated call having done so already.
+                updateInventorySelection(flattenItem(rgItem, rgItem.assetid || rgItem.id));
             });
         }
 
@@ -2697,7 +2724,7 @@
             }
 
             // Ignored queued items.
-            if (selectedItem.queued != null) {
+            if (isItemQueued(selectedItem)) {
                 return;
             }
 
@@ -2715,7 +2742,7 @@
                     }
 
                     // Ignored queued items.
-                    if (selectedItem.queued != null) {
+                    if (isItemQueued(selectedItem)) {
                         return;
                     }
 
@@ -4736,6 +4763,8 @@
             createListingState,
             createPricingRules,
             createSteamPage,
+            flattenItem,
+            getAssetKey,
             getIsCrate,
             getListingVerdict,
             getIsFoilTradingCard,
@@ -4744,6 +4773,8 @@
             getNumberOfDigits,
             getRequestDelay,
             getRequestStoppedMessage,
+            isItemQueued,
+            markItemQueued,
             readInventoryItems,
             request,
             stopRequests,
