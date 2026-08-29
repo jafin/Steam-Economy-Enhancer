@@ -4,17 +4,8 @@
 // lists it again at a price that will. The queued set exists because a listing must not be
 // relisted twice in one run.
 
-import {
-    COLOR_ERROR,
-    COLOR_PENDING,
-    COLOR_SUCCESS,
-    RETRY_DELAY_LONG_MAX,
-    RETRY_DELAY_LONG_MIN,
-    RETRY_DELAY_SHORT_MAX,
-    RETRY_DELAY_SHORT_MIN,
-    VERDICT_OVERPRICED,
-} from '../constants.ts';
-import { QueueTask } from '../queue/index.ts';
+import { COLOR_ERROR, COLOR_PENDING, COLOR_SUCCESS, VERDICT_OVERPRICED } from '../constants.ts';
+import { runQueue } from '../queue/index.ts';
 import { steamPage } from '../steam/instance.ts';
 import { market } from '../steam/market.ts';
 import { logConsole } from '../ui/logger.ts';
@@ -25,7 +16,6 @@ import { listingState } from './listingState.ts';
 import { increaseMarketProgress, increaseMarketProgressMax, marketProgress } from './progress.ts';
 import { getListFromContainer, getListingFromLists, removeListingFromLists } from './sort.ts';
 import $ from 'jquery';
-import async from 'async';
 // Listings already queued for relisting. Relisting one twice is pointless work: the
 // second attempt looks up a listing that the first one already removed. This replaces
 // disabling the buttons for the duration of the run, which also blocked relisting a
@@ -57,25 +47,19 @@ export function refreshMarketOverpricedButtons() {
     }
 }
 
-export const marketOverpricedQueue = async.queue((item: QueueTask, next) => {
-    marketOverpricedQueueWorker(item, false, (success) => {
-        const callback = () => {
-            marketProgress.relistDone += 1;
+// 'front' because the task is holding something open: by the time the relist tries to sell,
+// the listing has already been removed, so an item whose retry waits behind the rest of a
+// three-hundred-listing run stays unlisted for all of it. It is also what re-invoking the
+// worker inline used to do -- the retry ran before anything else on the queue.
+export const marketOverpricedQueue = runQueue(marketOverpricedQueueWorker, {
+    retryOnFailure: true,
+    retryPlacement: 'front',
+    onTaskDone: () => {
+        marketProgress.relistDone += 1;
 
-            increaseMarketProgress();
-            next();
-        };
-
-        if (success) {
-            setTimeout(callback, getRandomInt(RETRY_DELAY_SHORT_MIN, RETRY_DELAY_SHORT_MAX));
-        } else {
-            setTimeout(
-                () => marketOverpricedQueueWorker(item, true, callback),
-                getRandomInt(RETRY_DELAY_LONG_MIN, RETRY_DELAY_LONG_MAX),
-            );
-        }
-    });
-}, 1);
+        increaseMarketProgress();
+    },
+});
 
 export function marketOverpricedQueueWorker(item, ignoreErrors, callback) {
     let listingUI = getListingFromLists(item.listing);

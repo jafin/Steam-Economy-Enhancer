@@ -197,7 +197,7 @@ export function initializeMarketUI() {
                 const listingUI = $(getListingFromLists(listingid).elm);
                 listingUI.addClass('removing');
 
-                marketRemoveQueue.push(listingid);
+                marketRemoveQueue.push({ listingid });
                 increaseMarketProgressMax();
             }
         }

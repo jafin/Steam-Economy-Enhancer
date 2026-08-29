@@ -39,11 +39,14 @@ export interface RunQueueOptions {
     /**
      * Where a retried task goes back onto the queue. Defaults to 'back'.
      *
-     * 'front' matters when the task is holding something open while it waits. A relist has
-     * already removed the listing by the time it tries to sell, so an item whose retry sits
-     * behind three hundred others stays unlisted for the whole run; the queues that hand
-     * work back that way ask for 'front'. Where a task holds nothing open -- a pricing pass,
-     * a removal -- 'back' is the kinder order, because it lets the rest of the run continue.
+     * 'back' is what runQueue has always done, so the inventory queues keep it by default.
+     *
+     * 'front' is for a queue that used to re-invoke its worker inline: that ran the retry
+     * before anything else waiting, and re-pushing to the back would change when the retry
+     * happens rather than just how it is written. It also matters on its own account where
+     * the task is holding something open while it waits -- a relist has already removed the
+     * listing by the time it tries to sell, so an item whose retry sits behind three hundred
+     * others stays unlisted for the whole run.
      */
     retryPlacement?: 'front' | 'back';
     /**

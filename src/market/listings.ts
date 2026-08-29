@@ -8,8 +8,6 @@ import {
     COLOR_PRICE_NOT_CHECKED,
     ERROR_SUCCESS,
     PAGE_MARKET,
-    RETRY_DELAY_LONG_MAX,
-    RETRY_DELAY_LONG_MIN,
     RETRY_DELAY_SHORT_MAX,
     RETRY_DELAY_SHORT_MIN,
     VERDICT_COLORS,
@@ -25,7 +23,7 @@ import {
     formatPriceDelta,
     getPriceInformationFromItem,
 } from '../pricing/algorithms.ts';
-import { QueueTask } from '../queue/index.ts';
+import { runQueue } from '../queue/index.ts';
 import {
     SETTING_PRICE_MIN_CHECK_PRICE,
     SETTING_RELIST_AUTOMATICALLY,
@@ -111,26 +109,11 @@ function clearPriceCellGrid(listingUI) {
     $('.market_table_value', priceCell).removeClass('see_hidden');
 }
 
-export const marketListingsQueue = async.queue((listing: QueueTask, next) => {
-    marketListingsQueueWorker(listing, false, (success, cached) => {
-        const callback = () => {
-            increaseMarketProgress();
-            next();
-        };
-
-        if (success) {
-            setTimeout(
-                callback,
-                cached ? 0 : getRandomInt(RETRY_DELAY_SHORT_MIN, RETRY_DELAY_SHORT_MAX),
-            );
-        } else {
-            setTimeout(
-                () => marketListingsQueueWorker(listing, true, callback),
-                cached ? 0 : getRandomInt(RETRY_DELAY_LONG_MIN, RETRY_DELAY_LONG_MAX),
-            );
-        }
-    });
-}, 1);
+export const marketListingsQueue = runQueue(marketListingsQueueWorker, {
+    retryOnFailure: true,
+    retryPlacement: 'front',
+    onTaskDone: () => increaseMarketProgress(),
+});
 
 export function marketListingsQueueWorker(listing, ignoreErrors, callback) {
     const asset = steamPage.assetFor(listing.appid, listing.contextid, listing.assetid);
