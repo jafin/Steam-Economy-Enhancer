@@ -98,6 +98,13 @@
 		if (bestPrice > listedPrice) return VERDICT_UNDERPRICED;
 		return VERDICT_FAIR;
 	}
+	function getListingPriceDelta(bestPrice, listedPrice) {
+		const cents = listedPrice - bestPrice;
+		return {
+			cents,
+			percent: bestPrice === 0 ? null : cents / bestPrice * 100
+		};
+	}
 	var listingState = createListingState();
 	var itemQueueState = createListingState();
 	function getAssetKey(item) {
@@ -784,6 +791,13 @@
 	function formatPrice(valueInCents) {
 		return steamPage.formatPrice(valueInCents, currencyCode, currencyCountry);
 	}
+	function formatPriceDelta(delta) {
+		if (delta == null || delta.cents === 0) return "";
+		const sign = delta.cents > 0 ? "+" : "−";
+		const amount = `${sign}${formatPrice(Math.abs(delta.cents))}`;
+		if (delta.percent == null) return amount;
+		return `${amount} (${sign}${Math.abs(delta.percent).toFixed(1)}%)`;
+	}
 	function getPriceInformationFromItem(item) {
 		return getPriceInformation(getIsTradingCard(item), getIsFoilTradingCard(item));
 	}
@@ -1454,6 +1468,16 @@
 	}
 	var marketListingsRelistedAssets = [];
 	var getPriceValueAsInt = (listing) => steamPage.parsePriceText(listing.match(/(?<price>[0-9][0-9 .,]*)/)?.groups?.price ?? 0);
+	function setListingPriceDeltaLabel(listingUI, text) {
+		const priceCell = (0, jquery.default)(".market_listing_my_price", listingUI).last();
+		let label = (0, jquery.default)(".see_price_delta", priceCell);
+		if (label.length === 0) {
+			if (text === "") return;
+			label = (0, jquery.default)("<span class=\"see_price_delta\"></span>");
+			priceCell.append(label);
+		}
+		label.text(text);
+	}
 	var marketListingsQueue = async.default.queue((listing, next) => {
 		marketListingsQueueWorker(listing, false, (success, cached) => {
 			const callback = () => {
@@ -1480,6 +1504,7 @@
 		if (price <= getSettingWithDefault("SETTING_PRICE_MIN_CHECK_PRICE") * 100 || listingUI.hasClass("removing")) {
 			(0, jquery.default)(".market_listing_my_price", listingUI).last().css("background", COLOR_PRICE_NOT_CHECKED);
 			(0, jquery.default)(".market_listing_my_price", listingUI).last().prop("title", "The price is not checked.");
+			setListingPriceDeltaLabel(listingUI, "");
 			listingUI.addClass("not_checked");
 			return callback(true, true);
 		}
@@ -1511,12 +1536,15 @@
 				const sellPriceWithoutOffsetWithFees = market.getPriceIncludingFees(sellPriceWithoutOffset);
 				sellPriceWithoutOffsetWithFees / 100, sellPriceWithoutOffset / 100;
 				const verdict = getListingVerdict(sellPriceWithoutOffsetWithFees, price);
+				const priceDelta = getListingPriceDelta(sellPriceWithoutOffsetWithFees, price);
 				listingState.set(listing.listingid, {
 					sellPrice: sellPriceWithOffset,
-					verdict
+					verdict,
+					priceDelta
 				});
 				listingUI.addClass(verdict);
-				(0, jquery.default)(".market_listing_my_price", listingUI).last().prop("title", `The best price is ${formatPrice(sellPriceWithoutOffsetWithFees)}.`);
+				(0, jquery.default)(".market_listing_my_price", listingUI).last().prop("title", `The best price is ${formatPrice(sellPriceWithoutOffsetWithFees)}. Relisting would list at ${formatPrice(market.getPriceIncludingFees(sellPriceWithOffset))}.`);
+				setListingPriceDeltaLabel(listingUI, formatPriceDelta(priceDelta));
 				(0, jquery.default)(".market_listing_my_price", listingUI).last().css("background", VERDICT_COLORS[verdict]);
 				VERDICT_MESSAGES[verdict];
 				if (verdict == "overpriced" && getSettingWithDefault("SETTING_RELIST_AUTOMATICALLY") == 1) queueOverpricedItemListing(listing.listingid);
@@ -2949,6 +2977,7 @@
     #listings_sell { text-align: right; color: #589328; font-weight:600; }
     #listings_buy { text-align: right; color: #589328; font-weight:600; }
     .market_listing_my_price { height: 50px; padding-right:6px; }
+    .see_price_delta { display: block; font-size: 11px; opacity: 0.85; }
     .market_listing_edit_buttons.actual_content { width:276px; transition-property: background-color, border-color; transition-timing-function: linear; transition-duration: 0.5s;}
     .market_listing_buttons { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 6px; padding: 5px; background: rgba(0, 0, 0, 0.4); }
     .market_listing_label_right { float:right; font-size:12px; margin-top:1px; }
