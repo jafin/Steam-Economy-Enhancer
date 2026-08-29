@@ -125,6 +125,12 @@ export function marketOverpricedQueueWorker(item, ignoreErrors, callback) {
 
                                         setTimeout(() => {
                                             removeListingFromLists(item.listing);
+
+                                            // Listings are removed from the lists a few
+                                            // seconds after they are relisted or removed,
+                                            // which can be after the queue drained, so
+                                            // refresh the counts here as well.
+                                            refreshMarketOverpricedButtons();
                                         }, 3000);
 
                                         return callback(true);

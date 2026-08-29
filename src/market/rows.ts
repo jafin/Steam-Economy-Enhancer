@@ -1,7 +1,5 @@
 // The registry of every market row (list.js List) on the page, and the lookups over it.
 
-import { refreshMarketOverpricedButtons } from './relist.ts';
-
 export const marketLists: any[] = [];
 
 export function getListFromContainer(group) {
@@ -32,8 +30,4 @@ export function removeListingFromLists(listingid) {
         marketLists[i].remove('market_listing_item_name', `mylisting_${listingid}_name`);
         marketLists[i].remove('market_listing_item_name', `mbuyorder_${listingid}_name`);
     }
-
-    // Listings are removed from the lists a few seconds after they are relisted or removed,
-    // which can be after the queue drained, so refresh the counts here as well.
-    refreshMarketOverpricedButtons();
 }
