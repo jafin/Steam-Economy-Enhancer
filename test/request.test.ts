@@ -1,6 +1,7 @@
 import { test, beforeEach, afterEach, vi } from 'vitest';
 import assert from 'node:assert';
 import * as see from '../src/main.ts';
+import type { RequestError } from '../src/main.ts';
 
 // request()'s own queueing, pending flag and breaker used to be untestable: the only seam
 // was $.ajax, a real network call. transport is the adapter that fixes that - these tests
@@ -8,7 +9,7 @@ import * as see from '../src/main.ts';
 // just the delay/breaker policy values it reads (see request-policy.test.js for those).
 
 // A jQuery-ajax-shaped settings object in, one canned response out.
-function respondWith(settings, response) {
+function respondWith(settings: any, response: any) {
     const xhr = { status: response.status ?? 200, responseText: response.responseText ?? '' };
     const statusText = response.statusText ?? (response.error ? 'error' : 'success');
 
@@ -22,10 +23,10 @@ function respondWith(settings, response) {
 }
 
 // A transport that answers immediately, one scripted response per call.
-function scriptedTransport(responses) {
+function scriptedTransport(responses: any[]) {
     let next = 0;
 
-    return (settings) => {
+    return (settings: any) => {
         respondWith(settings, responses[next++]);
     };
 }
@@ -33,10 +34,10 @@ function scriptedTransport(responses) {
 // A transport that holds each call open until the test resolves it, so a second request()
 // made before the first completes can be observed queueing rather than sending.
 function heldTransport() {
-    const held = [];
-    const transport = (settings) => held.push(settings);
+    const held: any[] = [];
+    const transport: any = (settings: any) => held.push(settings);
 
-    transport.respond = (index, response) => respondWith(held[index], response);
+    transport.respond = (index: number, response: any) => respondWith(held[index], response);
     transport.calls = held;
 
     return transport;
@@ -59,11 +60,11 @@ beforeEach(() => {
 test("a successful request calls back with the transport's data", () => {
     vi.useFakeTimers();
 
-    let result;
+    let result: any;
     see.request(
         'https://steamcommunity.com/',
         {},
-        (err, data) => {
+        (err: any, data: any) => {
             result = [err, data];
         },
         { transport: scriptedTransport([{ data: { ok: true } }]) },
@@ -77,11 +78,11 @@ test("a successful request calls back with the transport's data", () => {
 test('a failed request calls back with an Error describing the status', () => {
     vi.useFakeTimers();
 
-    let result;
+    let result: any;
     see.request(
         'https://steamcommunity.com/',
         { method: 'GET' },
-        (err, data) => {
+        (err: any, data: any) => {
             result = [err, data];
         },
         { transport: scriptedTransport([{ error: true, status: 500 }]) },
@@ -89,8 +90,10 @@ test('a failed request calls back with an Error describing the status', () => {
 
     vi.advanceTimersByTime(0);
 
-    assert.ok(result[0] instanceof Error);
-    assert.strictEqual(result[0].statusCode, 500);
+    const error: RequestError = result[0];
+
+    assert.ok(error instanceof Error);
+    assert.strictEqual(error.statusCode, 500);
     assert.strictEqual(result[1], null);
 });
 
@@ -175,11 +178,11 @@ test('five broken responses in a row trip the breaker, through request() itself'
 
     assert.strictEqual(see.request.stopped, true, 'five 429s within the window trip it');
 
-    let reported = null;
+    let reported: any = null;
     see.request(
         'https://steamcommunity.com/market/',
         {},
-        (err) => {
+        (err: any) => {
             reported = err;
         },
         { transport },

@@ -354,7 +354,19 @@ function getRequestDelay(url, status, statusText) {
 // takes the same jQuery-ajax-shaped settings object and answers success/error/complete
 // itself, so request()'s own queueing, pending flag and breaker can be exercised with a
 // fake clock and no network - see test/request.test.js.
-function request(url, options, callback, { transport = $.ajax } = {}) {
+// The single call request() makes to reach the network, injectable so tests can supply
+// their own. Typed as "something that takes a jQuery-ajax-shaped settings object" rather
+// than as $.ajax itself: inferring it from the default would demand jQuery's whole
+// overloaded signature from every test double, which is precisely what the seam exists to
+// avoid.
+type RequestTransport = (settings: any) => unknown;
+
+function request(
+    url,
+    options,
+    callback,
+    { transport = $.ajax }: { transport?: RequestTransport } = {},
+) {
     callback = callback || function () {};
 
     // If the request was stopped, we don't want to send it to the server and continue other requests.
@@ -650,6 +662,20 @@ const NO_LISTING_PRICE_SENTINEL = 65535;
 // fee schedule and the round-vs-floor currency rule, both taken from a module-level
 // `market`/`useRound` closure. Passing them in means the same inputs always give the
 // same answer, which is what makes the calculation testable.
+// The inputs a price calculation needs, read from settings by createPricingRules(). Every
+// field is optional because the calculations each use a subset and callers -- the tests
+// especially -- pass only the fields the calculation under test actually reads. That is the
+// existing runtime contract, not a loosening of it.
+interface PricingRules {
+    algorithm?: number;
+    offsetCents?: number;
+    historyHours?: number;
+    ignoreLowestOnLowQuantity?: boolean;
+    walletInfo?: any;
+    useRound?: boolean;
+    now?: number;
+}
+
 function createPricingRules() {
     return {
         algorithm: Number(getSettingWithDefault(SETTING_PRICE_ALGORITHM)),
@@ -721,7 +747,10 @@ function priceIncludingFees(price, item, rules) {
     return feeInfo.amount;
 }
 
-function calculateAverageHistoryPriceBeforeFees(history, rules = createPricingRules()) {
+function calculateAverageHistoryPriceBeforeFees(
+    history,
+    rules: PricingRules = createPricingRules(),
+) {
     let highest = 0;
     let total = 0;
 
@@ -747,7 +776,7 @@ function calculateAverageHistoryPriceBeforeFees(history, rules = createPricingRu
 }
 
 // Calculates the listing price, before the fee.
-function calculateListingPriceBeforeFees(orderbook, rules = createPricingRules()) {
+function calculateListingPriceBeforeFees(orderbook, rules: PricingRules = createPricingRules()) {
     if (
         typeof orderbook === 'undefined' ||
         orderbook == null ||
@@ -792,7 +821,7 @@ function calculateListingPriceBeforeFees(orderbook, rules = createPricingRules()
     return listingPrice;
 }
 
-function calculateBuyOrderPriceBeforeFees(orderbook, rules = createPricingRules()) {
+function calculateBuyOrderPriceBeforeFees(orderbook, rules: PricingRules = createPricingRules()) {
     // buildOrderBook returns null for an unsuccessful response, so null reaches here as
     // readily as undefined. calculateListingPriceBeforeFees has always guarded both.
     if (typeof orderbook === 'undefined' || orderbook == null) {
@@ -810,7 +839,7 @@ function calculateSellPriceBeforeFees(
     applyOffset,
     minPriceBeforeFees,
     maxPriceBeforeFees,
-    rules = createPricingRules(),
+    rules: PricingRules = createPricingRules(),
 ) {
     const historyPrice = calculateAverageHistoryPriceBeforeFees(history, rules);
     const listingPrice = calculateListingPriceBeforeFees(orderbook, rules);
@@ -1701,7 +1730,7 @@ function getIsFoilTradingCard(item) {
     return false;
 }
 
-function CalculateFeeAmount(amount, publisherFee, walletInfo, useRound) {
+function CalculateFeeAmount(amount, publisherFee, walletInfo, useRound?) {
     if (walletInfo == null || !walletInfo['wallet_fee']) {
         return {
             fees: 0,
@@ -4942,6 +4971,10 @@ $.fn.delayedEach = function (timeout, callback, continuous) {
 //#endregion
 
 //#region Exports
+// The shape request() attaches to the Error it hands callers. Exported as a type so tests
+// can assert on .statusCode/.responseText without casting the contract away.
+export type { RequestError };
+
 // Real ES exports replacing the old `typeof module !== 'undefined'` test seam. Same names,
 // same contract: anything listed here must be callable without a page, a network or a
 // logged-in Steam session.

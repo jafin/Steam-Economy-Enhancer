@@ -111,7 +111,7 @@ test("does not mutate Steam's own inventory objects", () => {
     // readInventoryItems used to Object.assign the description straight onto Steam's own
     // item and stamp an id on it - a real mutation of an object Steam still owns. It
     // returns new objects now; the source is untouched.
-    const steamOwnedItem = { appid: 730, description: { name: 'Gems' } };
+    const steamOwnedItem: any = { appid: 730, description: { name: 'Gems' } };
     const activeInventory = {
         m_rgChildInventories: {},
         m_rgAssets: { 123: steamOwnedItem },
@@ -126,7 +126,7 @@ test("does not mutate Steam's own inventory objects", () => {
 });
 
 test('flattenItem merges the description onto a new object without touching the source', () => {
-    const source = { appid: 730, description: { name: 'Gems', tags: [] } };
+    const source: any = { appid: 730, description: { name: 'Gems', tags: [] } };
 
     const item = see.flattenItem(source, '123');
 

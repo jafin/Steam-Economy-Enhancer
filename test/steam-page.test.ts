@@ -59,7 +59,7 @@ test('firstAsset answers null rather than throwing when g_rgAssets is empty', ()
 
 test('setAsset writes into g_rgAssets at the given path', () => {
     const asset = { id: '999' };
-    const win = { g_rgAssets: { 730: { 2: {} } } };
+    const win: any = { g_rgAssets: { 730: { 2: {} } } };
     const page = see.createSteamPage(win);
 
     page.setAsset('730', '2', '999', asset);
@@ -68,11 +68,11 @@ test('setAsset writes into g_rgAssets at the given path', () => {
 });
 
 test("onInventorySelectItem calls Steam's own handler, then the given one, and can be undone", () => {
-    const calls = [];
+    const calls: any[] = [];
     const win = {
         CInventory: {
             prototype: {
-                SelectItem(event, elItem, rgItem) {
+                SelectItem(event: any, elItem: any, rgItem: any) {
                     calls.push(['original', rgItem]);
                 },
             },
@@ -81,7 +81,7 @@ test("onInventorySelectItem calls Steam's own handler, then the given one, and c
     const page = see.createSteamPage(win);
     const originalSelectItem = win.CInventory.prototype.SelectItem;
 
-    const teardown = page.onInventorySelectItem((rgItem) => calls.push(['handler', rgItem]));
+    const teardown = page.onInventorySelectItem((rgItem: any) => calls.push(['handler', rgItem]));
 
     assert.notStrictEqual(win.CInventory.prototype.SelectItem, originalSelectItem, 'patched');
 

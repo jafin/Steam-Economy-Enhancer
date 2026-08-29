@@ -4,8 +4,8 @@ import * as see from '../src/main.ts';
 
 // The aggregation takes the assets of one side of a trade offer and a `resolve` that turns
 // an asset into what is known about it, so the test can say what an asset is without a page.
-function resolver(byId) {
-    return (asset) => byId[asset.assetid] || null;
+function resolver(byId: Record<string, any>) {
+    return (asset: any) => byId[asset.assetid] || null;
 }
 
 test('an asset that resolves to nothing is an unknown item', () => {

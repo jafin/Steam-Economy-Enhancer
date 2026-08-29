@@ -62,7 +62,7 @@ test('buildOrderBook rejects an unsuccessful response', () => {
 });
 
 test('buildOrderBook pairs the compact orders into price and quantity', () => {
-    const book = see.buildOrderBook({
+    const book: any = see.buildOrderBook({
         success: true,
         data: {
             amtMaxBuyOrder: '12',
@@ -82,7 +82,7 @@ test('buildOrderBook pairs the compact orders into price and quantity', () => {
 });
 
 test('CalculateFeeAmount splits a price into steam and publisher fees', () => {
-    const fee = see.CalculateFeeAmount(1000, 0.1, wallet, false);
+    const fee: any = see.CalculateFeeAmount(1000, 0.1, wallet, false);
 
     assert.strictEqual(fee.amount, 1000);
     assert.strictEqual(fee.steam_fee, 43);

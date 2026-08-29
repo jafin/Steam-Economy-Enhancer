@@ -4,7 +4,7 @@ import * as see from '../src/main.ts';
 
 import { createFixtureSteamPage } from './steam-page-fixture.ts';
 
-function fixturePage(fixture) {
+function fixturePage(fixture: any) {
     return createFixtureSteamPage(fixture, { pickSellListingsHeader: see.pickSellListingsHeader });
 }
 

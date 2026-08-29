@@ -72,9 +72,9 @@ test('the stopped message names the thresholds and says how to recover', () => {
 // Kept last: tripping the breaker is a one-way door within this process.
 // node --test gives each file its own process, so no other test file is affected.
 test('tripping the breaker announces itself and tells callers why', () => {
-    const reportedToConsole = [];
+    const reportedToConsole: string[] = [];
 
-    vi.spyOn(console, 'error').mockImplementation((msg) => {
+    vi.spyOn(console, 'error').mockImplementation((msg: string) => {
         reportedToConsole.push(msg);
     });
 
@@ -90,15 +90,15 @@ test('tripping the breaker announces itself and tells callers why', () => {
     assert.strictEqual(reportedToConsole.length, 1, 'the stop is announced, not silent');
     assert.match(reportedToConsole[0], /Reload the page/);
 
-    let reported = null;
-    see.request('https://steamcommunity.com/market/', {}, (err) => {
+    let reported: Error | null = null;
+    see.request('https://steamcommunity.com/market/', {}, (err: Error) => {
         reported = err;
     });
 
-    return new Promise((resolve) => {
+    return new Promise<void>((resolve) => {
         setTimeout(() => {
             assert.ok(reported instanceof Error, 'the caller is told, not left waiting');
-            assert.match(reported.message, /Reload the page/);
+            assert.match(reported!.message, /Reload the page/);
             resolve();
         }, 10);
     });

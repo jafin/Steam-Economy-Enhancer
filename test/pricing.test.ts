@@ -11,7 +11,7 @@ const ALGORITHM_LOWEST_LISTING = '2';
 const ALGORITHM_BUY_ORDER = '3';
 const ALGORITHM_HISTORY = '4';
 
-function setAlgorithm(value) {
+function setAlgorithm(value: any) {
     globalThis.localStorage.setItem('SETTING_PRICE_ALGORITHM', value);
 }
 
@@ -172,7 +172,7 @@ test('the same market data prices differently under different rules', () => {
         ignoreLowestOnLowQuantity: false,
     };
 
-    const priceUnder = (algorithm) =>
+    const priceUnder = (algorithm: any) =>
         see.calculateSellPriceBeforeFees(history(), orderbook(), false, 0, 65535, {
             ...base,
             algorithm,
