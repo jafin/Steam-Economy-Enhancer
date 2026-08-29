@@ -45,6 +45,15 @@ import {
     VERDICT_OVERPRICED,
     VERDICT_UNDERPRICED,
 } from './constants.ts';
+import type { PricingRules } from './pricing/rules.ts';
+import type { QueueTask } from './queue/index.ts';
+import {
+    getLocalStorageItem,
+    setLocalStorageItem,
+    getSessionStorageItem,
+    setSessionStorageItem,
+} from './storage/index.ts';
+import { logDOM, logConsole, updateScroll, logger, setUserScrolled } from './ui/logger.ts';
 import {
     priceBeforeFees,
     priceIncludingFees,
@@ -441,43 +450,6 @@ if (getSessionStorageItem('SESSION') == null || noCache) {
     });
 }
 
-function getLocalStorageItem(name) {
-    try {
-        return localStorage.getItem(name);
-    } catch (e) {
-        logConsole(`Failed to get local storage item ${name}, ${e}.`);
-        return null;
-    }
-}
-
-function setLocalStorageItem(name, value) {
-    try {
-        localStorage.setItem(name, value);
-        return true;
-    } catch (e) {
-        logConsole(`Failed to set local storage item ${name}, ${e}.`);
-        return false;
-    }
-}
-
-function getSessionStorageItem(name) {
-    try {
-        return sessionStorage.getItem(name);
-    } catch (e) {
-        logConsole(`Failed to get session storage item ${name}, ${e}.`);
-        return null;
-    }
-}
-
-function setSessionStorageItem(name, value) {
-    try {
-        sessionStorage.setItem(name, value);
-        return true;
-    } catch (e) {
-        logConsole(`Failed to set session storage item ${name}, ${e}.`);
-        return false;
-    }
-}
 //#endregion
 
 //#region Price helpers
@@ -1418,40 +1390,6 @@ function isRetryMessage(message) {
     ];
 
     return messageList.indexOf(message) !== -1;
-}
-//#endregion
-
-//#region Logging
-let userScrolled = false;
-const logger = document.createElement('div');
-logger.setAttribute('id', 'logger');
-
-// The logger is only attached to the page on the inventory page, so on every other page
-// there is nothing to scroll. logDOM is reachable from those pages, most importantly from
-// the request breaker, and throwing here would abandon whatever called it.
-function updateScroll() {
-    if (userScrolled) {
-        return;
-    }
-
-    const element = document.getElementById('logger');
-    if (element == null) {
-        return;
-    }
-
-    element.scrollTop = element.scrollHeight;
-}
-
-function logDOM(text) {
-    logger.innerHTML += `${text}<br/>`;
-
-    updateScroll();
-}
-
-function logConsole(text) {
-    if (enableConsoleLog) {
-        console.log(text);
-    }
 }
 //#endregion
 
@@ -2559,7 +2497,7 @@ function updateInventoryUI(isOwnInventory) {
         const hasUserScrolledToBottom =
             $('#logger').prop('scrollHeight') - $('#logger').prop('clientHeight') <=
             $('#logger').prop('scrollTop') + 1;
-        userScrolled = !hasUserScrolledToBottom;
+        setUserScrolled(!hasUserScrolledToBottom);
     });
 
     // Only add buttons on the user's inventory.

@@ -81,6 +81,56 @@
 	var RETRY_DELAY_SHORT_MAX = 1500;
 	var RETRY_DELAY_LONG_MIN = 3e4;
 	var RETRY_DELAY_LONG_MAX = 45e3;
+	var logger = document.createElement("div");
+	logger.setAttribute("id", "logger");
+	var userScrolled = false;
+	function setUserScrolled(value) {
+		userScrolled = value;
+	}
+	function updateScroll() {
+		if (userScrolled) return;
+		const element = document.getElementById("logger");
+		if (element == null) return;
+		element.scrollTop = element.scrollHeight;
+	}
+	function logDOM(text) {
+		logger.innerHTML += `${text}<br/>`;
+		updateScroll();
+	}
+	function getLocalStorageItem(name) {
+		try {
+			return localStorage.getItem(name);
+		} catch (e) {
+			`${name}${e}`;
+			return null;
+		}
+	}
+	function setLocalStorageItem(name, value) {
+		try {
+			localStorage.setItem(name, value);
+			return true;
+		} catch (e) {
+			`${name}${e}`;
+			return false;
+		}
+	}
+	function getSessionStorageItem(name) {
+		try {
+			return sessionStorage.getItem(name);
+		} catch (e) {
+			`${name}${e}`;
+			return null;
+		}
+	}
+	function setSessionStorageItem(name, value) {
+		try {
+			sessionStorage.setItem(name, value);
+			return true;
+		} catch (e) {
+			`${name}${e}`;
+			return false;
+		}
+	}
 	function priceBeforeFees(price, item, rules) {
 		let publisherFee = -1;
 		if (item != null) {
@@ -833,40 +883,6 @@
 		storageSession.clear();
 		setSessionStorageItem("SESSION", lastCache);
 	} else storageSession = localforage.default.createInstance({ name: `see_session_${getSessionStorageItem("SESSION")}` });
-	function getLocalStorageItem(name) {
-		try {
-			return localStorage.getItem(name);
-		} catch (e) {
-			`${name}${e}`;
-			return null;
-		}
-	}
-	function setLocalStorageItem(name, value) {
-		try {
-			localStorage.setItem(name, value);
-			return true;
-		} catch (e) {
-			`${name}${e}`;
-			return false;
-		}
-	}
-	function getSessionStorageItem(name) {
-		try {
-			return sessionStorage.getItem(name);
-		} catch (e) {
-			`${name}${e}`;
-			return null;
-		}
-	}
-	function setSessionStorageItem(name, value) {
-		try {
-			sessionStorage.setItem(name, value);
-			return true;
-		} catch (e) {
-			`${name}${e}`;
-			return false;
-		}
-	}
 	function formatPrice(valueInCents) {
 		return steamPage.formatPrice(valueInCents, currencyCode, currencyCountry);
 	}
@@ -1362,19 +1378,6 @@
 			"There was a problem listing your item. Refresh the page and try again.",
 			"We were unable to contact the game's item server. The game's item server may be down or Steam may be experiencing temporary connectivity issues. Your listing has not been created. Refresh the page and try again."
 		].indexOf(message) !== -1;
-	}
-	var userScrolled = false;
-	var logger = document.createElement("div");
-	logger.setAttribute("id", "logger");
-	function updateScroll() {
-		if (userScrolled) return;
-		const element = document.getElementById("logger");
-		if (element == null) return;
-		element.scrollTop = element.scrollHeight;
-	}
-	function logDOM(text) {
-		logger.innerHTML += `${text}<br/>`;
-		updateScroll();
 	}
 	function onQueueDrain() {
 		if (itemQueue.length() == 0 && sellQueue.length() == 0 && scrapQueue.length() == 0 && boosterQueue.length() == 0) removeSpinner();
@@ -1973,7 +1976,7 @@
 		(0, jquery.default)("#inventory_applogo").hide();
 		(0, jquery.default)("#inventory_applogo").after(logger);
 		(0, jquery.default)("#logger").on("scroll", () => {
-			userScrolled = !((0, jquery.default)("#logger").prop("scrollHeight") - (0, jquery.default)("#logger").prop("clientHeight") <= (0, jquery.default)("#logger").prop("scrollTop") + 1);
+			setUserScrolled(!((0, jquery.default)("#logger").prop("scrollHeight") - (0, jquery.default)("#logger").prop("clientHeight") <= (0, jquery.default)("#logger").prop("scrollTop") + 1));
 		});
 		if (isOwnInventory) {
 			(0, jquery.default)("#inventory_applogo").after(sellButtons);
