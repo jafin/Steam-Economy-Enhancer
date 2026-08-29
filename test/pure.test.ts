@@ -1,11 +1,6 @@
-'use strict';
-
-const test = require('node:test');
-const assert = require('node:assert');
-
-const { loadUserscript } = require('./harness.js');
-
-const see = loadUserscript();
+import { test } from 'vitest';
+import assert from 'node:assert';
+import * as see from '../src/main.ts';
 
 // A wallet shaped like the one Steam puts on the page. `wallet_fee` is the flag the fee
 // maths checks first; without it every fee is zero.

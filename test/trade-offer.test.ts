@@ -1,11 +1,6 @@
-'use strict';
-
-const test = require('node:test');
-const assert = require('node:assert');
-
-const { loadUserscript } = require('./harness.js');
-
-const see = loadUserscript();
+import { test } from 'vitest';
+import assert from 'node:assert';
+import * as see from '../src/main.ts';
 
 // The aggregation takes the assets of one side of a trade offer and a `resolve` that turns
 // an asset into what is known about it, so the test can say what an asset is without a page.

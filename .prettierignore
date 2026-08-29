@@ -1,0 +1,5 @@
+node_modules/
+dist/
+pnpm-lock.yaml
+# Vendored third-party code, kept byte-identical to its pinned upstream commit.
+src/vendor/*.js

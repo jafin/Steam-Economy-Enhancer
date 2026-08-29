@@ -1,11 +1,6 @@
-'use strict';
-
-const test = require('node:test');
-const assert = require('node:assert');
-
-const { loadUserscript } = require('./harness.js');
-
-const see = loadUserscript();
+import { test } from 'vitest';
+import assert from 'node:assert';
+import * as see from '../src/main.ts';
 
 // createSteamPage(win) is the live adapter over Steam's own globals. These tests build it
 // against a small fake `win` rather than unsafeWindow, so they exercise the same lookup and

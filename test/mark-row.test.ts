@@ -1,11 +1,6 @@
-'use strict';
-
-const test = require('node:test');
-const assert = require('node:assert');
-
-const { loadUserscript } = require('./harness.js');
-
-const see = loadUserscript();
+import { test } from 'vitest';
+import assert from 'node:assert';
+import * as see from '../src/main.ts';
 
 // markRow replaces nine identical `$('#'+appid+'_'+contextid+'_'+itemId).css('background',
 // COLOR_X)` sites with one status name per call. The DOM write itself is not asserted here -

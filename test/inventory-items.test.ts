@@ -1,11 +1,6 @@
-'use strict';
-
-const test = require('node:test');
-const assert = require('node:assert');
-
-const { loadUserscript } = require('./harness.js');
-
-const see = loadUserscript();
+import { test } from 'vitest';
+import assert from 'node:assert';
+import * as see from '../src/main.ts';
 
 // readInventoryItems is the one reader getInventoryItems (the inventory page) and
 // getTradeOfferInventoryItems (the trade offer page) both call now, parameterised by the two

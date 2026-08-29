@@ -1,17 +1,44 @@
 {
+  "name": "@jafin/steam-economy-enhancer",
+  "version": "7.3.2",
   "private": true,
-  "name": "@nuklon/steam-economy-enhancer",
+  "type": "module",
+  "description": "Enhances the Steam Inventory and Steam Market.",
+  "author": "Jason Finch",
   "license": "MIT",
+  "packageManager": "pnpm@10.18.2",
   "scripts": {
-    "fix": "eslint --fix",
-    "test": "eslint && node --test \"test/**/*.test.js\"",
-    "test:unit": "node --test \"test/**/*.test.js\""
+    "dev": "vite serve",
+    "build": "vite build",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "lint:dist": "eslint --no-ignore-pattern dist dist/code.user.js",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "devDependencies": {
-    "@eslint/js": "^9.5.0",
-    "@stylistic/eslint-plugin": "^2.3.0",
-    "eslint": "^9.5.0",
+    "@eslint/js": "^9.39.1",
+    "@types/async": "^3.2.25",
+    "@types/jquery": "^4.0.1",
+    "@types/jqueryui": "^1.12.24",
+    "@types/list.js": "^2.3.5",
+    "@types/luxon": "^3.7.5",
+    "async": "3.2.6",
+    "eslint": "^9.39.1",
+    "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-userscripts": "^0.5.3",
-    "globals": "^15.6.0"
+    "happy-dom": "^20.11.2",
+    "jquery": "4.0.0",
+    "list.js": "2.3.1",
+    "localforage": "^1.10.0",
+    "luxon": "3.5.0",
+    "prettier": "^3.6.2",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.46.4",
+    "vite": "^8.2.1",
+    "vite-plugin-monkey": "^8.1.0",
+    "vitest": "^4.1.11"
   }
 }

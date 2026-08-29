@@ -1,11 +1,8 @@
-'use strict';
+import { test } from 'vitest';
+import assert from 'node:assert';
+import * as see from '../src/main.ts';
 
-const test = require('node:test');
-const assert = require('node:assert');
 
-const { loadUserscript } = require('./harness.js');
-
-const see = loadUserscript();
 
 const SHORT = [
     1000,

@@ -1,15 +1,15 @@
-'use strict';
+import { test, afterEach, vi } from 'vitest';
+import assert from 'node:assert';
+import * as see from '../src/main.ts';
 
-const test = require('node:test');
-const assert = require('node:assert');
-
-const { loadUserscript } = require('./harness.js');
-
-const see = loadUserscript();
 const policy = see.requestPolicy;
 
 const MARKET_URL = 'https://steamcommunity.com/market/priceoverview/';
 const OTHER_URL = 'https://steamcommunity.com/id/test/inventory/json/';
+
+afterEach(() => {
+    vi.restoreAllMocks();
+});
 
 test('an ordinary request waits the default delay', () => {
     assert.strictEqual(
@@ -90,10 +90,12 @@ test('the stopped message names the thresholds and says how to recover', () => {
 
 // Kept last: tripping the breaker is a one-way door within this process.
 // node --test gives each file its own process, so no other test file is affected.
-test('tripping the breaker announces itself and tells callers why', (t) => {
+test('tripping the breaker announces itself and tells callers why', () => {
     const reportedToConsole = [];
 
-    t.mock.method(console, 'error', (msg) => reportedToConsole.push(msg));
+    vi.spyOn(console, 'error').mockImplementation((msg) => {
+        reportedToConsole.push(msg);
+    });
 
     assert.strictEqual(see.request.stopped, false, 'starts un-tripped');
 

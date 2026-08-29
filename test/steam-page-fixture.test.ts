@@ -1,12 +1,9 @@
-'use strict';
+import { test } from 'vitest';
+import assert from 'node:assert';
+import * as see from '../src/main.ts';
 
-const test = require('node:test');
-const assert = require('node:assert');
+import { createFixtureSteamPage } from './steam-page-fixture.ts';
 
-const { loadUserscript } = require('./harness.js');
-const { createFixtureSteamPage } = require('./steam-page-fixture.js');
-
-const see = loadUserscript();
 
 function fixturePage(fixture) {
     return createFixtureSteamPage(fixture, { pickSellListingsHeader: see.pickSellListingsHeader });

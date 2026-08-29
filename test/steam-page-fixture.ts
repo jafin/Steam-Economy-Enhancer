@@ -1,4 +1,4 @@
-'use strict';
+
 
 // A second steamPage adapter, built from data instead of a real page.
 //
@@ -19,7 +19,7 @@
 // A page with a pending-confirmations block ahead of the sell listings - the PR #334 shape -
 // is `{ sections: [{ id: 'header-confirmations', hasSellListingsTable: false }, { id:
 // 'header-sell-listings', hasSellListingsTable: true }] }`.
-function createFixtureSteamPage(fixture, { pickSellListingsHeader }) {
+export function createFixtureSteamPage(fixture, { pickSellListingsHeader }) {
     const sellListingsSection = fixture.sections.find((section) => section.hasSellListingsTable);
     const anchored = sellListingsSection ? [sellListingsSection.id] : [];
     const all = fixture.sections.map((section) => section.id);
@@ -29,4 +29,3 @@ function createFixtureSteamPage(fixture, { pickSellListingsHeader }) {
     };
 }
 
-module.exports = { createFixtureSteamPage };
