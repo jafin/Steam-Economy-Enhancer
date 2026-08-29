@@ -3010,8 +3010,13 @@
        .see_hidden keeps Steam's own markup in the DOM -- three positional selectors read
        the prices back out of it -- while taking it off the screen. */
     .see_hidden { display: none !important; }
+    /* The column gap is 2px rather than 6px to pay for the 2px left pad and then some.
+       A quadrant gets (121 - 2 - gap) / 2 of the cell, and a bold A$ 128.00 needs 56px:
+       at a 6px gap it had 55 and clipped by a pixel even before the pad existed. Short
+       values leave the columns looking generously spaced regardless; it is only at four
+       figures that the gap is doing any work. */
     .see_price_grid { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr;
-        height: 50px; padding: 3px 0; box-sizing: border-box; line-height: 1.05; text-align: left; gap: 0 6px; }
+        height: 50px; padding: 3px 0 3px 2px; box-sizing: border-box; line-height: 1.05; text-align: left; gap: 0 2px; }
     .see_grid_cell { display: flex; flex-direction: column; justify-content: center; overflow: hidden; }
     .see_grid_label { font-size: 8px; text-transform: uppercase; letter-spacing: 0.4px; color: rgba(255,255,255,0.55); }
     .see_grid_value { font-size: 11px; white-space: nowrap; }
