@@ -81,6 +81,142 @@
 	var RETRY_DELAY_SHORT_MAX = 1500;
 	var RETRY_DELAY_LONG_MIN = 3e4;
 	var RETRY_DELAY_LONG_MAX = 45e3;
+	function aggregateTradeOfferAssets(assets, resolve) {
+		const counts = new Map();
+		let totalPrice = 0;
+		for (let i = 0; i < assets.length; i++) {
+			const item = resolve(assets[i]);
+			const text = getTradeOfferAssetText(item);
+			counts.set(text, (counts.get(text) || 0) + 1);
+			if (item != null && item.price > 0) totalPrice += item.price;
+		}
+		const items = [];
+		counts.forEach((count, text) => {
+			items.push({
+				text,
+				count
+			});
+		});
+		return {
+			items,
+			totalPrice
+		};
+	}
+	function getTradeOfferAssetText(item) {
+		if (item == null) return "Unknown Item";
+		let text = "";
+		if (item.originalAmount != null && item.amount != null) {
+			const usedAmount = parseInt(item.originalAmount) - parseInt(item.amount);
+			text += `${usedAmount.toString()}x `;
+		}
+		text += item.name;
+		if (item.type != null && item.type.length > 0) text += ` (${item.type})`;
+		return text;
+	}
+	function createListingState() {
+		const states = new Map();
+		return {
+			get(id) {
+				return states.get(String(id));
+			},
+			set(id, state) {
+				const key = String(id);
+				states.set(key, Object.assign({}, states.get(key), state));
+			}
+		};
+	}
+	function getListingVerdict(bestPrice, listedPrice) {
+		if (bestPrice < listedPrice) return VERDICT_OVERPRICED;
+		if (bestPrice > listedPrice) return VERDICT_UNDERPRICED;
+		return VERDICT_FAIR;
+	}
+	var itemQueueState = createListingState();
+	function getAssetKey(item) {
+		return `${item.appid}_${item.contextid}_${item.id}`;
+	}
+	function isItemQueued(item) {
+		return itemQueueState.get(getAssetKey(item))?.queued === true;
+	}
+	function markItemQueued(item) {
+		itemQueueState.set(getAssetKey(item), { queued: true });
+	}
+	function flattenItem(value, id) {
+		const item = Object.assign({}, value, value.description);
+		item.id = id;
+		item.assetid = id;
+		return item;
+	}
+	function readInventoryItems(activeInventory, childrenProperty, assetsProperty) {
+		const items = [];
+		if (!activeInventory) return items;
+		const collect = (assets) => {
+			for (const key in assets) {
+				const value = assets[key];
+				if (typeof value === "object") items.push(flattenItem(value, key));
+			}
+		};
+		for (const child in activeInventory[childrenProperty]) collect(activeInventory[childrenProperty][child][assetsProperty]);
+		collect(activeInventory[assetsProperty]);
+		return items;
+	}
+	function getMarketHashName(item) {
+		if (item == null) return null;
+		if (item.description != null && item.description.market_hash_name != null) return item.description.market_hash_name;
+		if (item.description != null && item.description.name != null) return item.description.name;
+		if (item.market_hash_name != null) return item.market_hash_name;
+		if (item.name != null) return item.name;
+		return null;
+	}
+	function getIsCrate(item) {
+		if (item == null) return false;
+		const tags = item.tags != null ? item.tags : item.description != null && item.description.tags != null ? item.description.tags : null;
+		if (tags != null) {
+			let isTaggedAsCrate = false;
+			tags.forEach((arrayItem) => {
+				if (arrayItem.category == "Type") {
+					if (arrayItem.internal_name == "Supply Crate") isTaggedAsCrate = true;
+				}
+			});
+			if (isTaggedAsCrate) return true;
+		}
+		return false;
+	}
+	function getIsTradingCard(item) {
+		if (item == null) return false;
+		const tags = item.tags != null ? item.tags : item.description != null && item.description.tags != null ? item.description.tags : null;
+		if (tags != null) {
+			let isTaggedAsTradingCard = false;
+			tags.forEach((arrayItem) => {
+				if (arrayItem.category == "item_class") {
+					if (arrayItem.internal_name == "item_class_2") isTaggedAsTradingCard = true;
+				}
+			});
+			if (isTaggedAsTradingCard) return true;
+		}
+		if (item.owner_actions != null) for (let i = 0; i < item.owner_actions.length; i++) {
+			if (item.owner_actions[i].link == null) continue;
+			if (item.owner_actions[i].link.toString().toLowerCase().includes("gamecards")) return true;
+		}
+		if (item.type != null && item.type.toLowerCase().includes("trading card")) return true;
+		return false;
+	}
+	function getIsFoilTradingCard(item) {
+		if (!getIsTradingCard(item)) return false;
+		const tags = item.tags != null ? item.tags : item.description != null && item.description.tags != null ? item.description.tags : null;
+		if (tags != null) {
+			let isTaggedAsFoilTradingCard = false;
+			tags.forEach((arrayItem) => {
+				if (arrayItem.category == "cardborder" && arrayItem.internal_name == "cardborder_1") isTaggedAsFoilTradingCard = true;
+			});
+			if (isTaggedAsFoilTradingCard) return true;
+		}
+		if (item.owner_actions != null) for (let i = 0; i < item.owner_actions.length; i++) {
+			if (item.owner_actions[i].link == null) continue;
+			if (item.owner_actions[i].link.toString().toLowerCase().includes("gamecards") && item.owner_actions[i].link.toString().toLowerCase().includes("border")) return true;
+		}
+		if (item.type != null && item.type.toLowerCase().includes("foil trading card")) return true;
+		return false;
+	}
 	var logger = document.createElement("div");
 	logger.setAttribute("id", "logger");
 	var userScrolled = false;
@@ -988,66 +1124,7 @@
 		}
 		return calculatedPrice;
 	}
-	function createListingState() {
-		const states = new Map();
-		return {
-			get(id) {
-				return states.get(String(id));
-			},
-			set(id, state) {
-				const key = String(id);
-				states.set(key, Object.assign({}, states.get(key), state));
-			}
-		};
-	}
-	function getListingVerdict(bestPrice, listedPrice) {
-		if (bestPrice < listedPrice) return VERDICT_OVERPRICED;
-		if (bestPrice > listedPrice) return VERDICT_UNDERPRICED;
-		return VERDICT_FAIR;
-	}
 	var listingState = createListingState();
-	function getAssetKey(item) {
-		return `${item.appid}_${item.contextid}_${item.id}`;
-	}
-	var itemQueueState = createListingState();
-	function isItemQueued(item) {
-		return itemQueueState.get(getAssetKey(item))?.queued === true;
-	}
-	function markItemQueued(item) {
-		itemQueueState.set(getAssetKey(item), { queued: true });
-	}
-	function aggregateTradeOfferAssets(assets, resolve) {
-		const counts = new Map();
-		let totalPrice = 0;
-		for (let i = 0; i < assets.length; i++) {
-			const item = resolve(assets[i]);
-			const text = getTradeOfferAssetText(item);
-			counts.set(text, (counts.get(text) || 0) + 1);
-			if (item != null && item.price > 0) totalPrice += item.price;
-		}
-		const items = [];
-		counts.forEach((count, text) => {
-			items.push({
-				text,
-				count
-			});
-		});
-		return {
-			items,
-			totalPrice
-		};
-	}
-	function getTradeOfferAssetText(item) {
-		if (item == null) return "Unknown Item";
-		let text = "";
-		if (item.originalAmount != null && item.amount != null) {
-			const usedAmount = parseInt(item.originalAmount) - parseInt(item.amount);
-			text += `${usedAmount.toString()}x `;
-		}
-		text += item.name;
-		if (item.type != null && item.type.length > 0) text += ` (${item.type})`;
-		return text;
-	}
 	SteamMarket.prototype.sellItem = function(item, price, callback) {
 		request(`${window.location.origin}/market/sellitem/`, {
 			method: "POST",
@@ -1285,83 +1362,6 @@
 			useRound
 		});
 	};
-	function flattenItem(value, id) {
-		const item = Object.assign({}, value, value.description);
-		item.id = id;
-		item.assetid = id;
-		return item;
-	}
-	function readInventoryItems(activeInventory, childrenProperty, assetsProperty) {
-		const items = [];
-		if (!activeInventory) return items;
-		const collect = (assets) => {
-			for (const key in assets) {
-				const value = assets[key];
-				if (typeof value === "object") items.push(flattenItem(value, key));
-			}
-		};
-		for (const child in activeInventory[childrenProperty]) collect(activeInventory[childrenProperty][child][assetsProperty]);
-		collect(activeInventory[assetsProperty]);
-		return items;
-	}
-	function getMarketHashName(item) {
-		if (item == null) return null;
-		if (item.description != null && item.description.market_hash_name != null) return item.description.market_hash_name;
-		if (item.description != null && item.description.name != null) return item.description.name;
-		if (item.market_hash_name != null) return item.market_hash_name;
-		if (item.name != null) return item.name;
-		return null;
-	}
-	function getIsCrate(item) {
-		if (item == null) return false;
-		const tags = item.tags != null ? item.tags : item.description != null && item.description.tags != null ? item.description.tags : null;
-		if (tags != null) {
-			let isTaggedAsCrate = false;
-			tags.forEach((arrayItem) => {
-				if (arrayItem.category == "Type") {
-					if (arrayItem.internal_name == "Supply Crate") isTaggedAsCrate = true;
-				}
-			});
-			if (isTaggedAsCrate) return true;
-		}
-		return false;
-	}
-	function getIsTradingCard(item) {
-		if (item == null) return false;
-		const tags = item.tags != null ? item.tags : item.description != null && item.description.tags != null ? item.description.tags : null;
-		if (tags != null) {
-			let isTaggedAsTradingCard = false;
-			tags.forEach((arrayItem) => {
-				if (arrayItem.category == "item_class") {
-					if (arrayItem.internal_name == "item_class_2") isTaggedAsTradingCard = true;
-				}
-			});
-			if (isTaggedAsTradingCard) return true;
-		}
-		if (item.owner_actions != null) for (let i = 0; i < item.owner_actions.length; i++) {
-			if (item.owner_actions[i].link == null) continue;
-			if (item.owner_actions[i].link.toString().toLowerCase().includes("gamecards")) return true;
-		}
-		if (item.type != null && item.type.toLowerCase().includes("trading card")) return true;
-		return false;
-	}
-	function getIsFoilTradingCard(item) {
-		if (!getIsTradingCard(item)) return false;
-		const tags = item.tags != null ? item.tags : item.description != null && item.description.tags != null ? item.description.tags : null;
-		if (tags != null) {
-			let isTaggedAsFoilTradingCard = false;
-			tags.forEach((arrayItem) => {
-				if (arrayItem.category == "cardborder" && arrayItem.internal_name == "cardborder_1") isTaggedAsFoilTradingCard = true;
-			});
-			if (isTaggedAsFoilTradingCard) return true;
-		}
-		if (item.owner_actions != null) for (let i = 0; i < item.owner_actions.length; i++) {
-			if (item.owner_actions[i].link == null) continue;
-			if (item.owner_actions[i].link.toString().toLowerCase().includes("gamecards") && item.owner_actions[i].link.toString().toLowerCase().includes("border")) return true;
-		}
-		if (item.type != null && item.type.toLowerCase().includes("foil trading card")) return true;
-		return false;
-	}
 	function readCookie(name) {
 		const nameEQ = `${name}=`;
 		const ca = document.cookie.split(";");

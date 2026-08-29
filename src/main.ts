@@ -45,6 +45,19 @@ import {
     VERDICT_OVERPRICED,
     VERDICT_UNDERPRICED,
 } from './constants.ts';
+import { aggregateTradeOfferAssets, getTradeOfferAssetText } from './tradeoffer/totals.ts';
+import { createListingState, getListingVerdict } from './market/listingState.ts';
+import {
+    flattenItem,
+    readInventoryItems,
+    getMarketHashName,
+    getIsCrate,
+    getIsTradingCard,
+    getIsFoilTradingCard,
+    getAssetKey,
+    isItemQueued,
+    markItemQueued,
+} from './items/index.ts';
 import type { PricingRules } from './pricing/rules.ts';
 import type { QueueTask } from './queue/index.ts';
 import {
@@ -667,54 +680,9 @@ function calculateSellPriceBeforeFees(
 
 //#endregion
 
-//#region Listing state
-// What the script worked out about a listing, kept as a value.
-//
-// The price and the verdict used to live in the class attribute of the listing element:
-// the price was written as `price_1234` and read back by splitting the class list and
-// parsing the number out of it. That made a CSS class the data model, so renaming one
-// silently lost the price instead of failing. The classes are still written for styling
-// and for the selector-based selection, but this is the source of truth.
-//
-// Keyed by listing id on the market page and by `appid_contextid_assetid` on the trade
-// offer page. `set` merges, because the price is known before the verdict is.
-function createListingState() {
-    const states = new Map();
-
-    return {
-        get(id) {
-            return states.get(String(id));
-        },
-        set(id, state) {
-            const key = String(id);
-            states.set(key, Object.assign({}, states.get(key), state));
-        },
-    };
-}
-
-// What the script thinks of the price a listing is asking, as a value rather than as a
-// colour and a class name. `bestPrice` and `listedPrice` are both prices including fees.
-function getListingVerdict(bestPrice, listedPrice) {
-    if (bestPrice < listedPrice) {
-        return VERDICT_OVERPRICED;
-    }
-
-    if (bestPrice > listedPrice) {
-        return VERDICT_UNDERPRICED;
-    }
-
-    return VERDICT_FAIR;
-}
-
 // One store for the page. The market listings and the trade offer inventory are never
 // both on screen, so they cannot collide, and the keys differ anyway.
 const listingState = createListingState();
-
-// The key an inventory item's price is kept under. It is also the id Steam gives the
-// item's element, so an item is found the same way in the state and on the page.
-function getAssetKey(item) {
-    return `${item.appid}_${item.contextid}_${item.id}`;
-}
 
 // Whether an item has already been queued for an inventory action (sell, turn into
 // gems, unpack), kept by asset key instead of on the item itself. readInventoryItems
@@ -722,68 +690,9 @@ function getAssetKey(item) {
 // the same inventory - the user clicking "Sell All" and "Turn Into Gems" moments apart -
 // saw the flag on the very same object and skipped it. readInventoryItems now returns a
 // new object every call, so that no longer works; this is where the flag lives instead.
-const itemQueueState = createListingState();
 
-function isItemQueued(item) {
-    return itemQueueState.get(getAssetKey(item))?.queued === true;
-}
-
-function markItemQueued(item) {
-    itemQueueState.set(getAssetKey(item), { queued: true });
-}
 //#endregion
 
-//#region Trade offer totals
-// What one side of a trade offer holds, and what it is worth.
-//
-// `resolve` turns an asset into `{ name, type, originalAmount, amount, price }`, or null
-// when the page cannot say what the asset is. Everything that needs the page lives in
-// there, so the counting and the total are just a function of the offer.
-function aggregateTradeOfferAssets(assets, resolve) {
-    const counts = new Map();
-    let totalPrice = 0;
-
-    for (let i = 0; i < assets.length; i++) {
-        const item = resolve(assets[i]);
-        const text = getTradeOfferAssetText(item);
-
-        counts.set(text, (counts.get(text) || 0) + 1);
-
-        if (item != null && item.price > 0) {
-            totalPrice += item.price;
-        }
-    }
-
-    const items: any[] = [];
-    counts.forEach((count, text) => {
-        items.push({ text: text, count: count });
-    });
-
-    return { items: items, totalPrice: totalPrice };
-}
-
-// `3x Gems`, `Sackboy (Trading Card)`, or `Unknown Item` when the page cannot say what
-// the asset is. A partly used stack is named by how much of it is in the offer.
-function getTradeOfferAssetText(item) {
-    if (item == null) {
-        return 'Unknown Item';
-    }
-
-    let text = '';
-
-    if (item.originalAmount != null && item.amount != null) {
-        const usedAmount = parseInt(item.originalAmount) - parseInt(item.amount);
-        text += `${usedAmount.toString()}x `;
-    }
-
-    text += item.name;
-
-    if (item.type != null && item.type.length > 0) {
-        text += ` (${item.type})`;
-    }
-
-    return text;
-}
 //#endregion
 
 //#region Steam Market
@@ -1167,205 +1076,6 @@ SteamMarket.prototype.getPriceIncludingFees = function (price, item) {
 //#endregion
 
 //#region Steam Market / Inventory helpers
-
-// Flattens one Steam item: a new object with its own `description` merged onto it, so
-// its fields read the same way whichever page it came from - the market page's items
-// already arrive this way. `id` is stamped from the caller, because Steam's raw item is
-// not always trusted to carry its own (see readInventoryItems). Steam's own object is
-// left untouched; nothing here mutates `value`.
-function flattenItem(value, id) {
-    const item = Object.assign({}, value, value.description);
-    item.id = id;
-    item.assetid = id;
-
-    return item;
-}
-
-// Flattens Steam's inventory shape into one array of new objects. The inventory page's
-// active inventory (m_rgChildInventories/m_rgAssets) and the trade offer page's
-// (rgChildInventories/rgInventory) were byte-for-byte identical but for these two
-// property names - one reader, parameterised by them, instead of the same walk written
-// out twice.
-function readInventoryItems(activeInventory, childrenProperty, assetsProperty) {
-    const items: any[] = [];
-
-    if (!activeInventory) {
-        return items;
-    }
-
-    const collect = (assets) => {
-        for (const key in assets) {
-            const value = assets[key];
-            if (typeof value === 'object') {
-                items.push(flattenItem(value, key));
-            }
-        }
-    };
-
-    for (const child in activeInventory[childrenProperty]) {
-        collect(activeInventory[childrenProperty][child][assetsProperty]);
-    }
-
-    // Some inventories (e.g. BattleBlock Theater) do not have child inventories, they
-    // have just one.
-    collect(activeInventory[assetsProperty]);
-
-    return items;
-}
-
-function getMarketHashName(item) {
-    if (item == null) {
-        return null;
-    }
-
-    if (item.description != null && item.description.market_hash_name != null) {
-        return item.description.market_hash_name;
-    }
-
-    if (item.description != null && item.description.name != null) {
-        return item.description.name;
-    }
-
-    if (item.market_hash_name != null) {
-        return item.market_hash_name;
-    }
-
-    if (item.name != null) {
-        return item.name;
-    }
-
-    return null;
-}
-
-function getIsCrate(item) {
-    if (item == null) {
-        return false;
-    }
-    // This is available on the inventory page.
-    const tags =
-        item.tags != null
-            ? item.tags
-            : item.description != null && item.description.tags != null
-              ? item.description.tags
-              : null;
-    if (tags != null) {
-        let isTaggedAsCrate = false;
-        tags.forEach((arrayItem) => {
-            if (arrayItem.category == 'Type') {
-                if (arrayItem.internal_name == 'Supply Crate') {
-                    isTaggedAsCrate = true;
-                }
-            }
-        });
-        if (isTaggedAsCrate) {
-            return true;
-        }
-    }
-
-    return false;
-}
-
-function getIsTradingCard(item) {
-    if (item == null) {
-        return false;
-    }
-
-    // This is available on the inventory page.
-    const tags =
-        item.tags != null
-            ? item.tags
-            : item.description != null && item.description.tags != null
-              ? item.description.tags
-              : null;
-    if (tags != null) {
-        let isTaggedAsTradingCard = false;
-        tags.forEach((arrayItem) => {
-            if (arrayItem.category == 'item_class') {
-                if (arrayItem.internal_name == 'item_class_2') {
-                    // trading card.
-                    isTaggedAsTradingCard = true;
-                }
-            }
-        });
-        if (isTaggedAsTradingCard) {
-            return true;
-        }
-    }
-
-    // This is available on the market page.
-    if (item.owner_actions != null) {
-        for (let i = 0; i < item.owner_actions.length; i++) {
-            if (item.owner_actions[i].link == null) {
-                continue;
-            }
-
-            // Cards include a link to the gamecard page.
-            // For example: "http://steamcommunity.com/my/gamecards/503820/".
-            if (item.owner_actions[i].link.toString().toLowerCase().includes('gamecards')) {
-                return true;
-            }
-        }
-    }
-
-    // A fallback for the market page (only works with language on English).
-    if (item.type != null && item.type.toLowerCase().includes('trading card')) {
-        return true;
-    }
-
-    return false;
-}
-
-function getIsFoilTradingCard(item) {
-    if (!getIsTradingCard(item)) {
-        return false;
-    }
-
-    // This is available on the inventory page.
-    const tags =
-        item.tags != null
-            ? item.tags
-            : item.description != null && item.description.tags != null
-              ? item.description.tags
-              : null;
-    if (tags != null) {
-        let isTaggedAsFoilTradingCard = false;
-        tags.forEach((arrayItem) => {
-            if (arrayItem.category == 'cardborder' && arrayItem.internal_name == 'cardborder_1') {
-                // foil border.
-                isTaggedAsFoilTradingCard = true;
-            }
-        });
-        if (isTaggedAsFoilTradingCard) {
-            return true;
-        }
-    }
-
-    // This is available on the market page.
-    if (item.owner_actions != null) {
-        for (let i = 0; i < item.owner_actions.length; i++) {
-            if (item.owner_actions[i].link == null) {
-                continue;
-            }
-
-            // Cards include a link to the gamecard page.
-            // The border parameter specifies the foil cards.
-            // For example: "http://steamcommunity.com/my/gamecards/503820/?border=1".
-            if (
-                item.owner_actions[i].link.toString().toLowerCase().includes('gamecards') &&
-                item.owner_actions[i].link.toString().toLowerCase().includes('border')
-            ) {
-                return true;
-            }
-        }
-    }
-
-    // A fallback for the market page (only works with language on English).
-    if (item.type != null && item.type.toLowerCase().includes('foil trading card')) {
-        return true;
-    }
-
-    return false;
-}
 
 function readCookie(name) {
     const nameEQ = `${name}=`;
@@ -4470,26 +4180,14 @@ export const requestPolicy = {
 };
 
 export {
-    aggregateTradeOfferAssets,
     buildOrderBook,
     calculateAverageHistoryPriceBeforeFees,
     calculateBuyOrderPriceBeforeFees,
     calculateListingPriceBeforeFees,
     calculateSellPriceBeforeFees,
-    createListingState,
     createPricingRules,
-    flattenItem,
-    getAssetKey,
-    getIsCrate,
-    getListingVerdict,
-    getIsFoilTradingCard,
-    getIsTradingCard,
-    getMarketHashName,
     getRequestDelay,
     getRequestStoppedMessage,
-    isItemQueued,
-    markItemQueued,
-    readInventoryItems,
     request,
     stopRequests,
     isRetryMessage,
@@ -4500,6 +4198,20 @@ export {
 // Re-exported from the modules they now live in, so the test suite can keep reaching
 // them through the entry point while the split is in progress.
 export { ROW_STATUS_COLORS } from './constants.ts';
+
+export {
+    flattenItem,
+    getAssetKey,
+    getIsCrate,
+    getIsFoilTradingCard,
+    getIsTradingCard,
+    getMarketHashName,
+    isItemQueued,
+    markItemQueued,
+    readInventoryItems,
+} from './items/index.ts';
+
+export { createListingState, getListingVerdict } from './market/listingState.ts';
 
 export {
     CalculateAmountToSendForDesiredReceivedAmount,
@@ -4518,6 +4230,8 @@ export {
 } from './queue/index.ts';
 
 export { createSteamPage, pickSellListingsHeader } from './steam/page.ts';
+
+export { aggregateTradeOfferAssets } from './tradeoffer/totals.ts';
 
 export { getNumberOfDigits, padLeftZero, replaceNonNumbers } from './util/numbers.ts';
 //#endregion
