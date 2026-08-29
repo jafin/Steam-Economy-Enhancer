@@ -366,7 +366,13 @@ export {
     readInventoryItems,
 } from './items/index.ts';
 
-export { createListingState, getListingVerdict } from './market/listingState.ts';
+export {
+    createListingState,
+    getListingPriceDelta,
+    getListingVerdict,
+} from './market/listingState.ts';
+
+export { formatPriceDelta } from './pricing/algorithms.ts';
 
 export {
     getRequestDelay,

@@ -42,6 +42,41 @@ export function formatPrice(valueInCents) {
     return steamPage.formatPrice(valueInCents, currencyCode, currencyCountry);
 }
 
+// Renders a price delta as `+€0.42 (18.0%)`.
+//
+// The sign is applied here rather than passed down to `formatPrice`, which delegates to
+// Steam's own currency formatter: what that does with a negative is locale-dependent and
+// undocumented, and one of the possibilities is accounting-style parentheses, which would
+// collide with the parentheses around the percentage. Formatting the absolute value and
+// prefixing the sign ourselves keeps the money and the percentage agreeing on one sign in
+// every locale.
+//
+// One decimal place on the percentage because being a single cent over the best price is
+// the most common case by far, and at zero decimals it renders as `(0%)`, which reads as a
+// bug rather than as a small number.
+//
+// A zero delta renders as nothing at all. That is what keeps the fair verdict from needing
+// a branch at the call site.
+//
+// This lives beside `formatPrice` rather than beside `getListingPriceDelta`, which
+// computes the value: `items/index.ts` imports from `market/listingState.ts` and this
+// module imports from `items/index.ts`, so a formatter there that needed `formatPrice`
+// would close the cycle listingState -> algorithms -> items -> listingState.
+export function formatPriceDelta(delta) {
+    if (delta == null || delta.cents === 0) {
+        return '';
+    }
+
+    const sign = delta.cents > 0 ? '+' : '−';
+    const amount = `${sign}${formatPrice(Math.abs(delta.cents))}`;
+
+    if (delta.percent == null) {
+        return amount;
+    }
+
+    return `${amount} (${sign}${Math.abs(delta.percent).toFixed(1)}%)`;
+}
+
 export function getPriceInformationFromItem(item) {
     const isTradingCard = getIsTradingCard(item);
     const isFoilTradingCard = getIsFoilTradingCard(item);

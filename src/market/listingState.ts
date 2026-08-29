@@ -45,6 +45,28 @@ export function getListingVerdict(bestPrice, listedPrice) {
     return VERDICT_FAIR;
 }
 
+// How far a listing is from where it should be priced, as a signed value. `bestPrice` and
+// `listedPrice` are both prices including fees, and `bestPrice` is the price *without* the
+// user's offset applied -- the same number the verdict above is computed from. See
+// docs/adr/0001-price-delta-measured-against-the-no-offset-best-price.md: measuring
+// against the offset price instead would put a number on the row that disagrees with the
+// colour beside it, and nothing would throw when it did.
+//
+// The percentage is a fraction of the best price rather than of the listed price, so that
+// the overpriced and underpriced sides share one fixed reference: two listings equally far
+// from the market then report the same magnitude, which a moving denominator would not do.
+//
+// A best price of zero has no meaningful percentage -- the division is infinite, not
+// large -- so it comes back null and the caller renders the amount alone.
+export function getListingPriceDelta(bestPrice, listedPrice) {
+    const cents = listedPrice - bestPrice;
+
+    return {
+        cents: cents,
+        percent: bestPrice === 0 ? null : (cents / bestPrice) * 100,
+    };
+}
+
 // One store for the page. The market listings and the trade offer inventory are never
 // both on screen, so they cannot collide, and the keys differ anyway.
 export const listingState = createListingState();
