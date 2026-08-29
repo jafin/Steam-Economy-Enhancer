@@ -81,6 +81,19 @@
 	var RETRY_DELAY_SHORT_MAX = 1500;
 	var RETRY_DELAY_LONG_MIN = 3e4;
 	var RETRY_DELAY_LONG_MAX = 45e3;
+	function getRandomInt(min, max) {
+		return Math.floor(Math.random() * (max - min + 1)) + min;
+	}
+	function getNumberOfDigits(x) {
+		return (Math.log10((x ^ x >> 31) - (x >> 31)) | 0) + 1;
+	}
+	function padLeftZero(str, max) {
+		str = str.toString();
+		return str.length < max ? padLeftZero(`0${str}`, max) : str;
+	}
+	function replaceNonNumbers(str) {
+		return str.replace(/\D/g, "");
+	}
 	(function(d) {
 		d.Observe = {};
 	})(jQuery);
@@ -872,9 +885,6 @@
 		}
 		return calculatedPrice;
 	}
-	function getRandomInt(min, max) {
-		return Math.floor(Math.random() * (max - min + 1)) + min;
-	}
 	function createFailureCounter() {
 		return { failures: 0 };
 	}
@@ -916,16 +926,6 @@
 			});
 		}, options.concurrency ?? 1);
 		return queue;
-	}
-	function getNumberOfDigits(x) {
-		return (Math.log10((x ^ x >> 31) - (x >> 31)) | 0) + 1;
-	}
-	function padLeftZero(str, max) {
-		str = str.toString();
-		return str.length < max ? padLeftZero(`0${str}`, max) : str;
-	}
-	function replaceNonNumbers(str) {
-		return str.replace(/\D/g, "");
 	}
 	function createListingState() {
 		const states = new Map();

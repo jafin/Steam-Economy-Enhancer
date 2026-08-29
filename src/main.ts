@@ -45,6 +45,7 @@ import {
     VERDICT_OVERPRICED,
     VERDICT_UNDERPRICED,
 } from './constants.ts';
+import { getRandomInt, getNumberOfDigits, padLeftZero, replaceNonNumbers } from './util/numbers.ts';
 
 // Vendored jQuery plugins, previously @require'd from raw.githubusercontent.com. Both
 // attach to the jQuery global at evaluation time, which -- because ES imports are
@@ -867,11 +868,6 @@ function calculateSellPriceBeforeFees(
 }
 //#endregion
 
-//#region Integer helpers
-function getRandomInt(min, max) {
-    return Math.floor(Math.random() * (max - min + 1)) + min;
-}
-
 // Backoff state for one queue.
 //
 // The queues used to share a single module-level counter that only the inventory price
@@ -991,18 +987,6 @@ function runQueue(worker, options: RunQueueOptions = {}) {
     return queue;
 }
 
-function getNumberOfDigits(x) {
-    return (Math.log10((x ^ (x >> 31)) - (x >> 31)) | 0) + 1;
-}
-
-function padLeftZero(str, max): string {
-    str = str.toString();
-    return str.length < max ? padLeftZero(`0${str}`, max) : str;
-}
-
-function replaceNonNumbers(str) {
-    return str.replace(/\D/g, '');
-}
 //#endregion
 
 //#region Listing state
@@ -4984,7 +4968,6 @@ export {
     getIsFoilTradingCard,
     getIsTradingCard,
     getMarketHashName,
-    getNumberOfDigits,
     getRequestDelay,
     getRequestStoppedMessage,
     isItemQueued,
@@ -4997,14 +4980,16 @@ export {
     NO_LISTING_PRICE_SENTINEL,
     nextQueueStep,
     nextRetryDelay,
-    padLeftZero,
     pickSellListingsHeader,
     priceBeforeFees,
     priceIncludingFees,
-    replaceNonNumbers,
     resetRetryDelay,
     runQueue,
 };
 
+// Re-exported from the modules they now live in, so the test suite can keep reaching
+// them through the entry point while the split is in progress.
 export { ROW_STATUS_COLORS } from './constants.ts';
+
+export { getNumberOfDigits, padLeftZero, replaceNonNumbers } from './util/numbers.ts';
 //#endregion
