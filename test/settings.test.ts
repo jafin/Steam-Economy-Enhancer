@@ -68,3 +68,17 @@ test('three consecutive sessions pick three different cache databases', async ()
 
     assert.strictEqual(new Set(names).size, 3, `expected 3 distinct databases, got ${names}`);
 });
+
+test('the rolling cache cycles through five databases, then repeats', async () => {
+    const names: string[] = [];
+    for (let i = 0; i < 6; i++) {
+        names.push(await newSessionDatabaseName());
+    }
+
+    assert.strictEqual(
+        new Set(names.slice(0, 5)).size,
+        5,
+        `expected 5 distinct databases, got ${names}`,
+    );
+    assert.strictEqual(names[5], names[0], 'the sixth session should reuse the first database');
+});
