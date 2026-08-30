@@ -337,21 +337,7 @@ export async function updateInventorySelection(selectedItem) {
             return;
         }
 
-        const sellRows = (orderbook.sell_order_graph || [])
-            .slice(0, 10)
-            .map(
-                ([price, qty]) =>
-                    `<tr><td align="right">${formatPrice(Math.round(price * 100))}</td><td align="right">${qty}</td></tr>`,
-            )
-            .join('');
-
-        const buyRows = (orderbook.buy_order_graph || [])
-            .slice(0, 10)
-            .map(
-                ([price, qty]) =>
-                    `<tr><td align="right">${formatPrice(Math.round(price * 100))}</td><td align="right">${qty}</td></tr>`,
-            )
-            .join('');
+        const { sellRows, buyRows, prices, defaultPrice } = quickSellPanel(orderbook, formatPrice);
 
         const groupMain = $(`<div id="listings_group">
                 <div>
@@ -365,23 +351,6 @@ export async function updateInventorySelection(selectedItem) {
             </div>`);
 
         baseLink.next().append(groupMain);
-
-        // Generate quick sell buttons.
-        let prices: number[] = [];
-
-        if (orderbook != null && orderbook.highest_buy_order != null) {
-            prices.push(parseInt(orderbook.highest_buy_order));
-        }
-
-        if (orderbook != null && orderbook.lowest_sell_order != null) {
-            // Transaction volume must be separable into three or more parts (no matter if equal): valve+publisher+seller.
-            if (parseInt(orderbook.lowest_sell_order) > 3) {
-                prices.push(parseInt(orderbook.lowest_sell_order) - 1);
-            }
-            prices.push(parseInt(orderbook.lowest_sell_order));
-        }
-
-        prices = prices.filter((v, i) => prices.indexOf(v) === i).sort((a, b) => a - b);
 
         let buttons = '<div id="price_buttons">';
         prices.forEach((e) => {
@@ -397,7 +366,7 @@ export async function updateInventorySelection(selectedItem) {
         ownerActions.append(buttons);
 
         ownerActions.append(`<div id="sell_button" style="display:flex">
-                <input id="quick_sell_input" style="background-color: black;color: white;border: transparent;max-width:65px;text-align:center;" type="number" value="${((orderbook.lowest_sell_order || 0) / 100).toFixed(2)}" step="0.01" />&nbsp;
+                <input id="quick_sell_input" style="background-color: black;color: white;border: transparent;max-width:65px;text-align:center;" type="number" value="${(defaultPrice / 100).toFixed(2)}" step="0.01" />&nbsp;
                 <a class="item_market_action_button item_market_action_button_green quick_sell_custom">
                     <span class="item_market_action_button_edge item_market_action_button_left"></span>
                     <span class="item_market_action_button_contents">➜ Sell</span>
