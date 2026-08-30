@@ -16,6 +16,38 @@ export function markRow(assetKey, status) {
     $(`#${assetKey}`).css('background', ROW_STATUS_COLORS[status]);
 }
 
+// The "for sale" corner ribbon an inventory tile gets once its listing comes back
+// successful. Deliberately not folded into markRow's 'success' branch: gems.ts and
+// boosters.ts mark success on the same tiles for turning an item into gems and for
+// unpacking a booster pack, and neither of those items is for sale afterwards.
+//
+// Note this is a child element where markRow writes an inline style. The two do not
+// survive the same things -- anything that rewrites a tile's contents drops the ribbon
+// while leaving the background colour untouched.
+export function markRowForSale(assetKey) {
+    const item = $(`#${assetKey}`);
+    if (item.length === 0) {
+        return;
+    }
+
+    // The ribbon positions itself against the tile, so the tile has to be a positioning
+    // context. Steam's own stylesheet may already make it one -- this fills the gap only
+    // when it has not, rather than overriding a value Steam chose.
+    //
+    // Asked the other way round -- "is it already positioned?" rather than "is it static?"
+    // -- because the failure is silent and one-directional. Anything unexpected coming back
+    // (happy-dom answers '' for an element with no stylesheet behind it) has to mean "not a
+    // positioning context yet", or the ribbon hangs off whatever ancestor is, and lands
+    // outside the tile with nothing thrown.
+    if (!['relative', 'absolute', 'fixed', 'sticky'].includes(item.css('position'))) {
+        item.css('position', 'relative');
+    }
+
+    // Listing the same item twice in a run should not stack two ribbons.
+    item.find('.see_for_sale').remove();
+    item.append('<div class="see_for_sale"><b>For sale</b></div>');
+}
+
 export function injectCss(css) {
     const head = document.getElementsByTagName('head')[0];
     if (!head) {

@@ -25,7 +25,7 @@ import { SETTING_PRICE_MIN_LIST_PRICE, getSetting } from '../settings/index.ts';
 import { steamPage } from '../steam/instance.ts';
 import { market } from '../steam/market.ts';
 import { listed, processed, runTotals, unprocessed } from '../totals.ts';
-import { markRow, removeSpinner, renderSpinner } from '../ui/index.ts';
+import { markRow, markRowForSale, removeSpinner, renderSpinner } from '../ui/index.ts';
 import { logConsole, logDOM } from '../ui/logger.ts';
 import { getNumberOfDigits, getRandomInt, padLeftZero } from '../util/numbers.ts';
 import { enqueueInventoryItems, selectedItemsWhere } from './actions.ts';
@@ -37,6 +37,7 @@ export const sellQueue = async.queue((task: QueueTask, next) => {
     const current = runTotals();
     const digits = getNumberOfDigits(current.queuedItems);
     const itemId = task.item.assetid || task.item.id;
+    const assetKey = `${task.item.appid}_${task.item.contextid}_${itemId}`;
     const itemName = task.item.name || task.item.description.name;
     const itemNameWithAmount =
         task.item.amount == 1 ? itemName : `${task.item.amount}x ${itemName}`;
@@ -47,7 +48,7 @@ export const sellQueue = async.queue((task: QueueTask, next) => {
         market.getPriceIncludingFees(task.sellPrice)
     ) {
         logDOM(`${padLeft} - ${itemNameWithAmount} is not listed due to ignoring price settings.`);
-        markRow(`${task.item.appid}_${task.item.contextid}_${itemId}`, 'notChecked');
+        markRow(assetKey, 'notChecked');
         next();
         return;
     }
@@ -66,7 +67,8 @@ export const sellQueue = async.queue((task: QueueTask, next) => {
             logDOM(
                 `${padLeft} - ${itemNameWithAmount} listed for ${formatPrice(market.getPriceIncludingFees(task.sellPrice) * task.item.amount)}, you will receive ${formatPrice(task.sellPrice * task.item.amount)}.`,
             );
-            markRow(`${task.item.appid}_${task.item.contextid}_${itemId}`, 'success');
+            markRow(assetKey, 'success');
+            markRowForSale(assetKey);
 
             listed(
                 task.sellPrice * task.item.amount,
@@ -100,7 +102,7 @@ export const sellQueue = async.queue((task: QueueTask, next) => {
         logDOM(
             `${padLeft} - ${itemNameWithAmount} not added to market${message ? ` because:  ${message.charAt(0).toLowerCase()}${message.slice(1)}` : '.'}`,
         );
-        markRow(`${task.item.appid}_${task.item.contextid}_${itemId}`, 'error');
+        markRow(assetKey, 'error');
 
         callback();
     });

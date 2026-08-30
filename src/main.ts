@@ -127,6 +127,21 @@ export function bootstrap(): void {
         .market_relist_auto_label { margin-right: 6px; }
         .quick_sell { margin-right: 4px; }
 
+        /* The "for sale" ribbon on an inventory tile whose listing succeeded -- see
+           markRowForSale in src/ui/index.ts. The band is clipped by its own 78px corner box
+           rather than by overflow:hidden on the tile, so anything Steam draws outside the
+           tile's bounds still shows.
+           The band is dark rather than the listed-green #407736 markRow has just painted
+           behind it: at a 96px tile a green band on a green tile is not visible at all. The
+           green is kept as the top edge, which is what ties the two together. */
+        .see_for_sale { position: absolute; top: 0; right: 0; width: 78px; height: 78px;
+            overflow: hidden; pointer-events: none; z-index: 2; }
+        .see_for_sale b { position: absolute; display: block; width: 120px; right: -32px; top: 15px;
+            padding: 3px 0; text-align: center; transform: rotate(45deg); font-size: 8px;
+            font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase; color: #fff;
+            background: rgba(0, 0, 0, 0.78); border-top: 1px solid rgba(159, 224, 122, 0.9);
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.6); }
+
         .spinner {margin:10px auto;width:50px;height:40px;text-align:center;font-size:10px;}
         .spinner > div {background-color:#ccc;height:100%;width:6px;display:inline-block;animation:sk-stretchdelay 1.2s infinite ease-in-out}
         .spinner .rect2 {animation-delay:-1.1s}

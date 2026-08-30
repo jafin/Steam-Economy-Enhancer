@@ -1019,6 +1019,18 @@
 	function markRow(assetKey, status) {
 		(0, jquery.default)(`#${assetKey}`).css("background", ROW_STATUS_COLORS[status]);
 	}
+	function markRowForSale(assetKey) {
+		const item = (0, jquery.default)(`#${assetKey}`);
+		if (item.length === 0) return;
+		if (![
+			"relative",
+			"absolute",
+			"fixed",
+			"sticky"
+		].includes(item.css("position"))) item.css("position", "relative");
+		item.find(".see_for_sale").remove();
+		item.append("<div class=\"see_for_sale\"><b>For sale</b></div>");
+	}
 	function injectCss(css) {
 		const head = document.getElementsByTagName("head")[0];
 		if (!head) return;
@@ -2198,12 +2210,13 @@
 		const current = runTotals();
 		const digits = getNumberOfDigits(current.queuedItems);
 		const itemId = task.item.assetid || task.item.id;
+		const assetKey = `${task.item.appid}_${task.item.contextid}_${itemId}`;
 		const itemName = task.item.name || task.item.description.name;
 		const itemNameWithAmount = task.item.amount == 1 ? itemName : `${task.item.amount}x ${itemName}`;
 		const padLeft = `${padLeftZero(`${current.processedQueueItems}`, digits)} / ${current.queuedItems}`;
 		if (getSetting("SETTING_PRICE_MIN_LIST_PRICE") * 100 >= market.getPriceIncludingFees(task.sellPrice)) {
 			logDOM(`${padLeft} - ${itemNameWithAmount} is not listed due to ignoring price settings.`);
-			markRow(`${task.item.appid}_${task.item.contextid}_${itemId}`, "notChecked");
+			markRow(assetKey, "notChecked");
 			next();
 			return;
 		}
@@ -2213,7 +2226,8 @@
 			const callback = () => setTimeout(() => next(), getRandomInt(RETRY_DELAY_SHORT_MIN, RETRY_DELAY_SHORT_MAX));
 			if (success) {
 				logDOM(`${padLeft} - ${itemNameWithAmount} listed for ${formatPrice(market.getPriceIncludingFees(task.sellPrice) * task.item.amount)}, you will receive ${formatPrice(task.sellPrice * task.item.amount)}.`);
-				markRow(`${task.item.appid}_${task.item.contextid}_${itemId}`, "success");
+				markRow(assetKey, "success");
+				markRowForSale(assetKey);
 				listed(task.sellPrice * task.item.amount, market.getPriceIncludingFees(task.sellPrice) * task.item.amount);
 				updateTotals();
 				callback();
@@ -2229,7 +2243,7 @@
 				return;
 			}
 			logDOM(`${padLeft} - ${itemNameWithAmount} not added to market${message ? ` because:  ${message.charAt(0).toLowerCase()}${message.slice(1)}` : "."}`);
-			markRow(`${task.item.appid}_${task.item.contextid}_${itemId}`, "error");
+			markRow(assetKey, "error");
 			callback();
 		});
 	}, 1);
@@ -3104,6 +3118,21 @@
         .market_relist_auto { margin-bottom: 8px;  }
         .market_relist_auto_label { margin-right: 6px; }
         .quick_sell { margin-right: 4px; }
+
+        /* The "for sale" ribbon on an inventory tile whose listing succeeded -- see
+           markRowForSale in src/ui/index.ts. The band is clipped by its own 78px corner box
+           rather than by overflow:hidden on the tile, so anything Steam draws outside the
+           tile's bounds still shows.
+           The band is dark rather than the listed-green #407736 markRow has just painted
+           behind it: at a 96px tile a green band on a green tile is not visible at all. The
+           green is kept as the top edge, which is what ties the two together. */
+        .see_for_sale { position: absolute; top: 0; right: 0; width: 78px; height: 78px;
+            overflow: hidden; pointer-events: none; z-index: 2; }
+        .see_for_sale b { position: absolute; display: block; width: 120px; right: -32px; top: 15px;
+            padding: 3px 0; text-align: center; transform: rotate(45deg); font-size: 8px;
+            font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase; color: #fff;
+            background: rgba(0, 0, 0, 0.78); border-top: 1px solid rgba(159, 224, 122, 0.9);
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.6); }
 
         .spinner {margin:10px auto;width:50px;height:40px;text-align:center;font-size:10px;}
         .spinner > div {background-color:#ccc;height:100%;width:6px;display:inline-block;animation:sk-stretchdelay 1.2s infinite ease-in-out}
