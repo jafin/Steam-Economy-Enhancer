@@ -10,21 +10,22 @@ import { processMarketListings } from './listings.ts';
 import { increaseMarketProgressMax, setProgressBar } from './progress.ts';
 import { queueOverpricedItemListing } from './relist.ts';
 import { marketRemoveQueue } from './remove.ts';
-import { getListFromContainer, getListingFromLists } from './rows.ts';
+import { getListingFromLists } from './rows.ts';
+import { marketSectionFor, selectionFor, tableHeaderSectionFor } from './selection.ts';
 import { sortMarketListings } from './sort.ts';
 import $ from 'jquery';
 // Update the select/deselect all button on the market.
 export function updateMarketSelectAllButton() {
     $('.market_listing_buttons').each(function () {
-        const selectionGroup = $(this).parent().parent();
+        const group = marketSectionFor(this);
         let invert =
-            $('.market_select_item:checked', selectionGroup).length ==
-            $('.market_select_item', selectionGroup).length;
-        if ($('.market_select_item', selectionGroup).length == 0) {
+            $('.market_select_item:checked', group).length ==
+            $('.market_select_item', group).length;
+        if ($('.market_select_item', group).length == 0) {
             // If there are no items to select, keep it at Select all.
             invert = false;
         }
-        $('.select_all > span', selectionGroup).text(invert ? 'Deselect all' : 'Select all');
+        $('.select_all > span', group).text(invert ? 'Deselect all' : 'Select all');
     });
 }
 
@@ -82,53 +83,52 @@ export function initializeMarketUI() {
             return;
         }
 
-        const isPrice =
-            $('.market_listing_table_header', $(this).parent().parent()).children().eq(1).text() ==
-            $(this).text();
-        const isDate =
-            $('.market_listing_table_header', $(this).parent().parent()).children().eq(2).text() ==
-            $(this).text();
-        const isName =
-            $('.market_listing_table_header', $(this).parent().parent()).children().eq(3).text() ==
-            $(this).text();
+        const section = tableHeaderSectionFor(this);
 
-        sortMarketListings($(this).parent().parent(), isPrice, isDate, isName);
+        const isPrice =
+            $('.market_listing_table_header', section).children().eq(1).text() == $(this).text();
+        const isDate =
+            $('.market_listing_table_header', section).children().eq(2).text() == $(this).text();
+        const isName =
+            $('.market_listing_table_header', section).children().eq(3).text() == $(this).text();
+
+        sortMarketListings(section, isPrice, isDate, isName);
     });
 
     $('.select_all').on('click', '*', function () {
-        const selectionGroup = $(this).parent().parent().parent().parent();
-        const marketList = getListFromContainer(selectionGroup);
+        const selection = selectionFor(this);
 
-        if (marketList == null) {
+        if (selection == null) {
             return;
         }
 
+        const { rows, group } = selection;
         const invert =
-            $('.market_select_item:checked', selectionGroup).length ==
-            $('.market_select_item', selectionGroup).length;
+            $('.market_select_item:checked', group).length ==
+            $('.market_select_item', group).length;
 
-        for (let i = 0; i < marketList.matchingItems.length; i++) {
-            $('.market_select_item', marketList.matchingItems[i].elm).prop('checked', !invert);
+        for (let i = 0; i < rows.length; i++) {
+            $('.market_select_item', rows[i].elm).prop('checked', !invert);
         }
 
         updateMarketSelectAllButton();
     });
 
     $('.select_five_from_page').on('click', '*', function () {
-        const selectionGroup = $(this).parent().parent().parent().parent();
-        const marketList = getListFromContainer(selectionGroup);
+        const selection = selectionFor(this);
 
-        if (marketList == null) {
+        if (selection == null) {
             return;
         }
 
+        const { rows } = selection;
         let count = 0;
-        for (let i = 0; i < marketList.matchingItems.length; i++) {
+        for (let i = 0; i < rows.length; i++) {
             if (count == 5) {
                 break;
             }
-            if (!$('.market_select_item', marketList.matchingItems[i].elm).prop('checked')) {
-                $('.market_select_item', marketList.matchingItems[i].elm).prop('checked', true);
+            if (!$('.market_select_item', rows[i].elm).prop('checked')) {
+                $('.market_select_item', rows[i].elm).prop('checked', true);
                 count += 1;
             }
         }
@@ -137,20 +137,20 @@ export function initializeMarketUI() {
     });
 
     $('.select_twentyfive_from_page').on('click', '*', function () {
-        const selectionGroup = $(this).parent().parent().parent().parent();
-        const marketList = getListFromContainer(selectionGroup);
+        const selection = selectionFor(this);
 
-        if (marketList == null) {
+        if (selection == null) {
             return;
         }
 
+        const { rows } = selection;
         let count = 0;
-        for (let i = 0; i < marketList.matchingItems.length; i++) {
+        for (let i = 0; i < rows.length; i++) {
             if (count == 25) {
                 break;
             }
-            if (!$('.market_select_item', marketList.matchingItems[i].elm).prop('checked')) {
-                $('.market_select_item', marketList.matchingItems[i].elm).prop('checked', true);
+            if (!$('.market_select_item', rows[i].elm).prop('checked')) {
+                $('.market_select_item', rows[i].elm).prop('checked', true);
                 count += 1;
             }
         }
@@ -159,20 +159,20 @@ export function initializeMarketUI() {
     });
 
     $('.select_overpriced').on('click', '*', function () {
-        const selectionGroup = $(this).parent().parent().parent().parent();
-        const marketList = getListFromContainer(selectionGroup);
+        const selection = selectionFor(this);
 
-        if (marketList == null) {
+        if (selection == null) {
             return;
         }
 
-        for (let i = 0; i < marketList.matchingItems.length; i++) {
-            if ($(marketList.matchingItems[i].elm).hasClass(VERDICT_OVERPRICED)) {
-                $('.market_select_item', marketList.matchingItems[i].elm).prop('checked', true);
+        const { rows, group } = selection;
+        for (let i = 0; i < rows.length; i++) {
+            if ($(rows[i].elm).hasClass(VERDICT_OVERPRICED)) {
+                $('.market_select_item', rows[i].elm).prop('checked', true);
             }
         }
 
-        $('.market_listing_row', selectionGroup).each(function () {
+        $('.market_listing_row', group).each(function () {
             if ($(this).hasClass(VERDICT_OVERPRICED)) {
                 $('.market_select_item', $(this)).prop('checked', true);
             }
@@ -182,18 +182,16 @@ export function initializeMarketUI() {
     });
 
     $('.remove_selected').on('click', '*', function () {
-        const selectionGroup = $(this).parent().parent().parent().parent();
-        const marketList = getListFromContainer(selectionGroup);
+        const selection = selectionFor(this);
 
-        if (marketList == null) {
+        if (selection == null) {
             return;
         }
 
-        for (let i = 0; i < marketList.matchingItems.length; i++) {
-            if ($('.market_select_item', $(marketList.matchingItems[i].elm)).prop('checked')) {
-                const listingid = replaceNonNumbers(
-                    marketList.matchingItems[i].values().market_listing_item_name,
-                );
+        const { rows } = selection;
+        for (let i = 0; i < rows.length; i++) {
+            if ($('.market_select_item', $(rows[i].elm)).prop('checked')) {
+                const listingid = replaceNonNumbers(rows[i].values().market_listing_item_name);
 
                 const listing = getListingFromLists(listingid);
                 if (listing == null) {
@@ -218,39 +216,32 @@ export function initializeMarketUI() {
             return;
         }
 
-        const selectionGroup = $(this).parent().parent().parent().parent();
-        const marketList = getListFromContainer(selectionGroup);
+        const selection = selectionFor(this);
 
-        if (marketList == null) {
+        if (selection == null) {
             return;
         }
 
-        for (let i = 0; i < marketList.matchingItems.length; i++) {
-            if ($(marketList.matchingItems[i].elm).hasClass(VERDICT_OVERPRICED)) {
-                const listingid = replaceNonNumbers(
-                    marketList.matchingItems[i].values().market_listing_item_name,
-                );
+        const { rows } = selection;
+        for (let i = 0; i < rows.length; i++) {
+            if ($(rows[i].elm).hasClass(VERDICT_OVERPRICED)) {
+                const listingid = replaceNonNumbers(rows[i].values().market_listing_item_name);
                 queueOverpricedItemListing(listingid);
             }
         }
     });
 
     $('.relist_selected').on('click', '*', function () {
-        const selectionGroup = $(this).parent().parent().parent().parent();
-        const marketList = getListFromContainer(selectionGroup);
+        const selection = selectionFor(this);
 
-        if (marketList == null) {
+        if (selection == null) {
             return;
         }
 
-        for (let i = 0; i < marketList.matchingItems.length; i++) {
-            if (
-                $(marketList.matchingItems[i].elm) &&
-                $('.market_select_item', $(marketList.matchingItems[i].elm)).prop('checked')
-            ) {
-                const listingid = replaceNonNumbers(
-                    marketList.matchingItems[i].values().market_listing_item_name,
-                );
+        const { rows } = selection;
+        for (let i = 0; i < rows.length; i++) {
+            if ($(rows[i].elm) && $('.market_select_item', $(rows[i].elm)).prop('checked')) {
+                const listingid = replaceNonNumbers(rows[i].values().market_listing_item_name);
                 queueOverpricedItemListing(listingid);
             }
         }

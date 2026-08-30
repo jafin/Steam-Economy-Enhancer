@@ -1070,6 +1070,22 @@
 			price: getPriceValueAsInt((0, jquery.default)(".market_listing_price", listing.elm)[0].innerText)
 		};
 	}
+	function marketSectionFor(target) {
+		return (0, jquery.default)(target).closest(".market_listing_buttons").parent().parent();
+	}
+	function selectionFor(target) {
+		const group = marketSectionFor(target);
+		const list = getListFromContainer(group);
+		if (list == null) return null;
+		return {
+			list,
+			rows: list.matchingItems,
+			group
+		};
+	}
+	function tableHeaderSectionFor(target) {
+		return (0, jquery.default)(target).parent().parent();
+	}
 	var marketRelistQueuedListings = new Set();
 	var marketOverpricedButtonsQueued = false;
 	function refreshMarketOverpricedButtons() {
@@ -1169,13 +1185,13 @@
 	function updateMarketOverpricedButtons() {
 		const isRelisting = marketProgress.relistTotal > 0;
 		(0, jquery.default)(".market_listing_buttons").each(function() {
-			const selectionGroup = (0, jquery.default)(this).parent().parent();
-			const marketList = getListFromContainer(selectionGroup);
-			if (marketList == null) return;
-			const count = marketList.matchingItems.filter((item) => (0, jquery.default)(item.elm).hasClass(VERDICT_OVERPRICED)).length;
-			(0, jquery.default)(".relist_overpriced > span", selectionGroup).text(isRelisting ? `Relisting ${marketProgress.relistDone}/${marketProgress.relistTotal}` : `Relist overpriced (${count})`);
-			(0, jquery.default)(".relist_overpriced", selectionGroup).toggleClass("see_button_busy", isRelisting);
-			(0, jquery.default)(".select_overpriced > span", selectionGroup).text(`Select overpriced (${count})`);
+			const selection = selectionFor(this);
+			if (selection == null) return;
+			const { rows, group } = selection;
+			const count = rows.filter((item) => (0, jquery.default)(item.elm).hasClass(VERDICT_OVERPRICED)).length;
+			(0, jquery.default)(".relist_overpriced > span", group).text(isRelisting ? `Relisting ${marketProgress.relistDone}/${marketProgress.relistTotal}` : `Relist overpriced (${count})`);
+			(0, jquery.default)(".relist_overpriced", group).toggleClass("see_button_busy", isRelisting);
+			(0, jquery.default)(".select_overpriced > span", group).text(`Select overpriced (${count})`);
 		});
 	}
 	var marketProgress = {
@@ -1419,10 +1435,10 @@
 	}
 	function updateMarketSelectAllButton() {
 		(0, jquery.default)(".market_listing_buttons").each(function() {
-			const selectionGroup = (0, jquery.default)(this).parent().parent();
-			let invert = (0, jquery.default)(".market_select_item:checked", selectionGroup).length == (0, jquery.default)(".market_select_item", selectionGroup).length;
-			if ((0, jquery.default)(".market_select_item", selectionGroup).length == 0) invert = false;
-			(0, jquery.default)(".select_all > span", selectionGroup).text(invert ? "Deselect all" : "Select all");
+			const group = marketSectionFor(this);
+			let invert = (0, jquery.default)(".market_select_item:checked", group).length == (0, jquery.default)(".market_select_item", group).length;
+			if ((0, jquery.default)(".market_select_item", group).length == 0) invert = false;
+			(0, jquery.default)(".select_all > span", group).text(invert ? "Deselect all" : "Select all");
 		});
 	}
 	function initializeMarketUI() {
@@ -1462,60 +1478,61 @@
     </div>`);
 		(0, jquery.default)(".market_listing_table_header").on("click", "span", function() {
 			if ((0, jquery.default)(this).hasClass("market_listing_edit_buttons") || (0, jquery.default)(this).hasClass("item_market_action_button_contents")) return;
-			const isPrice = (0, jquery.default)(".market_listing_table_header", (0, jquery.default)(this).parent().parent()).children().eq(1).text() == (0, jquery.default)(this).text();
-			const isDate = (0, jquery.default)(".market_listing_table_header", (0, jquery.default)(this).parent().parent()).children().eq(2).text() == (0, jquery.default)(this).text();
-			const isName = (0, jquery.default)(".market_listing_table_header", (0, jquery.default)(this).parent().parent()).children().eq(3).text() == (0, jquery.default)(this).text();
-			sortMarketListings((0, jquery.default)(this).parent().parent(), isPrice, isDate, isName);
+			const section = tableHeaderSectionFor(this);
+			sortMarketListings(section, (0, jquery.default)(".market_listing_table_header", section).children().eq(1).text() == (0, jquery.default)(this).text(), (0, jquery.default)(".market_listing_table_header", section).children().eq(2).text() == (0, jquery.default)(this).text(), (0, jquery.default)(".market_listing_table_header", section).children().eq(3).text() == (0, jquery.default)(this).text());
 		});
 		(0, jquery.default)(".select_all").on("click", "*", function() {
-			const selectionGroup = (0, jquery.default)(this).parent().parent().parent().parent();
-			const marketList = getListFromContainer(selectionGroup);
-			if (marketList == null) return;
-			const invert = (0, jquery.default)(".market_select_item:checked", selectionGroup).length == (0, jquery.default)(".market_select_item", selectionGroup).length;
-			for (let i = 0; i < marketList.matchingItems.length; i++) (0, jquery.default)(".market_select_item", marketList.matchingItems[i].elm).prop("checked", !invert);
+			const selection = selectionFor(this);
+			if (selection == null) return;
+			const { rows, group } = selection;
+			const invert = (0, jquery.default)(".market_select_item:checked", group).length == (0, jquery.default)(".market_select_item", group).length;
+			for (let i = 0; i < rows.length; i++) (0, jquery.default)(".market_select_item", rows[i].elm).prop("checked", !invert);
 			updateMarketSelectAllButton();
 		});
 		(0, jquery.default)(".select_five_from_page").on("click", "*", function() {
-			const marketList = getListFromContainer((0, jquery.default)(this).parent().parent().parent().parent());
-			if (marketList == null) return;
+			const selection = selectionFor(this);
+			if (selection == null) return;
+			const { rows } = selection;
 			let count = 0;
-			for (let i = 0; i < marketList.matchingItems.length; i++) {
+			for (let i = 0; i < rows.length; i++) {
 				if (count == 5) break;
-				if (!(0, jquery.default)(".market_select_item", marketList.matchingItems[i].elm).prop("checked")) {
-					(0, jquery.default)(".market_select_item", marketList.matchingItems[i].elm).prop("checked", true);
+				if (!(0, jquery.default)(".market_select_item", rows[i].elm).prop("checked")) {
+					(0, jquery.default)(".market_select_item", rows[i].elm).prop("checked", true);
 					count += 1;
 				}
 			}
 			updateMarketSelectAllButton();
 		});
 		(0, jquery.default)(".select_twentyfive_from_page").on("click", "*", function() {
-			const marketList = getListFromContainer((0, jquery.default)(this).parent().parent().parent().parent());
-			if (marketList == null) return;
+			const selection = selectionFor(this);
+			if (selection == null) return;
+			const { rows } = selection;
 			let count = 0;
-			for (let i = 0; i < marketList.matchingItems.length; i++) {
+			for (let i = 0; i < rows.length; i++) {
 				if (count == 25) break;
-				if (!(0, jquery.default)(".market_select_item", marketList.matchingItems[i].elm).prop("checked")) {
-					(0, jquery.default)(".market_select_item", marketList.matchingItems[i].elm).prop("checked", true);
+				if (!(0, jquery.default)(".market_select_item", rows[i].elm).prop("checked")) {
+					(0, jquery.default)(".market_select_item", rows[i].elm).prop("checked", true);
 					count += 1;
 				}
 			}
 			updateMarketSelectAllButton();
 		});
 		(0, jquery.default)(".select_overpriced").on("click", "*", function() {
-			const selectionGroup = (0, jquery.default)(this).parent().parent().parent().parent();
-			const marketList = getListFromContainer(selectionGroup);
-			if (marketList == null) return;
-			for (let i = 0; i < marketList.matchingItems.length; i++) if ((0, jquery.default)(marketList.matchingItems[i].elm).hasClass("overpriced")) (0, jquery.default)(".market_select_item", marketList.matchingItems[i].elm).prop("checked", true);
-			(0, jquery.default)(".market_listing_row", selectionGroup).each(function() {
+			const selection = selectionFor(this);
+			if (selection == null) return;
+			const { rows, group } = selection;
+			for (let i = 0; i < rows.length; i++) if ((0, jquery.default)(rows[i].elm).hasClass("overpriced")) (0, jquery.default)(".market_select_item", rows[i].elm).prop("checked", true);
+			(0, jquery.default)(".market_listing_row", group).each(function() {
 				if ((0, jquery.default)(this).hasClass("overpriced")) (0, jquery.default)(".market_select_item", (0, jquery.default)(this)).prop("checked", true);
 			});
 			updateMarketSelectAllButton();
 		});
 		(0, jquery.default)(".remove_selected").on("click", "*", function() {
-			const marketList = getListFromContainer((0, jquery.default)(this).parent().parent().parent().parent());
-			if (marketList == null) return;
-			for (let i = 0; i < marketList.matchingItems.length; i++) if ((0, jquery.default)(".market_select_item", (0, jquery.default)(marketList.matchingItems[i].elm)).prop("checked")) {
-				const listingid = replaceNonNumbers(marketList.matchingItems[i].values().market_listing_item_name);
+			const selection = selectionFor(this);
+			if (selection == null) return;
+			const { rows } = selection;
+			for (let i = 0; i < rows.length; i++) if ((0, jquery.default)(".market_select_item", (0, jquery.default)(rows[i].elm)).prop("checked")) {
+				const listingid = replaceNonNumbers(rows[i].values().market_listing_item_name);
 				const listing = getListingFromLists(listingid);
 				if (listing == null) continue;
 				(0, jquery.default)(listing.elm).addClass("removing");
@@ -1528,14 +1545,16 @@
 		});
 		(0, jquery.default)(".relist_overpriced").on("click", "*", function() {
 			if ((0, jquery.default)(this).closest(".relist_overpriced").hasClass("see_button_busy")) return;
-			const marketList = getListFromContainer((0, jquery.default)(this).parent().parent().parent().parent());
-			if (marketList == null) return;
-			for (let i = 0; i < marketList.matchingItems.length; i++) if ((0, jquery.default)(marketList.matchingItems[i].elm).hasClass("overpriced")) queueOverpricedItemListing(replaceNonNumbers(marketList.matchingItems[i].values().market_listing_item_name));
+			const selection = selectionFor(this);
+			if (selection == null) return;
+			const { rows } = selection;
+			for (let i = 0; i < rows.length; i++) if ((0, jquery.default)(rows[i].elm).hasClass("overpriced")) queueOverpricedItemListing(replaceNonNumbers(rows[i].values().market_listing_item_name));
 		});
 		(0, jquery.default)(".relist_selected").on("click", "*", function() {
-			const marketList = getListFromContainer((0, jquery.default)(this).parent().parent().parent().parent());
-			if (marketList == null) return;
-			for (let i = 0; i < marketList.matchingItems.length; i++) if ((0, jquery.default)(marketList.matchingItems[i].elm) && (0, jquery.default)(".market_select_item", (0, jquery.default)(marketList.matchingItems[i].elm)).prop("checked")) queueOverpricedItemListing(replaceNonNumbers(marketList.matchingItems[i].values().market_listing_item_name));
+			const selection = selectionFor(this);
+			if (selection == null) return;
+			const { rows } = selection;
+			for (let i = 0; i < rows.length; i++) if ((0, jquery.default)(rows[i].elm) && (0, jquery.default)(".market_select_item", (0, jquery.default)(rows[i].elm)).prop("checked")) queueOverpricedItemListing(replaceNonNumbers(rows[i].values().market_listing_item_name));
 		});
 		(0, jquery.default)("#see_settings").remove();
 		(0, jquery.default)("#global_action_menu").prepend("<span id=\"see_settings\"><a href=\"javascript:void(0)\">⬖ Steam Economy Enhancer</a></span>");
