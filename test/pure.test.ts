@@ -1,6 +1,21 @@
 import { test } from 'vitest';
 import assert from 'node:assert';
-import * as see from '../src/main.ts';
+import {
+    CalculateAmountToSendForDesiredReceivedAmount,
+    CalculateFeeAmount,
+    clamp,
+    priceBeforeFees,
+    priceIncludingFees,
+} from '../src/pricing/fees.ts';
+import { getNumberOfDigits, padLeftZero, replaceNonNumbers } from '../src/util/numbers.ts';
+import { isRetryMessage } from '../src/net/request.ts';
+import {
+    getIsCrate,
+    getIsFoilTradingCard,
+    getIsTradingCard,
+    getMarketHashName,
+} from '../src/items/index.ts';
+import { buildOrderBook } from '../src/steam/market.ts';
 
 // A wallet shaped like the one Steam puts on the page. `wallet_fee` is the flag the fee
 // maths checks first; without it every fee is zero.
@@ -14,55 +29,55 @@ const wallet = {
 };
 
 test('clamp keeps a value inside its bounds', () => {
-    assert.strictEqual(see.clamp(5, 1, 10), 5);
-    assert.strictEqual(see.clamp(0, 1, 10), 1);
-    assert.strictEqual(see.clamp(50, 1, 10), 10);
+    assert.strictEqual(clamp(5, 1, 10), 5);
+    assert.strictEqual(clamp(0, 1, 10), 1);
+    assert.strictEqual(clamp(50, 1, 10), 10);
 });
 
 test('getNumberOfDigits counts digits', () => {
-    assert.strictEqual(see.getNumberOfDigits(1), 1);
-    assert.strictEqual(see.getNumberOfDigits(10), 2);
-    assert.strictEqual(see.getNumberOfDigits(1000), 4);
+    assert.strictEqual(getNumberOfDigits(1), 1);
+    assert.strictEqual(getNumberOfDigits(10), 2);
+    assert.strictEqual(getNumberOfDigits(1000), 4);
 });
 
 test('padLeftZero pads up to a width and never truncates', () => {
-    assert.strictEqual(see.padLeftZero(7, 3), '007');
-    assert.strictEqual(see.padLeftZero(1234, 3), '1234');
+    assert.strictEqual(padLeftZero(7, 3), '007');
+    assert.strictEqual(padLeftZero(1234, 3), '1234');
 });
 
 test('replaceNonNumbers pulls the listing id out of a DOM id', () => {
-    assert.strictEqual(see.replaceNonNumbers('mylisting_123_name'), '123');
-    assert.strictEqual(see.replaceNonNumbers('no digits here'), '');
+    assert.strictEqual(replaceNonNumbers('mylisting_123_name'), '123');
+    assert.strictEqual(replaceNonNumbers('no digits here'), '');
 });
 
 test('isRetryMessage recognises only the three known Steam messages', () => {
     assert.strictEqual(
-        see.isRetryMessage('You cannot sell any items until your previous action completes.'),
+        isRetryMessage('You cannot sell any items until your previous action completes.'),
         true,
     );
-    assert.strictEqual(see.isRetryMessage('Some other failure'), false);
+    assert.strictEqual(isRetryMessage('Some other failure'), false);
 });
 
 test('getMarketHashName prefers the nested description over the flat item', () => {
     assert.strictEqual(
-        see.getMarketHashName({
+        getMarketHashName({
             market_hash_name: 'flat',
             description: { market_hash_name: 'nested' },
         }),
         'nested',
     );
-    assert.strictEqual(see.getMarketHashName({ market_hash_name: 'flat' }), 'flat');
-    assert.strictEqual(see.getMarketHashName({ name: 'only a name' }), 'only a name');
-    assert.strictEqual(see.getMarketHashName(null), null);
+    assert.strictEqual(getMarketHashName({ market_hash_name: 'flat' }), 'flat');
+    assert.strictEqual(getMarketHashName({ name: 'only a name' }), 'only a name');
+    assert.strictEqual(getMarketHashName(null), null);
 });
 
 test('buildOrderBook rejects an unsuccessful response', () => {
-    assert.strictEqual(see.buildOrderBook(null), null);
-    assert.strictEqual(see.buildOrderBook({ success: false }), null);
+    assert.strictEqual(buildOrderBook(null), null);
+    assert.strictEqual(buildOrderBook({ success: false }), null);
 });
 
 test('buildOrderBook pairs the compact orders into price and quantity', () => {
-    const book: any = see.buildOrderBook({
+    const book: any = buildOrderBook({
         success: true,
         data: {
             amtMaxBuyOrder: '12',
@@ -82,7 +97,7 @@ test('buildOrderBook pairs the compact orders into price and quantity', () => {
 });
 
 test('CalculateFeeAmount splits a price into steam and publisher fees', () => {
-    const fee: any = see.CalculateFeeAmount(1000, 0.1, wallet, false);
+    const fee: any = CalculateFeeAmount(1000, 0.1, wallet, false);
 
     assert.strictEqual(fee.amount, 1000);
     assert.strictEqual(fee.steam_fee, 43);
@@ -91,7 +106,7 @@ test('CalculateFeeAmount splits a price into steam and publisher fees', () => {
 });
 
 test('CalculateAmountToSendForDesiredReceivedAmount floors the fee by default', () => {
-    const sent = see.CalculateAmountToSendForDesiredReceivedAmount(87, 0.1, wallet, false);
+    const sent = CalculateAmountToSendForDesiredReceivedAmount(87, 0.1, wallet, false);
 
     assert.strictEqual(sent.amount, 99);
     assert.strictEqual(sent.fees, 12);
@@ -102,8 +117,8 @@ test('CalculateAmountToSendForDesiredReceivedAmount rounds instead of floors whe
     // the round branch could never be reached from a test. It is a parameter now: the eleven
     // currencies Steam rounds for (JPY, KRW, ...) are exercised the same way any other rule
     // input is, by passing the value in.
-    const floored = see.CalculateAmountToSendForDesiredReceivedAmount(87, 0.1, wallet, false);
-    const rounded = see.CalculateAmountToSendForDesiredReceivedAmount(87, 0.1, wallet, true);
+    const floored = CalculateAmountToSendForDesiredReceivedAmount(87, 0.1, wallet, false);
+    const rounded = CalculateAmountToSendForDesiredReceivedAmount(87, 0.1, wallet, true);
 
     assert.strictEqual(floored.amount, 99);
     assert.strictEqual(
@@ -126,8 +141,8 @@ test('priceBeforeFees and priceIncludingFees answer from `rules` alone', () => {
         wallet_publisher_fee_percent_default: 0.05,
     };
 
-    const before = see.priceBeforeFees(1000, null, { walletInfo: otherWallet, useRound: true });
-    const after = see.priceIncludingFees(before, null, { walletInfo: otherWallet, useRound: true });
+    const before = priceBeforeFees(1000, null, { walletInfo: otherWallet, useRound: true });
+    const after = priceIncludingFees(before, null, { walletInfo: otherWallet, useRound: true });
 
     assert.ok(before < 1000, 'fees were taken out');
     // CalculateFeeAmount's own comment admits it: "we could be off a cent or two". Not an
@@ -139,8 +154,8 @@ test('priceBeforeFees prefers an item-specific fee over the wallet default', () 
     const rules = { walletInfo: wallet, useRound: false };
     const item = { market_fee: 0 };
 
-    const withDefaultFee = see.priceBeforeFees(1000, null, rules);
-    const withItemFee = see.priceBeforeFees(1000, item, rules);
+    const withDefaultFee = priceBeforeFees(1000, null, rules);
+    const withItemFee = priceBeforeFees(1000, item, rules);
 
     assert.ok(withItemFee > withDefaultFee, 'a zero publisher fee takes less out of the price');
 });
@@ -155,20 +170,20 @@ test('getIsTradingCard detects a card by its item_class tag', () => {
         ],
     };
 
-    assert.strictEqual(see.getIsTradingCard(card), true);
-    assert.strictEqual(see.getIsTradingCard(null), false);
-    assert.strictEqual(see.getIsTradingCard({ name: 'not a card' }), false);
+    assert.strictEqual(getIsTradingCard(card), true);
+    assert.strictEqual(getIsTradingCard(null), false);
+    assert.strictEqual(getIsTradingCard({ name: 'not a card' }), false);
 });
 
 test('getIsTradingCard falls back to the gamecards link and the type string', () => {
     assert.strictEqual(
-        see.getIsTradingCard({
+        getIsTradingCard({
             owner_actions: [{ link: 'http://steamcommunity.com/my/gamecards/503820/' }],
         }),
         true,
     );
 
-    assert.strictEqual(see.getIsTradingCard({ type: 'Portal 2 Trading Card' }), true);
+    assert.strictEqual(getIsTradingCard({ type: 'Portal 2 Trading Card' }), true);
 });
 
 test('getIsFoilTradingCard separates foil cards from ordinary ones', () => {
@@ -181,9 +196,9 @@ test('getIsFoilTradingCard separates foil cards from ordinary ones', () => {
         ],
     };
 
-    assert.strictEqual(see.getIsFoilTradingCard(plain), false);
-    assert.strictEqual(see.getIsFoilTradingCard({ type: 'Portal 2 Foil Trading Card' }), true);
-    assert.strictEqual(see.getIsFoilTradingCard(null), false);
+    assert.strictEqual(getIsFoilTradingCard(plain), false);
+    assert.strictEqual(getIsFoilTradingCard({ type: 'Portal 2 Foil Trading Card' }), true);
+    assert.strictEqual(getIsFoilTradingCard(null), false);
 });
 
 //
@@ -195,17 +210,17 @@ test('getIsFoilTradingCard separates foil cards from ordinary ones', () => {
 test('CHARACTERISATION: a wallet with no wallet_fee produces fee-free prices', () => {
     // A logged-out or wallet-less run silently prices items with no fees at all rather
     // than refusing. Owner: not yet assigned.
-    assert.deepStrictEqual(see.CalculateFeeAmount(100, 0.1, null), { fees: 0 });
-    assert.deepStrictEqual(see.CalculateFeeAmount(100, 0.1, {}), { fees: 0 });
+    assert.deepStrictEqual(CalculateFeeAmount(100, 0.1, null), { fees: 0 });
+    assert.deepStrictEqual(CalculateFeeAmount(100, 0.1, {}), { fees: 0 });
 });
 
 test('getIsCrate returns a boolean on every path', () => {
     // It used to fall off the end and return undefined for every non-crate item, because
     // it had no terminal `return false`. Only a null item yielded an actual boolean.
-    assert.strictEqual(see.getIsCrate(null), false);
-    assert.strictEqual(see.getIsCrate({ name: 'no tags at all' }), false);
+    assert.strictEqual(getIsCrate(null), false);
+    assert.strictEqual(getIsCrate({ name: 'no tags at all' }), false);
     assert.strictEqual(
-        see.getIsCrate({
+        getIsCrate({
             tags: [
                 {
                     category: 'Type',
@@ -217,7 +232,7 @@ test('getIsCrate returns a boolean on every path', () => {
     );
 
     assert.strictEqual(
-        see.getIsCrate({
+        getIsCrate({
             tags: [
                 {
                     category: 'Type',

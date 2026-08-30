@@ -1,6 +1,11 @@
 import { test, afterEach, vi } from 'vitest';
 import assert from 'node:assert';
-import * as see from '../src/main.ts';
+import {
+    createFailureCounter,
+    nextQueueStep,
+    nextRetryDelay,
+    runQueue,
+} from '../src/queue/index.ts';
 
 afterEach(() => {
     vi.useRealTimers();
@@ -30,10 +35,10 @@ function assertWithin(value: number, [min, max]: number[], what: string) {
 // no real clock.
 
 test('a success schedules the default short delay and resets the failure count', () => {
-    const failures = see.createFailureCounter();
-    see.nextRetryDelay(failures); // one prior failure, so a bare reset would be visible
+    const failures = createFailureCounter();
+    nextRetryDelay(failures); // one prior failure, so a bare reset would be visible
 
-    const step = see.nextQueueStep(true, false, failures, false, {});
+    const step = nextQueueStep(true, false, failures, false, {});
 
     assertWithin(step.delay, SHORT, 'success delay');
     assert.strictEqual(step.retry, false);
@@ -43,10 +48,10 @@ test('a success schedules the default short delay and resets the failure count',
 test('a cached success has no delay and does not touch the failure count', () => {
     // A cached answer never reached Steam, so it says nothing about the connection either
     // way - see the comment on the item and inventory-price queues this replaces.
-    const failures = see.createFailureCounter();
-    see.nextRetryDelay(failures);
+    const failures = createFailureCounter();
+    nextRetryDelay(failures);
 
-    const step = see.nextQueueStep(true, true, failures, false, {});
+    const step = nextQueueStep(true, true, failures, false, {});
 
     assert.strictEqual(step.delay, 0);
     assert.strictEqual(step.retry, false);
@@ -54,31 +59,31 @@ test('a cached success has no delay and does not touch the failure count', () =>
 });
 
 test('successDelayMs can be a fixed number, for queues with no jitter', () => {
-    const failures = see.createFailureCounter();
+    const failures = createFailureCounter();
 
-    const step = see.nextQueueStep(true, false, failures, false, { successDelayMs: 250 });
+    const step = nextQueueStep(true, false, failures, false, { successDelayMs: 250 });
 
     assert.strictEqual(step.delay, 250);
 });
 
 test('successDelayMs can be a function, for queues with jitter', () => {
-    const failures = see.createFailureCounter();
+    const failures = createFailureCounter();
     let calls = 0;
     const successDelayMs = () => {
         calls += 1;
         return 42;
     };
 
-    const step = see.nextQueueStep(true, false, failures, false, { successDelayMs });
+    const step = nextQueueStep(true, false, failures, false, { successDelayMs });
 
     assert.strictEqual(step.delay, 42);
     assert.strictEqual(calls, 1);
 });
 
 test('a failure backs off through the shared escalating counter and does not retry by default', () => {
-    const failures = see.createFailureCounter();
+    const failures = createFailureCounter();
 
-    const step = see.nextQueueStep(false, false, failures, false, {});
+    const step = nextQueueStep(false, false, failures, false, {});
 
     assertWithin(step.delay, SHORT, 'first failure');
     assert.strictEqual(step.retry, false);
@@ -86,35 +91,35 @@ test('a failure backs off through the shared escalating counter and does not ret
 });
 
 test('a cached failure has no delay and does not advance the failure count', () => {
-    const failures = see.createFailureCounter();
+    const failures = createFailureCounter();
 
-    const step = see.nextQueueStep(false, true, failures, false, {});
+    const step = nextQueueStep(false, true, failures, false, {});
 
     assert.strictEqual(step.delay, 0);
     assert.strictEqual(failures.failures, 0, 'never reached Steam, so it is not a real failure');
 });
 
 test('retryOnFailure asks for one more try, forcing ignoreErrors, the first time a task fails', () => {
-    const failures = see.createFailureCounter();
+    const failures = createFailureCounter();
 
-    const step = see.nextQueueStep(false, false, failures, false, { retryOnFailure: true });
+    const step = nextQueueStep(false, false, failures, false, { retryOnFailure: true });
 
     assert.strictEqual(step.retry, true);
 });
 
 test('retryOnFailure does not ask for a second retry - a task only gets one', () => {
-    const failures = see.createFailureCounter();
+    const failures = createFailureCounter();
 
-    const step = see.nextQueueStep(false, false, failures, true, { retryOnFailure: true });
+    const step = nextQueueStep(false, false, failures, true, { retryOnFailure: true });
 
     assert.strictEqual(step.retry, false);
 });
 
 test('a second failure in a row still backs off hard even with retryOnFailure set', () => {
-    const failures = see.createFailureCounter();
+    const failures = createFailureCounter();
 
-    see.nextQueueStep(false, false, failures, false, { retryOnFailure: true });
-    const second = see.nextQueueStep(false, false, failures, true, { retryOnFailure: true });
+    nextQueueStep(false, false, failures, false, { retryOnFailure: true });
+    const second = nextQueueStep(false, false, failures, true, { retryOnFailure: true });
 
     assertWithin(second.delay, LONG, 'second failure in a row');
 });
@@ -128,7 +133,7 @@ test('onTaskDone reports a task once, when it succeeds first time', async () => 
     const done: any[] = [];
     const worker = (_task: any, _ignoreErrors: boolean, cb: any) => cb(true);
 
-    const queue = see.runQueue(worker, {
+    const queue = runQueue(worker, {
         successDelayMs: 0,
         onTaskDone: (task: any, success: boolean) => done.push([task.id, success]),
     });
@@ -157,7 +162,7 @@ test('onTaskDone reports a retried task once, not once per attempt', async () =>
         cb(attempts > 1);
     };
 
-    const queue = see.runQueue(worker, {
+    const queue = runQueue(worker, {
         retryOnFailure: true,
         successDelayMs: 0,
         onTaskDone: (task: any, success: boolean) => done.push([task.id, success]),
@@ -176,7 +181,7 @@ test('onTaskDone reports a task that fails and is not retried', async () => {
     const done: any[] = [];
     const worker = (_task: any, _ignoreErrors: boolean, cb: any) => cb(false);
 
-    const queue = see.runQueue(worker, {
+    const queue = runQueue(worker, {
         onTaskDone: (task: any, success: boolean) => done.push([task.id, success]),
     });
 
@@ -195,7 +200,7 @@ test('a retry goes to the back of the queue by default', async () => {
         cb(ignoreErrors || task.id !== 'a');
     };
 
-    const queue = see.runQueue(worker, { retryOnFailure: true, successDelayMs: 0 });
+    const queue = runQueue(worker, { retryOnFailure: true, successDelayMs: 0 });
 
     queue.push({ id: 'a' });
     queue.push({ id: 'b' });
@@ -216,7 +221,7 @@ test("retryPlacement 'front' puts the retry ahead of work already queued", async
         cb(ignoreErrors || task.id !== 'a');
     };
 
-    const queue = see.runQueue(worker, {
+    const queue = runQueue(worker, {
         retryOnFailure: true,
         successDelayMs: 0,
         retryPlacement: 'front',
@@ -237,7 +242,7 @@ test('runQueue returns a queue-shaped object without touching the network', () =
         );
     };
 
-    const queue = see.runQueue(worker, {});
+    const queue = runQueue(worker, {});
 
     assert.strictEqual(typeof queue.push, 'function');
     assert.strictEqual(typeof queue.drain, 'function');

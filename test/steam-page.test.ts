@@ -1,44 +1,44 @@
 import { test } from 'vitest';
 import assert from 'node:assert';
-import * as see from '../src/main.ts';
+import { createSteamPage } from '../src/steam/page.ts';
 
 // createSteamPage(win) is the live adapter over Steam's own globals. These tests build it
 // against a small fake `win` rather than unsafeWindow, so they exercise the same lookup and
 // fallback logic a real page goes through without needing a browser.
 
 test('isLoggedIn is true from a wallet, even with g_bLoggedIn absent', () => {
-    const page = see.createSteamPage({ g_rgWalletInfo: { wallet_currency: 3 } });
+    const page = createSteamPage({ g_rgWalletInfo: { wallet_currency: 3 } });
 
     assert.strictEqual(page.isLoggedIn(), true);
 });
 
 test('isLoggedIn falls back to g_bLoggedIn when there is no wallet', () => {
-    const page = see.createSteamPage({ g_bLoggedIn: true });
+    const page = createSteamPage({ g_bLoggedIn: true });
 
     assert.strictEqual(page.isLoggedIn(), true);
 });
 
 test('isLoggedIn is false when neither is set', () => {
-    const page = see.createSteamPage({});
+    const page = createSteamPage({});
 
     assert.strictEqual(page.isLoggedIn(), false);
 });
 
 test('countryCode is undefined rather than throwing when Steam has not set it', () => {
-    const page = see.createSteamPage({});
+    const page = createSteamPage({});
 
     assert.strictEqual(page.countryCode(), undefined);
 });
 
 test('assetFor answers null instead of throwing through a missing appid or contextid', () => {
-    const page = see.createSteamPage({ g_rgAssets: {} });
+    const page = createSteamPage({ g_rgAssets: {} });
 
     assert.strictEqual(page.assetFor('730', '2', '123'), undefined);
 });
 
 test('firstAsset finds the one asset g_rgAssets holds on a market listing page', () => {
     const asset = { id: '123', appid: 730 };
-    const page = see.createSteamPage({
+    const page = createSteamPage({
         g_rgAssets: {
             730: {
                 2: {
@@ -52,7 +52,7 @@ test('firstAsset finds the one asset g_rgAssets holds on a market listing page',
 });
 
 test('firstAsset answers null rather than throwing when g_rgAssets is empty', () => {
-    const page = see.createSteamPage({ g_rgAssets: {} });
+    const page = createSteamPage({ g_rgAssets: {} });
 
     assert.strictEqual(page.firstAsset(), null);
 });
@@ -60,7 +60,7 @@ test('firstAsset answers null rather than throwing when g_rgAssets is empty', ()
 test('setAsset writes into g_rgAssets at the given path', () => {
     const asset = { id: '999' };
     const win: any = { g_rgAssets: { 730: { 2: {} } } };
-    const page = see.createSteamPage(win);
+    const page = createSteamPage(win);
 
     page.setAsset('730', '2', '999', asset);
 
@@ -78,7 +78,7 @@ test("onInventorySelectItem calls Steam's own handler, then the given one, and c
             },
         },
     };
-    const page = see.createSteamPage(win);
+    const page = createSteamPage(win);
     const originalSelectItem = win.CInventory.prototype.SelectItem;
 
     const teardown = page.onInventorySelectItem((rgItem: any) => calls.push(['handler', rgItem]));
@@ -98,7 +98,7 @@ test("onInventorySelectItem calls Steam's own handler, then the given one, and c
 });
 
 test('onInventorySelectItem is a harmless no-op when CInventory never loaded', () => {
-    const page = see.createSteamPage({});
+    const page = createSteamPage({});
 
     const teardown = page.onInventorySelectItem(() => {
         throw new Error('must not be called');
@@ -112,7 +112,7 @@ test('tradeAssets and findTradeAsset read the right side of the trade', () => {
     const themAssets = [{ appid: 2 }];
     const foundByYou = { name: 'mine' };
     const foundByThem = { name: 'theirs' };
-    const page = see.createSteamPage({
+    const page = createSteamPage({
         g_rgCurrentTradeStatus: {
             me: { assets: meAssets },
             them: { assets: themAssets },

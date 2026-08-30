@@ -1,6 +1,6 @@
 import { test, beforeEach } from 'vitest';
 import assert from 'node:assert';
-import * as see from '../src/main.ts';
+import { createSteamPage, pickSellListingsHeader } from '../src/steam/page.ts';
 
 // The live adapter against real markup.
 //
@@ -36,7 +36,7 @@ beforeEach(() => {
 test('PR #334 shape in real markup: the confirmations header does not steal the buttons', () => {
     render(section('header-confirmations', false), section('header-sell-listings', true));
 
-    const header = see.createSteamPage({}).sellListingsHeader();
+    const header = createSteamPage({}).sellListingsHeader();
 
     assert.strictEqual(
         header.attr('id'),
@@ -48,16 +48,13 @@ test('PR #334 shape in real markup: the confirmations header does not steal the 
 test('with only the sell listings section present, that header is chosen', () => {
     render(section('header-sell-listings', true));
 
-    assert.strictEqual(
-        see.createSteamPage({}).sellListingsHeader().attr('id'),
-        'header-sell-listings',
-    );
+    assert.strictEqual(createSteamPage({}).sellListingsHeader().attr('id'), 'header-sell-listings');
 });
 
 test('when no section holds the sell listings table, the first header is used rather than none', () => {
     render(section('header-confirmations', false), section('header-buyorders', false));
 
-    const header = see.createSteamPage({}).sellListingsHeader();
+    const header = createSteamPage({}).sellListingsHeader();
 
     assert.strictEqual(header.attr('id'), 'header-confirmations');
     assert.strictEqual(header.length, 1, 'exactly one header, never an empty set');
@@ -86,7 +83,7 @@ function renderInventory(...pages: string[]): void {
 test('selectedAssetIds reads the ui-selected class back off the DOM', () => {
     renderInventory(inventoryPage(itemHolder('111', { selected: true }) + itemHolder('222')));
 
-    assert.deepStrictEqual(see.createSteamPage({}).selectedAssetIds(), ['111']);
+    assert.deepStrictEqual(createSteamPage({}).selectedAssetIds(), ['111']);
 });
 
 test('selectedAssetIds skips a selected item Steam has hidden while searching', () => {
@@ -97,7 +94,7 @@ test('selectedAssetIds skips a selected item Steam has hidden while searching', 
         ),
     );
 
-    assert.deepStrictEqual(see.createSteamPage({}).selectedAssetIds(), ['111']);
+    assert.deepStrictEqual(createSteamPage({}).selectedAssetIds(), ['111']);
 });
 
 test('selectedAssetIds does not filter by the page itself being hidden -- only the item holder', () => {
@@ -110,7 +107,7 @@ test('selectedAssetIds does not filter by the page itself being hidden -- only t
         inventoryPage(itemHolder('222', { selected: true }), { hidden: true }),
     );
 
-    assert.deepStrictEqual(see.createSteamPage({}).selectedAssetIds(), ['111', '222']);
+    assert.deepStrictEqual(createSteamPage({}).selectedAssetIds(), ['111', '222']);
 });
 
 // itemInfoPanel / itemOwnerActions. ui.ts used to reach for these directly --
@@ -196,8 +193,8 @@ test('real markup and the fixture agree on which header wins', () => {
 
     render(...sections.map((s) => section(s.id, s.hasSellListingsTable)));
 
-    const fromMarkup = see.createSteamPage({}).sellListingsHeader().attr('id');
-    const fromFixture = see.pickSellListingsHeader(
+    const fromMarkup = createSteamPage({}).sellListingsHeader().attr('id');
+    const fromFixture = pickSellListingsHeader(
         sections.filter((s) => s.hasSellListingsTable).map((s) => s.id),
         sections.map((s) => s.id),
     );
