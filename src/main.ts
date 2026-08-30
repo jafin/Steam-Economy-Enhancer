@@ -16,8 +16,8 @@ import {
     marketListingsQueue,
     onMarketListingsItemsDrained,
 } from './market/listings.ts';
-import { resetMarketRelistProgress } from './market/progress.ts';
-import { marketOverpricedQueue, refreshMarketOverpricedButtons } from './market/relist.ts';
+import { onMarketListingsQueueDrained, onMarketOverpricedQueueDrained } from './market/progress.ts';
+import { marketOverpricedQueue } from './market/relist.ts';
 import { initializeMarketUI } from './market/ui.ts';
 import { initializeTradeOfferUI } from './tradeoffer/ui.ts';
 import { boosterQueue } from './inventory/boosters.ts';
@@ -151,30 +151,8 @@ itemQueue.drain(() => {
 
 //#endregion
 
-// Automatic relisting feeds this queue while the pricing pass is still finding
-// overpriced listings, so it drains every time it happens to catch up with the pass.
-// Clearing the progress there restarts the count from zero halfway through the run,
-// so the queue that finishes last is the one that clears it.
-marketOverpricedQueue.drain(() => {
-    if (!marketListingsQueue.idle()) {
-        refreshMarketOverpricedButtons();
-
-        return;
-    }
-
-    resetMarketRelistProgress();
-});
-
-// The other half of the same rule: the pricing pass can finish after the last relist
-// it queued is already done, and then nothing else is left to clear the progress.
-marketListingsQueue.drain(() => {
-    if (!marketOverpricedQueue.idle()) {
-        return;
-    }
-
-    resetMarketRelistProgress();
-});
-
+marketOverpricedQueue.drain(onMarketOverpricedQueueDrained);
+marketListingsQueue.drain(onMarketListingsQueueDrained);
 marketListingsItemsQueue.drain(onMarketListingsItemsDrained);
 
 //#endregion

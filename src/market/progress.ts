@@ -4,7 +4,12 @@
 // progress bar. The counters are reset only once nothing is queueing relists any more, not
 // per queue -- see resetMarketRelistProgress.
 
-import { marketRelistQueuedListings, refreshMarketOverpricedButtons } from './relist.ts';
+import { marketListingsQueue } from './listings.ts';
+import {
+    marketOverpricedQueue,
+    marketRelistQueuedListings,
+    refreshMarketOverpricedButtons,
+} from './relist.ts';
 
 /**
  * Progress of the current relist run.
@@ -98,4 +103,28 @@ export function resetMarketRelistProgress() {
     marketRelistQueuedListings.clear();
 
     refreshMarketOverpricedButtons();
+}
+
+// Automatic relisting feeds marketOverpricedQueue while the pricing pass is still finding
+// overpriced listings, so it drains every time it happens to catch up with the pass.
+// Clearing the progress there restarts the count from zero halfway through the run,
+// so the queue that finishes last is the one that clears it.
+export function onMarketOverpricedQueueDrained(): void {
+    if (!marketListingsQueue.idle()) {
+        refreshMarketOverpricedButtons();
+
+        return;
+    }
+
+    resetMarketRelistProgress();
+}
+
+// The other half of the same rule: the pricing pass can finish after the last relist
+// it queued is already done, and then nothing else is left to clear the progress.
+export function onMarketListingsQueueDrained(): void {
+    if (!marketOverpricedQueue.idle()) {
+        return;
+    }
+
+    resetMarketRelistProgress();
 }
