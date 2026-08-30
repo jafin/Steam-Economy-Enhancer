@@ -1,17 +1,19 @@
 import { test } from 'vitest';
 import assert from 'node:assert';
-import * as see from '../src/main.ts';
+import {
+    flattenItem,
+    isItemQueued,
+    markItemQueued,
+    readInventoryItems,
+} from '../src/items/index.ts';
 
 // readInventoryItems is the one reader getInventoryItems (the inventory page) and
 // getTradeOfferInventoryItems (the trade offer page) both call now, parameterised by the two
 // property names Steam spells the same shape with on each page.
 
 test('a missing active inventory answers an empty array, not a throw', () => {
-    assert.deepStrictEqual(see.readInventoryItems(null, 'm_rgChildInventories', 'm_rgAssets'), []);
-    assert.deepStrictEqual(
-        see.readInventoryItems(undefined, 'rgChildInventories', 'rgInventory'),
-        [],
-    );
+    assert.deepStrictEqual(readInventoryItems(null, 'm_rgChildInventories', 'm_rgAssets'), []);
+    assert.deepStrictEqual(readInventoryItems(undefined, 'rgChildInventories', 'rgInventory'), []);
 });
 
 test("flattens items out of child inventories, merging each one's own description", () => {
@@ -28,7 +30,7 @@ test("flattens items out of child inventories, merging each one's own descriptio
         },
     };
 
-    const items = see.readInventoryItems(activeInventory, 'm_rgChildInventories', 'm_rgAssets');
+    const items = readInventoryItems(activeInventory, 'm_rgChildInventories', 'm_rgAssets');
 
     assert.strictEqual(items.length, 1);
     assert.strictEqual(items[0].name, 'Gems', 'the description was merged onto the item');
@@ -48,7 +50,7 @@ test('falls back to the top-level assets when there are no child inventories', (
         },
     };
 
-    const items = see.readInventoryItems(activeInventory, 'm_rgChildInventories', 'm_rgAssets');
+    const items = readInventoryItems(activeInventory, 'm_rgChildInventories', 'm_rgAssets');
 
     assert.strictEqual(items.length, 1);
     assert.strictEqual(items[0].name, 'Only item');
@@ -68,7 +70,7 @@ test('collects both child-inventory items and top-level items together', () => {
         },
     };
 
-    const items = see.readInventoryItems(activeInventory, 'm_rgChildInventories', 'm_rgAssets');
+    const items = readInventoryItems(activeInventory, 'm_rgChildInventories', 'm_rgAssets');
     const names = items.map((item) => item.name).sort();
 
     assert.deepStrictEqual(names, ['From a child inventory', 'From the top level']);
@@ -84,7 +86,7 @@ test('skips entries that are not objects', () => {
         },
     };
 
-    const items = see.readInventoryItems(activeInventory, 'm_rgChildInventories', 'm_rgAssets');
+    const items = readInventoryItems(activeInventory, 'm_rgChildInventories', 'm_rgAssets');
 
     assert.strictEqual(items.length, 1);
     assert.strictEqual(items[0].name, 'A real item');
@@ -101,7 +103,7 @@ test("the same reader works for the trade offer page's different property names"
         },
     };
 
-    const items = see.readInventoryItems(activeInventory, 'rgChildInventories', 'rgInventory');
+    const items = readInventoryItems(activeInventory, 'rgChildInventories', 'rgInventory');
 
     assert.strictEqual(items.length, 1);
     assert.strictEqual(items[0].name, 'Trade offer item');
@@ -117,7 +119,7 @@ test("does not mutate Steam's own inventory objects", () => {
         m_rgAssets: { 123: steamOwnedItem },
     };
 
-    const items = see.readInventoryItems(activeInventory, 'm_rgChildInventories', 'm_rgAssets');
+    const items = readInventoryItems(activeInventory, 'm_rgChildInventories', 'm_rgAssets');
 
     assert.notStrictEqual(items[0], steamOwnedItem, 'a new object, not the same reference');
     assert.strictEqual(steamOwnedItem.name, undefined, "Steam's own item was never touched");
@@ -128,7 +130,7 @@ test("does not mutate Steam's own inventory objects", () => {
 test('flattenItem merges the description onto a new object without touching the source', () => {
     const source: any = { appid: 730, description: { name: 'Gems', tags: [] } };
 
-    const item = see.flattenItem(source, '123');
+    const item = flattenItem(source, '123');
 
     assert.notStrictEqual(item, source);
     assert.strictEqual(item.name, 'Gems');
@@ -143,23 +145,23 @@ test('isItemQueued/markItemQueued track a queued item by asset key across separa
     // call, so a second "sell all"/"turn into gems" pass moments later gets a different
     // object for the same physical item and cannot see a `.queued` flag stamped on the
     // first one. This is where that flag lives instead.
-    const first = see.flattenItem({ appid: 730, contextid: 2, description: {} }, '123');
-    const second = see.flattenItem({ appid: 730, contextid: 2, description: {} }, '123');
+    const first = flattenItem({ appid: 730, contextid: 2, description: {} }, '123');
+    const second = flattenItem({ appid: 730, contextid: 2, description: {} }, '123');
 
-    assert.strictEqual(see.isItemQueued(first), false);
+    assert.strictEqual(isItemQueued(first), false);
 
-    see.markItemQueued(first);
+    markItemQueued(first);
 
-    assert.strictEqual(see.isItemQueued(first), true);
-    assert.strictEqual(see.isItemQueued(second), true, 'the same asset key, a different object');
+    assert.strictEqual(isItemQueued(first), true);
+    assert.strictEqual(isItemQueued(second), true, 'the same asset key, a different object');
 });
 
 test('isItemQueued does not confuse two different items', () => {
-    const itemA = see.flattenItem({ appid: 730, contextid: 2, description: {} }, '1');
-    const itemB = see.flattenItem({ appid: 730, contextid: 2, description: {} }, '2');
+    const itemA = flattenItem({ appid: 730, contextid: 2, description: {} }, '1');
+    const itemB = flattenItem({ appid: 730, contextid: 2, description: {} }, '2');
 
-    see.markItemQueued(itemA);
+    markItemQueued(itemA);
 
-    assert.strictEqual(see.isItemQueued(itemA), true);
-    assert.strictEqual(see.isItemQueued(itemB), false);
+    assert.strictEqual(isItemQueued(itemA), true);
+    assert.strictEqual(isItemQueued(itemB), false);
 });

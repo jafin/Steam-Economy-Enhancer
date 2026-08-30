@@ -1,6 +1,7 @@
 import { test } from 'vitest';
 import assert from 'node:assert';
-import * as see from '../src/main.ts';
+import { ROW_STATUS_COLORS } from '../src/constants.ts';
+import { markRow } from '../src/ui/index.ts';
 
 // markRow replaces nine identical `$('#'+appid+'_'+contextid+'_'+itemId).css('background',
 // COLOR_X)` sites with one status name per call. The DOM write itself is not asserted here -
@@ -9,20 +10,20 @@ import * as see from '../src/main.ts';
 // status the nine call sites use resolves to the same colour they used to write by hand.
 
 test('every row status the queues use resolves to a colour', () => {
-    assert.strictEqual(typeof see.ROW_STATUS_COLORS.notChecked, 'string');
-    assert.strictEqual(typeof see.ROW_STATUS_COLORS.pending, 'string');
-    assert.strictEqual(typeof see.ROW_STATUS_COLORS.success, 'string');
-    assert.strictEqual(typeof see.ROW_STATUS_COLORS.error, 'string');
+    assert.strictEqual(typeof ROW_STATUS_COLORS.notChecked, 'string');
+    assert.strictEqual(typeof ROW_STATUS_COLORS.pending, 'string');
+    assert.strictEqual(typeof ROW_STATUS_COLORS.success, 'string');
+    assert.strictEqual(typeof ROW_STATUS_COLORS.error, 'string');
 });
 
 test('the four statuses resolve to four different colours', () => {
-    const colors = new Set(Object.values(see.ROW_STATUS_COLORS));
+    const colors = new Set(Object.values(ROW_STATUS_COLORS));
 
     assert.strictEqual(colors.size, 4, 'a status only means one thing if no two share a colour');
 });
 
 test('markRow does not throw for any of the statuses the queues use', () => {
-    for (const status of Object.keys(see.ROW_STATUS_COLORS)) {
-        assert.doesNotThrow(() => see.markRow('730_2_12345', status));
+    for (const status of Object.keys(ROW_STATUS_COLORS)) {
+        assert.doesNotThrow(() => markRow('730_2_12345', status));
     }
 });
