@@ -12,6 +12,29 @@ import { SETTING_TRADEOFFER_PRICE_LABELS, getSetting } from '../settings/index.t
 import { steamPage } from '../steam/instance.ts';
 import { aggregateTradeOfferAssets } from './totals.ts';
 import $ from 'jquery';
+
+// Installed here because appendSelectPageButton below is $.fn.delayedEach's only caller.
+// See src/jquery-plugins.d.ts for the type declaration.
+$.fn.delayedEach = function (timeout, callback, continuous) {
+    const $els = this;
+    const iterator = function (index) {
+        if (index >= $els.length) {
+            if (!continuous) {
+                return;
+            }
+            index = 0;
+        }
+
+        const cur = $els[index];
+        callback.call(cur, index, cur);
+
+        setTimeout(() => {
+            iterator(++index);
+        }, timeout);
+    };
+
+    iterator(0);
+};
 //#region Tradeoffers
 // --- Page-scoped code, hoisted to module scope (see the note above) ---
 // Original guard: currentPage == PAGE_TRADEOFFER

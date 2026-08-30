@@ -241,26 +241,6 @@ $(document).ready(() => {
     }
 });
 
-$.fn.delayedEach = function (timeout, callback, continuous) {
-    const $els = this;
-    const iterator = function (index) {
-        if (index >= $els.length) {
-            if (!continuous) {
-                return;
-            }
-            index = 0;
-        }
-
-        const cur = $els[index];
-        callback.call(cur, index, cur);
-
-        setTimeout(() => {
-            iterator(++index);
-        }, timeout);
-    };
-
-    iterator(0);
-};
 //#endregion
 
 //#region Exports
