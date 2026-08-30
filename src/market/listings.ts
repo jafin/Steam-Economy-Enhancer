@@ -6,7 +6,6 @@
 
 import {
     COLOR_PRICE_NOT_CHECKED,
-    ERROR_SUCCESS,
     PAGE_MARKET,
     VERDICT_COLORS,
     VERDICT_MESSAGES,
@@ -20,6 +19,7 @@ import {
     formatPrice,
     formatPriceDelta,
 } from '../pricing/algorithms.ts';
+import { fetchPricingInputs } from '../pricing/inputs.ts';
 import { runQueue } from '../queue/index.ts';
 import {
     SETTING_PRICE_MIN_CHECK_PRICE,
@@ -196,28 +196,12 @@ export function marketListingsQueueWorker(listing, ignoreErrors, callback) {
         },
     };
 
-    let failed = 0;
-
-    market.getPriceHistory(item, true, (errorPriceHistory, history, cachedHistory) => {
-        if (errorPriceHistory) {
-            logConsole(`Failed to get price history for ${game_name}`);
-
-            if (errorPriceHistory != ERROR_SUCCESS) {
-                failed += 1;
-            }
-        }
-
-        market.getOrderBook(item, true, (errorOrderBook, orderbook, cachedListings) => {
-            if (errorOrderBook) {
-                logConsole(`Failed to get order book for ${game_name}`);
-
-                if (errorOrderBook != ERROR_SUCCESS) {
-                    failed += 1;
-                }
-            }
-
+    fetchPricingInputs(
+        item,
+        { history: true, name: game_name },
+        ({ history, orderbook, failed, cached }) => {
             if (failed > 0 && !ignoreErrors) {
-                return callback(false, cachedHistory && cachedListings);
+                return callback(false, cached);
             }
 
             // Shows the highest buy order price on the market listings.
@@ -323,9 +307,9 @@ export function marketListingsQueueWorker(listing, ignoreErrors, callback) {
                 queueOverpricedItemListing(listing.listingid);
             }
 
-            return callback(true, cachedHistory && cachedListings);
-        });
-    });
+            return callback(true, cached);
+        },
+    );
 }
 
 // A plain paging walk over the listings page, not a retrying queue -- a failed page is not

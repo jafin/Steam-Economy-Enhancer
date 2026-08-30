@@ -23,7 +23,7 @@
 // @grant        unsafeWindow
 // ==/UserScript==
 
-(function(jquery, async, localforage, luxon, list_js) {
+(function(jquery, localforage, async, luxon, list_js) {
 	"use strict";
 	var __create = Object.create;
 	var __defProp = Object.defineProperty;
@@ -46,8 +46,8 @@
 		enumerable: true
 	}) : target, mod));
 	jquery = __toESM(jquery);
-	async = __toESM(async);
 	localforage = __toESM(localforage);
+	async = __toESM(async);
 	luxon = __toESM(luxon);
 	list_js = __toESM(list_js);
 	var COLOR_ERROR = "#8A4243";
@@ -652,62 +652,6 @@
 		}
 		return calculatedPrice;
 	}
-	function getRandomInt(min, max) {
-		return Math.floor(Math.random() * (max - min + 1)) + min;
-	}
-	function getNumberOfDigits(x) {
-		return (Math.log10((x ^ x >> 31) - (x >> 31)) | 0) + 1;
-	}
-	function padLeftZero(str, max) {
-		str = str.toString();
-		return str.length < max ? padLeftZero(`0${str}`, max) : str;
-	}
-	function replaceNonNumbers(str) {
-		return str.replace(/\D/g, "");
-	}
-	function createFailureCounter() {
-		return { failures: 0 };
-	}
-	function resetRetryDelay(counter) {
-		counter.failures = 0;
-	}
-	function nextRetryDelay(counter) {
-		counter.failures += 1;
-		const delay = counter.failures > 1 ? getRandomInt(RETRY_DELAY_LONG_MIN, RETRY_DELAY_LONG_MAX) : getRandomInt(RETRY_DELAY_SHORT_MIN, RETRY_DELAY_SHORT_MAX);
-		if (counter.failures > 3) counter.failures = 0;
-		return delay;
-	}
-	function nextQueueStep(success, cached, failures, alreadyRetried, options = {}) {
-		if (success) {
-			if (!cached) resetRetryDelay(failures);
-			const configured = options.successDelayMs ?? (() => getRandomInt(1e3, 1500));
-			const delay = typeof configured === "function" ? configured() : configured;
-			return {
-				delay: cached ? 0 : delay,
-				retry: false
-			};
-		}
-		const retry = (options.retryOnFailure ?? false) && !alreadyRetried;
-		return {
-			delay: cached ? 0 : nextRetryDelay(failures),
-			retry
-		};
-	}
-	function runQueue(worker, options = {}) {
-		const failures = createFailureCounter();
-		const queue = async.default.queue((task, next) => {
-			worker(task, task.ignoreErrors === true, (success, cached) => {
-				const step = nextQueueStep(success, cached, failures, task.ignoreErrors === true, options);
-				if (step.retry) {
-					task.ignoreErrors = true;
-					if (options.retryPlacement === "front") queue.unshift(task);
-					else queue.push(task);
-				} else options.onTaskDone?.(task, success);
-				setTimeout(() => next(), step.delay);
-			});
-		}, options.concurrency ?? 1);
-		return queue;
-	}
 	function readCookie(name) {
 		const nameEQ = `${name}=`;
 		const ca = document.cookie.split(";");
@@ -987,6 +931,90 @@
 			useRound
 		});
 	};
+	function fetchPricingInputs(item, opts, callback) {
+		let failed = 0;
+		const withOrderBook = (history, cachedHistory) => {
+			market.getOrderBook(item, true, (err, orderbook, cachedListings) => {
+				if (err) {
+					`${opts.name}`;
+					failed += 1;
+				}
+				callback({
+					history,
+					orderbook,
+					failed,
+					cached: cachedHistory && cachedListings
+				});
+			});
+		};
+		if (!opts.history) {
+			withOrderBook(null, true);
+			return;
+		}
+		market.getPriceHistory(item, true, (err, history, cachedHistory) => {
+			if (err) {
+				`${opts.name}`;
+				failed += 1;
+			}
+			withOrderBook(history, cachedHistory);
+		});
+	}
+	function getRandomInt(min, max) {
+		return Math.floor(Math.random() * (max - min + 1)) + min;
+	}
+	function getNumberOfDigits(x) {
+		return (Math.log10((x ^ x >> 31) - (x >> 31)) | 0) + 1;
+	}
+	function padLeftZero(str, max) {
+		str = str.toString();
+		return str.length < max ? padLeftZero(`0${str}`, max) : str;
+	}
+	function replaceNonNumbers(str) {
+		return str.replace(/\D/g, "");
+	}
+	function createFailureCounter() {
+		return { failures: 0 };
+	}
+	function resetRetryDelay(counter) {
+		counter.failures = 0;
+	}
+	function nextRetryDelay(counter) {
+		counter.failures += 1;
+		const delay = counter.failures > 1 ? getRandomInt(RETRY_DELAY_LONG_MIN, RETRY_DELAY_LONG_MAX) : getRandomInt(RETRY_DELAY_SHORT_MIN, RETRY_DELAY_SHORT_MAX);
+		if (counter.failures > 3) counter.failures = 0;
+		return delay;
+	}
+	function nextQueueStep(success, cached, failures, alreadyRetried, options = {}) {
+		if (success) {
+			if (!cached) resetRetryDelay(failures);
+			const configured = options.successDelayMs ?? (() => getRandomInt(1e3, 1500));
+			const delay = typeof configured === "function" ? configured() : configured;
+			return {
+				delay: cached ? 0 : delay,
+				retry: false
+			};
+		}
+		const retry = (options.retryOnFailure ?? false) && !alreadyRetried;
+		return {
+			delay: cached ? 0 : nextRetryDelay(failures),
+			retry
+		};
+	}
+	function runQueue(worker, options = {}) {
+		const failures = createFailureCounter();
+		const queue = async.default.queue((task, next) => {
+			worker(task, task.ignoreErrors === true, (success, cached) => {
+				const step = nextQueueStep(success, cached, failures, task.ignoreErrors === true, options);
+				if (step.retry) {
+					task.ignoreErrors = true;
+					if (options.retryPlacement === "front") queue.unshift(task);
+					else queue.push(task);
+				} else options.onTaskDone?.(task, success);
+				setTimeout(() => next(), step.delay);
+			});
+		}, options.concurrency ?? 1);
+		return queue;
+	}
 	function markRow(assetKey, status) {
 		(0, jquery.default)(`#${assetKey}`).css("background", ROW_STATUS_COLORS[status]);
 	}
@@ -1649,52 +1677,43 @@
 			listingUI.addClass("not_checked");
 			return callback(true, true);
 		}
-		const item = {
+		fetchPricingInputs({
 			appid: parseInt(appid),
 			description: { market_hash_name }
-		};
-		let failed = 0;
-		market.getPriceHistory(item, true, (errorPriceHistory, history, cachedHistory) => {
-			if (errorPriceHistory) {
-				`${game_name}`;
-				if (errorPriceHistory != null) failed += 1;
-			}
-			market.getOrderBook(item, true, (errorOrderBook, orderbook, cachedListings) => {
-				if (errorOrderBook) {
-					`${game_name}`;
-					if (errorOrderBook != null) failed += 1;
-				}
-				if (failed > 0 && !ignoreErrors) return callback(false, cachedHistory && cachedListings);
-				const highestBuyOrderPrice = orderbook == null || orderbook.highest_buy_order == null ? "-" : formatPrice(orderbook.highest_buy_order);
-				JSON.stringify(listing);
-				`${game_name}${asset.name}`;
-				price / 100;
-				const rules = createPricingRules(asset);
-				const sellPriceWithoutOffset = calculateSellPriceBeforeFees(history, orderbook, false, rules);
-				const sellPriceWithOffset = calculateSellPriceBeforeFees(history, orderbook, true, rules);
-				const sellPriceWithoutOffsetWithFees = market.getPriceIncludingFees(sellPriceWithoutOffset);
-				sellPriceWithoutOffsetWithFees / 100, sellPriceWithoutOffset / 100;
-				const verdict = getListingVerdict(sellPriceWithoutOffsetWithFees, price);
-				const priceDelta = getListingPriceDelta(sellPriceWithoutOffsetWithFees, price);
-				listingState.set(listing.listingid, {
-					sellPrice: sellPriceWithOffset,
-					verdict,
-					priceDelta
-				});
-				listingUI.addClass(verdict);
-				(0, jquery.default)(".market_listing_my_price", listingUI).last().prop("title", `The best price is ${formatPrice(sellPriceWithoutOffsetWithFees)}. Relisting would list at ${formatPrice(market.getPriceIncludingFees(sellPriceWithOffset))}.`);
-				const steamPrices = (0, jquery.default)(".market_listing_price > span:nth-child(1)", (0, jquery.default)(".market_listing_my_price", listingUI).last());
-				renderPriceCellGrid(listingUI, {
-					listed: (0, jquery.default)("span:nth-child(1)", steamPrices).text().trim(),
-					net: (0, jquery.default)("span:nth-child(3)", steamPrices).text().trim().replace(/[()]/g, ""),
-					buyOrder: highestBuyOrderPrice,
-					delta: formatPriceDelta(priceDelta)
-				});
-				(0, jquery.default)(".market_listing_my_price", listingUI).last().css("background", VERDICT_COLORS[verdict]);
-				VERDICT_MESSAGES[verdict];
-				if (verdict == "overpriced" && getSetting("SETTING_RELIST_AUTOMATICALLY") == 1) queueOverpricedItemListing(listing.listingid);
-				return callback(true, cachedHistory && cachedListings);
+		}, {
+			history: true,
+			name: game_name
+		}, ({ history, orderbook, failed, cached }) => {
+			if (failed > 0 && !ignoreErrors) return callback(false, cached);
+			const highestBuyOrderPrice = orderbook == null || orderbook.highest_buy_order == null ? "-" : formatPrice(orderbook.highest_buy_order);
+			JSON.stringify(listing);
+			`${game_name}${asset.name}`;
+			price / 100;
+			const rules = createPricingRules(asset);
+			const sellPriceWithoutOffset = calculateSellPriceBeforeFees(history, orderbook, false, rules);
+			const sellPriceWithOffset = calculateSellPriceBeforeFees(history, orderbook, true, rules);
+			const sellPriceWithoutOffsetWithFees = market.getPriceIncludingFees(sellPriceWithoutOffset);
+			sellPriceWithoutOffsetWithFees / 100, sellPriceWithoutOffset / 100;
+			const verdict = getListingVerdict(sellPriceWithoutOffsetWithFees, price);
+			const priceDelta = getListingPriceDelta(sellPriceWithoutOffsetWithFees, price);
+			listingState.set(listing.listingid, {
+				sellPrice: sellPriceWithOffset,
+				verdict,
+				priceDelta
 			});
+			listingUI.addClass(verdict);
+			(0, jquery.default)(".market_listing_my_price", listingUI).last().prop("title", `The best price is ${formatPrice(sellPriceWithoutOffsetWithFees)}. Relisting would list at ${formatPrice(market.getPriceIncludingFees(sellPriceWithOffset))}.`);
+			const steamPrices = (0, jquery.default)(".market_listing_price > span:nth-child(1)", (0, jquery.default)(".market_listing_my_price", listingUI).last());
+			renderPriceCellGrid(listingUI, {
+				listed: (0, jquery.default)("span:nth-child(1)", steamPrices).text().trim(),
+				net: (0, jquery.default)("span:nth-child(3)", steamPrices).text().trim().replace(/[()]/g, ""),
+				buyOrder: highestBuyOrderPrice,
+				delta: formatPriceDelta(priceDelta)
+			});
+			(0, jquery.default)(".market_listing_my_price", listingUI).last().css("background", VERDICT_COLORS[verdict]);
+			VERDICT_MESSAGES[verdict];
+			if (verdict == "overpriced" && getSetting("SETTING_RELIST_AUTOMATICALLY") == 1) queueOverpricedItemListing(listing.listingid);
+			return callback(true, cached);
 		});
 	}
 	var marketListingsItemsQueue = runQueue(marketListingsItemsQueueWorker, { onTaskDone: () => workDone() });
@@ -1875,14 +1894,11 @@
 	}
 	var inventoryPriceQueue = runQueue(inventoryPriceQueueWorker, { retryOnFailure: true });
 	function inventoryPriceQueueWorker(item, ignoreErrors, callback) {
-		let failed = 0;
-		const itemName = item.name || item.description.name;
-		market.getOrderBook(item, true, (err, orderbook, cachedListings) => {
-			if (err) {
-				`${itemName}`;
-				if (err != null) failed += 1;
-			}
-			if (failed > 0 && !ignoreErrors) return callback(false, cachedListings);
+		fetchPricingInputs(item, {
+			history: false,
+			name: item.name || item.description.name
+		}, ({ orderbook, failed, cached }) => {
+			if (failed > 0 && !ignoreErrors) return callback(false, cached);
 			const sellPrice = calculateSellPriceBeforeFees(null, orderbook, false, {
 				...createPricingRules(),
 				minPriceBeforeFees: 0,
@@ -1895,7 +1911,7 @@
 			const element = (0, jquery.default)(elementName);
 			(0, jquery.default)(".inventory_item_price", element).remove();
 			element.append(`<span class="inventory_item_price">${itemPrice}</span>`);
-			return callback(true, cachedListings);
+			return callback(true, cached);
 		});
 	}
 	function aggregateTradeOfferAssets(assets, resolve) {
@@ -2322,27 +2338,18 @@
 	}
 	var itemQueue = runQueue(itemQueueWorker, { retryOnFailure: true });
 	function itemQueueWorker(item, ignoreErrors, callback) {
-		let failed = 0;
-		const itemName = item.name || item.description.name;
-		market.getPriceHistory(item, true, (err, history, cachedHistory) => {
-			if (err) {
-				`${itemName}`;
-				if (err != null) failed += 1;
-			}
-			market.getOrderBook(item, true, (err, orderbook, cachedListings) => {
-				if (err) {
-					`${itemName}`;
-					if (err != null) failed += 1;
-				}
-				if (failed > 0 && !ignoreErrors) return callback(false, cachedHistory && cachedListings);
-				const sellPrice = calculateSellPriceBeforeFees(history, orderbook, true, createPricingRules(item));
-				sellPrice / 100, market.getPriceIncludingFees(sellPrice) / 100;
-				sellQueue.push({
-					item,
-					sellPrice
-				});
-				return callback(true, cachedHistory && cachedListings);
+		fetchPricingInputs(item, {
+			history: true,
+			name: item.name || item.description.name
+		}, ({ history, orderbook, failed, cached }) => {
+			if (failed > 0 && !ignoreErrors) return callback(false, cached);
+			const sellPrice = calculateSellPriceBeforeFees(history, orderbook, true, createPricingRules(item));
+			sellPrice / 100, market.getPriceIncludingFees(sellPrice) / 100;
+			sellQueue.push({
+				item,
+				sellPrice
 			});
+			return callback(true, cached);
 		});
 	}
 	function onQueueDrain() {
@@ -3213,4 +3220,4 @@
 		};
 		iterator(0);
 	};
-})(jQuery, async, localforage, luxon, List);
+})(jQuery, localforage, async, luxon, List);

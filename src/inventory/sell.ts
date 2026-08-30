@@ -19,6 +19,7 @@ import {
     createPricingRules,
     formatPrice,
 } from '../pricing/algorithms.ts';
+import { fetchPricingInputs } from '../pricing/inputs.ts';
 import { QueueTask, runQueue } from '../queue/index.ts';
 import { SETTING_PRICE_MIN_LIST_PRICE, getSetting } from '../settings/index.ts';
 import { steamPage } from '../steam/instance.ts';
@@ -284,29 +285,14 @@ export function sellItems(items) {
 export const itemQueue = runQueue(itemQueueWorker, { retryOnFailure: true });
 
 export function itemQueueWorker(item, ignoreErrors, callback) {
-    let failed = 0;
     const itemName = item.name || item.description.name;
 
-    market.getPriceHistory(item, true, (err, history, cachedHistory) => {
-        if (err) {
-            logConsole(`Failed to get price history for ${itemName}`);
-
-            if (err != ERROR_SUCCESS) {
-                failed += 1;
-            }
-        }
-
-        market.getOrderBook(item, true, (err, orderbook, cachedListings) => {
-            if (err) {
-                logConsole(`Failed to get order book for ${itemName}`);
-
-                if (err != ERROR_SUCCESS) {
-                    failed += 1;
-                }
-            }
-
+    fetchPricingInputs(
+        item,
+        { history: true, name: itemName },
+        ({ history, orderbook, failed, cached }) => {
             if (failed > 0 && !ignoreErrors) {
-                return callback(false, cachedHistory && cachedListings);
+                return callback(false, cached);
             }
 
             logConsole('============================');
@@ -328,7 +314,7 @@ export function itemQueueWorker(item, ignoreErrors, callback) {
                 sellPrice: sellPrice,
             });
 
-            return callback(true, cachedHistory && cachedListings);
-        });
-    });
+            return callback(true, cached);
+        },
+    );
 }

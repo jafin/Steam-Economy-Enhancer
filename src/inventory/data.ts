@@ -6,7 +6,7 @@
 
 import $ from 'jquery';
 import { listingState } from '../market/listingState.ts';
-import { ERROR_SUCCESS, PAGE_TRADEOFFER } from '../constants.ts';
+import { PAGE_TRADEOFFER } from '../constants.ts';
 import { getAssetKey, readInventoryItems } from '../items/index.ts';
 import {
     NO_LISTING_PRICE_SENTINEL,
@@ -14,10 +14,10 @@ import {
     createPricingRules,
     formatPrice,
 } from '../pricing/algorithms.ts';
+import { fetchPricingInputs } from '../pricing/inputs.ts';
 import { runQueue } from '../queue/index.ts';
 import { currentPage, steamPage } from '../steam/instance.ts';
 import { market } from '../steam/market.ts';
-import { logConsole } from '../ui/logger.ts';
 // Loads all inventories.
 export async function loadAllInventories() {
     const main = getActiveInventory();
@@ -64,46 +64,44 @@ export function setInventoryPrices(items) {
 export const inventoryPriceQueue = runQueue(inventoryPriceQueueWorker, { retryOnFailure: true });
 
 export function inventoryPriceQueueWorker(item, ignoreErrors, callback) {
-    let failed = 0;
     const itemName = item.name || item.description.name;
 
     // Only get the market orders here, the history is not important to visualize the current prices.
-    market.getOrderBook(item, true, (err, orderbook, cachedListings) => {
-        if (err) {
-            logConsole(`Failed to get order book for ${itemName}`);
-
-            if (err != ERROR_SUCCESS) {
-                failed += 1;
+    fetchPricingInputs(
+        item,
+        { history: false, name: itemName },
+        ({ orderbook, failed, cached }) => {
+            if (failed > 0 && !ignoreErrors) {
+                return callback(false, cached);
             }
-        }
 
-        if (failed > 0 && !ignoreErrors) {
-            return callback(false, cachedListings);
-        }
+            // Nobody to undercut, so the bounds are overridden explicitly rather than taken from
+            // an item's settings-derived class: no minimum, and a ceiling that reads back as
+            // "unpriced" instead of a real price.
+            const sellPrice = calculateSellPriceBeforeFees(null, orderbook, false, {
+                ...createPricingRules(),
+                minPriceBeforeFees: 0,
+                maxPriceBeforeFees: NO_LISTING_PRICE_SENTINEL,
+            });
 
-        // Nobody to undercut, so the bounds are overridden explicitly rather than taken from
-        // an item's settings-derived class: no minimum, and a ceiling that reads back as
-        // "unpriced" instead of a real price.
-        const sellPrice = calculateSellPriceBeforeFees(null, orderbook, false, {
-            ...createPricingRules(),
-            minPriceBeforeFees: 0,
-            maxPriceBeforeFees: NO_LISTING_PRICE_SENTINEL,
-        });
+            // Nobody is selling this one, so there is no price to show and nothing to
+            // add to a trade offer total.
+            const priceWithFees =
+                sellPrice == NO_LISTING_PRICE_SENTINEL
+                    ? 0
+                    : market.getPriceIncludingFees(sellPrice);
+            const itemPrice =
+                sellPrice == NO_LISTING_PRICE_SENTINEL ? '∞' : formatPrice(priceWithFees);
 
-        // Nobody is selling this one, so there is no price to show and nothing to
-        // add to a trade offer total.
-        const priceWithFees =
-            sellPrice == NO_LISTING_PRICE_SENTINEL ? 0 : market.getPriceIncludingFees(sellPrice);
-        const itemPrice = sellPrice == NO_LISTING_PRICE_SENTINEL ? '∞' : formatPrice(priceWithFees);
+            listingState.set(getAssetKey(item), { sellPrice: priceWithFees });
 
-        listingState.set(getAssetKey(item), { sellPrice: priceWithFees });
+            const elementName = `${currentPage == PAGE_TRADEOFFER ? '#item' : '#'}${getAssetKey(item)}`;
+            const element = $(elementName);
 
-        const elementName = `${currentPage == PAGE_TRADEOFFER ? '#item' : '#'}${getAssetKey(item)}`;
-        const element = $(elementName);
+            $('.inventory_item_price', element).remove();
+            element.append(`<span class="inventory_item_price">${itemPrice}</span>`);
 
-        $('.inventory_item_price', element).remove();
-        element.append(`<span class="inventory_item_price">${itemPrice}</span>`);
-
-        return callback(true, cachedListings);
-    });
+            return callback(true, cached);
+        },
+    );
 }
