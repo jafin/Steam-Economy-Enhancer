@@ -56,56 +56,6 @@ import './vendor/jquery.checkboxes.js';
 
 $.noConflict(true);
 
-// Everything Steam's own page exposes, in one place. `unsafeWindow` global reach-ins used
-// to happen at ~44 sites across the whole file: this is what caused the bug fixed in
-// PR #334, where Steam changed which DOM element the sell listings' header actually was
-// and `$('.my_market_header').first()` silently grabbed the wrong one. Nothing failed;
-// the Relist/Select buttons just stopped appearing.
-//
-// createSteamPage(win) is the live adapter, built once from unsafeWindow at load time.
-// A second, fixture adapter (createFixtureSteamPage, in test/steam-page-fixture.js)
-// implements the same shape from data instead of a real page, so a change to the shape
-// this file expects Steam's page to have can be caught by a test rather than by a user
-// reporting silence. See test/steam-page.test.js.
-
-// transport is the one adapter this function needed to become testable: everything else
-// - the delay policy (getRequestDelay), the breaker policy (REQUEST_BREAKER_*,
-// stopRequests) - was already a plain value or a pure function, not something request()
-// held itself. transport is not: $.ajax is a real network call, so it is a parameter
-// instead, defaulting to $.ajax for every existing call site. A fake transport in tests
-// takes the same jQuery-ajax-shaped settings object and answers success/error/complete
-// itself, so request()'s own queueing, pending flag and breaker can be exercised with a
-// fake clock and no network - see test/request.test.js.
-
-//#endregion
-
-//#region Storage
-
-//#endregion
-
-//#endregion
-
-//#endregion
-
-// Whether an item has already been queued for an inventory action (sell, turn into
-// gems, unpack), kept by asset key instead of on the item itself. readInventoryItems
-// used to stamp `item.queued` directly onto Steam's own object, so a second pass over
-// the same inventory - the user clicking "Sell All" and "Turn Into Gems" moments apart -
-// saw the flag on the very same object and skipped it. readInventoryItems now returns a
-// new object every call, so that no longer works; this is where the flag lives instead.
-
-//#endregion
-
-//#endregion
-
-//#region Steam Market
-
-//#endregion
-
-//#region Steam Market / Inventory helpers
-
-//#endregion
-
 //#region Inventory
 // --- Page-scoped code, hoisted to module scope ------------------------------------------
 //
@@ -135,21 +85,9 @@ itemQueue.drain(onQueueDrain);
 
 //#endregion
 
-//#region Inventory + Tradeoffer
-// --- Page-scoped code, hoisted to module scope (see the note above) ---
-// Original guard: currentPage == PAGE_INVENTORY || currentPage == PAGE_TRADEOFFER
-
-//#endregion
-
 marketOverpricedQueue.drain(onMarketOverpricedQueueDrained);
 marketListingsQueue.drain(onMarketListingsQueueDrained);
 marketListingsItemsQueue.drain(onMarketListingsItemsDrained);
-
-//#endregion
-
-//#endregion
-
-//#endregion
 
 //#region UI
 injectCss(`

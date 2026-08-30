@@ -77,6 +77,14 @@ export function getRequestDelay(url, status, statusText) {
     return REQUEST_DELAY_DEFAULT;
 }
 
+// transport is the one adapter this function needed to become testable: everything else --
+// the delay policy (getRequestDelay), the breaker policy (REQUEST_BREAKER_*, stopRequests) --
+// was already a plain value or a pure function, not something request() held itself.
+// transport is not: $.ajax is a real network call, so it is a parameter instead, defaulting
+// to $.ajax for every existing call site. A fake transport in tests takes the same
+// jQuery-ajax-shaped settings object and answers success/error/complete itself, so request()'s
+// own queueing, pending flag and breaker can be exercised with a fake clock and no network --
+// see test/request.test.ts.
 export function request(
     url,
     options,

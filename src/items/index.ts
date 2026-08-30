@@ -7,8 +7,12 @@
 
 import { createListingState } from '../market/listingState.ts';
 
-// Which items a queue has already taken. Keyed by asset key, so an item is never queued
-// twice even when it appears in more than one selection.
+// Whether an item has already been queued for an inventory action (sell, turn into gems,
+// unpack), kept by asset key instead of on the item itself. readInventoryItems used to stamp
+// `item.queued` directly onto Steam's own object, so a second pass over the same inventory --
+// the user clicking "Sell All" and "Turn Into Gems" moments apart -- saw the flag on the very
+// same object and skipped it. readInventoryItems now returns a new object every call, so
+// that no longer works; this is where the flag lives instead.
 const itemQueueState = createListingState();
 
 // The key an inventory item's price is kept under. It is also the id Steam gives the
