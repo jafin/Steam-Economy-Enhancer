@@ -16,7 +16,7 @@ import { steamPage } from '../steam/instance.ts';
 import { market } from '../steam/market.ts';
 import { queued } from '../totals.ts';
 import { logConsole, logger, setUserScrolled } from '../ui/logger.ts';
-import { hasOwnerAction, selectedItemsWhere } from './actions.ts';
+import { hasOwnerAction } from './actions.ts';
 import { unpackAllBoosterPacks, unpackSelectedBoosterPacks } from './boosters.ts';
 import {
     getActiveInventory,
@@ -26,7 +26,7 @@ import {
 } from './data.ts';
 import { gemAllDuplicateItems, turnSelectedItemsIntoGems } from './gems.ts';
 import { delay } from './progress.ts';
-import { selectAllCards } from './selection.ts';
+import { getSelectedItems, selectAllCards } from './selection.ts';
 import {
     canSellSelectedItemsManually,
     sellAllCards,
@@ -145,76 +145,76 @@ export function initializeInventorySelection() {
     });
 }
 
-// Updates the (selected) sell ... items button.
-export function updateSellSelectedButton() {
-    selectedItemsWhere((item) => item.marketable).then((items) => {
-        const selectedItems = items.length;
-        if (items.length == 0) {
-            $('.sell_selected').hide();
+// Updates the (selected) sell ... items button, given the selected and marketable items.
+export function updateSellSelectedButton(items: any[]) {
+    const selectedItems = items.length;
+    if (items.length == 0) {
+        $('.sell_selected').hide();
+        $('.sell_manual').hide();
+    } else {
+        $('.sell_selected').show();
+        if (canSellSelectedItemsManually(items)) {
+            $('.sell_manual').show();
+            $('.sell_manual > span').text(
+                `Sell ${selectedItems}${selectedItems == 1 ? ' Item Manual' : ' Items Manual'}`,
+            );
+        } else {
             $('.sell_manual').hide();
-        } else {
-            $('.sell_selected').show();
-            if (canSellSelectedItemsManually(items)) {
-                $('.sell_manual').show();
-                $('.sell_manual > span').text(
-                    `Sell ${selectedItems}${selectedItems == 1 ? ' Item Manual' : ' Items Manual'}`,
-                );
-            } else {
-                $('.sell_manual').hide();
-            }
-            $('.sell_selected > span').text(
-                `Sell ${selectedItems}${selectedItems == 1 ? ' Item' : ' Items'}`,
-            );
         }
-    });
+        $('.sell_selected > span').text(
+            `Sell ${selectedItems}${selectedItems == 1 ? ' Item' : ' Items'}`,
+        );
+    }
 }
 
-// Updates the (selected) turn into ... gems button.
-//
-// Excludes queued items, same as the action itself (turnSelectedItemsIntoGems) already did --
-// otherwise the button can read a higher count than the click actually enqueues.
-export function updateTurnIntoGemsButton() {
-    const isGemmableAndUnqueued = (item) =>
-        !isItemQueued(item) && hasOwnerAction(item, 'GetGooValue');
-
-    selectedItemsWhere(isGemmableAndUnqueued).then((items) => {
-        const selectedItems = items.length;
-        if (items.length == 0) {
-            $('.turn_into_gems').hide();
-        } else {
-            $('.turn_into_gems').show();
-            $('.turn_into_gems > span').text(
-                `Turn ${selectedItems}${selectedItems == 1 ? ' Item Into Gems' : ' Items Into Gems'}`,
-            );
-        }
-    });
+// Updates the (selected) turn into ... gems button, given the selected, gem-able and
+// not-already-queued items -- excluding queued items matches what turnSelectedItemsIntoGems
+// already enqueues, so the label stays true to what a click does.
+export function updateTurnIntoGemsButton(items: any[]) {
+    const selectedItems = items.length;
+    if (items.length == 0) {
+        $('.turn_into_gems').hide();
+    } else {
+        $('.turn_into_gems').show();
+        $('.turn_into_gems > span').text(
+            `Turn ${selectedItems}${selectedItems == 1 ? ' Item Into Gems' : ' Items Into Gems'}`,
+        );
+    }
 }
 
-// Updates the (selected) open ... booster packs button.
-//
-// Excludes queued items, same as the action itself (unpackSelectedBoosterPacks) already did --
-// otherwise the button can read a higher count than the click actually enqueues.
-export function updateOpenBoosterPacksButton() {
-    const isBoosterAndUnqueued = (item) =>
-        !isItemQueued(item) && hasOwnerAction(item, 'OpenBooster');
-
-    selectedItemsWhere(isBoosterAndUnqueued).then((items) => {
-        const selectedItems = items.length;
-        if (items.length == 0) {
-            $('.unpack_selected_booster_packs').hide();
-        } else {
-            $('.unpack_selected_booster_packs').show();
-            $('.unpack_selected_booster_packs > span').text(
-                `Unpack ${selectedItems}${selectedItems == 1 ? ' Booster Pack' : ' Booster Packs'}`,
-            );
-        }
-    });
+// Updates the (selected) open ... booster packs button, given the selected, booster-pack and
+// not-already-queued items -- excluding queued items matches what unpackSelectedBoosterPacks
+// already enqueues, so the label stays true to what a click does.
+export function updateOpenBoosterPacksButton(items: any[]) {
+    const selectedItems = items.length;
+    if (items.length == 0) {
+        $('.unpack_selected_booster_packs').hide();
+    } else {
+        $('.unpack_selected_booster_packs').show();
+        $('.unpack_selected_booster_packs > span').text(
+            `Unpack ${selectedItems}${selectedItems == 1 ? ' Booster Pack' : ' Booster Packs'}`,
+        );
+    }
 }
 
+// One loadAllInventories() for all three buttons, where each used to await its own -- three
+// inventory walks per selection change.
 export function updateButtons() {
-    updateSellSelectedButton();
-    updateTurnIntoGemsButton();
-    updateOpenBoosterPacksButton();
+    const ids = getSelectedItems();
+
+    loadAllInventories().then(() => {
+        const selected = getInventoryItems().filter(
+            (item) => ids.indexOf(item.assetid || item.id) !== -1,
+        );
+
+        updateSellSelectedButton(selected.filter((item) => item.marketable));
+        updateTurnIntoGemsButton(
+            selected.filter((item) => !isItemQueued(item) && hasOwnerAction(item, 'GetGooValue')),
+        );
+        updateOpenBoosterPacksButton(
+            selected.filter((item) => !isItemQueued(item) && hasOwnerAction(item, 'OpenBooster')),
+        );
+    });
 }
 
 export async function updateInventorySelection(selectedItem) {

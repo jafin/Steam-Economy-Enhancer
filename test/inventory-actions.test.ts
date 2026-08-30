@@ -16,7 +16,7 @@ import $ from 'jquery';
 import { markItemQueued } from '../src/items/index.ts';
 import { hasOwnerAction } from '../src/inventory/actions.ts';
 import { turnSelectedItemsIntoGems } from '../src/inventory/gems.ts';
-import { updateTurnIntoGemsButton } from '../src/inventory/ui.ts';
+import { updateButtons } from '../src/inventory/ui.ts';
 import { endRun, runTotals } from '../src/totals.ts';
 
 test('hasOwnerAction is false when the item has no owner_actions at all', () => {
@@ -105,7 +105,7 @@ test('the gems button label and the actual enqueue count agree, even when an ite
     // One of the two selected items is already on a queue from an earlier action.
     markItemQueued({ appid: 730, contextid: 2, id: '501' });
 
-    updateTurnIntoGemsButton();
+    updateButtons();
     await flush();
 
     const labelCount = turnIntoGemsButtonCount();
