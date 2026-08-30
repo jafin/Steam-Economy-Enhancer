@@ -11,11 +11,12 @@
 // own attach-to-jQuery side effects below -- both have to happen at module-evaluation time,
 // see the comment above them. Everything else the userscript does at startup lives in
 // bootstrap(), called once from src/entry.ts, the vite entry point. That split is what lets
-// a test import this module for its exports without booting a page.
+// a test import this module -- as test/bootstrap.test.ts does -- without booting a page.
 //
-// The module.exports test seam that used to sit at the foot of the file is gone; the same
-// names are real ES exports now. Nothing in the userscript entry path imports them, so
-// they are tree-shaken out of the built artifact.
+// This file no longer re-exports the rest of the feature modules for the test suite: each
+// test file now imports the module it exercises directly (test/inventory-selection.test.ts
+// was the original precedent), so the only thing left for the userscript's own entry to
+// import here is bootstrap() itself.
 
 import {
     marketListingsItemsQueue,
@@ -34,25 +35,8 @@ import { initializeInventoryUI } from './inventory/ui.ts';
 import $ from 'jquery';
 
 import { PAGE_INVENTORY, PAGE_MARKET, PAGE_MARKET_LISTING, PAGE_TRADEOFFER } from './constants.ts';
-import {
-    calculateAverageHistoryPriceBeforeFees,
-    calculateBuyOrderPriceBeforeFees,
-    calculateListingPriceBeforeFees,
-    calculateSellPriceBeforeFees,
-    createPricingRules,
-    NO_LISTING_PRICE_SENTINEL,
-} from './pricing/algorithms.ts';
 import { currentPage, isLoggedIn } from './steam/instance.ts';
-import { buildOrderBook } from './steam/market.ts';
-import { injectCss, markRow } from './ui/index.ts';
-import {
-    REQUEST_BREAKER_STATUSES,
-    REQUEST_BREAKER_THRESHOLD,
-    REQUEST_BREAKER_WINDOW_MS,
-    REQUEST_DELAY_DEFAULT,
-    REQUEST_DELAY_ERROR,
-    REQUEST_DELAY_MARKET,
-} from './net/request.ts';
+import { injectCss } from './ui/index.ts';
 
 // Vendored jQuery plugins, previously @require'd from raw.githubusercontent.com. Both
 // attach to the jQuery global at evaluation time, which -- because ES imports are
@@ -193,91 +177,3 @@ export function bootstrap(): void {
     });
     //#endregion
 }
-
-//#region Exports
-// The shape request() attaches to the Error it hands callers. Exported as a type so tests
-// can assert on .statusCode/.responseText without casting the contract away.
-export type { RequestError } from './net/request.ts';
-
-// Real ES exports replacing the old `typeof module !== 'undefined'` test seam. Same names,
-// same contract: anything listed here must be callable without a page, a network or a
-// logged-in Steam session.
-
-export const requestPolicy = {
-    REQUEST_BREAKER_STATUSES,
-    REQUEST_BREAKER_THRESHOLD,
-    REQUEST_BREAKER_WINDOW_MS,
-    REQUEST_DELAY_DEFAULT,
-    REQUEST_DELAY_ERROR,
-    REQUEST_DELAY_MARKET,
-};
-
-export {
-    buildOrderBook,
-    calculateAverageHistoryPriceBeforeFees,
-    calculateBuyOrderPriceBeforeFees,
-    calculateListingPriceBeforeFees,
-    calculateSellPriceBeforeFees,
-    createPricingRules,
-    markRow,
-    NO_LISTING_PRICE_SENTINEL,
-};
-
-// Re-exported from the modules they now live in, so the test suite can keep reaching
-// them through the entry point while the split is in progress.
-export { ROW_STATUS_COLORS } from './constants.ts';
-
-export {
-    flattenItem,
-    getAssetKey,
-    getIsCrate,
-    getIsFoilTradingCard,
-    getIsTradingCard,
-    getMarketHashName,
-    isItemQueued,
-    markItemQueued,
-    readInventoryItems,
-} from './items/index.ts';
-
-export {
-    createListingState,
-    getListingPriceDelta,
-    getListingVerdict,
-} from './market/listingState.ts';
-
-export { formatPriceDelta } from './pricing/algorithms.ts';
-
-export { market } from './steam/market.ts';
-
-export {
-    getRequestDelay,
-    getRequestStoppedMessage,
-    isRetryMessage,
-    request,
-    stopRequests,
-} from './net/request.ts';
-
-export {
-    CalculateAmountToSendForDesiredReceivedAmount,
-    CalculateFeeAmount,
-    clamp,
-    priceBeforeFees,
-    priceIncludingFees,
-} from './pricing/fees.ts';
-
-export {
-    createFailureCounter,
-    nextQueueStep,
-    nextRetryDelay,
-    resetRetryDelay,
-    runQueue,
-} from './queue/index.ts';
-
-export { createSteamPage, pickSellListingsHeader } from './steam/page.ts';
-
-export { aggregateTradeOfferAssets } from './tradeoffer/totals.ts';
-
-export { sumTradeOfferAssets } from './tradeoffer/ui.ts';
-
-export { getNumberOfDigits, padLeftZero, replaceNonNumbers } from './util/numbers.ts';
-//#endregion
