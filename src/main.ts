@@ -12,10 +12,9 @@
 // they are tree-shaken out of the built artifact.
 
 import {
-    addMarketCheckboxes,
-    fillMarketListingsQueue,
     marketListingsItemsQueue,
     marketListingsQueue,
+    onMarketListingsItemsDrained,
 } from './market/listings.ts';
 import { resetMarketRelistProgress } from './market/progress.ts';
 import { marketOverpricedQueue, refreshMarketOverpricedButtons } from './market/relist.ts';
@@ -39,7 +38,7 @@ import {
 } from './pricing/algorithms.ts';
 import { currentPage, isLoggedIn } from './steam/instance.ts';
 import { buildOrderBook } from './steam/market.ts';
-import { injectCss, markRow, removeSpinner } from './ui/index.ts';
+import { injectCss, markRow } from './ui/index.ts';
 import {
     REQUEST_BREAKER_STATUSES,
     REQUEST_BREAKER_THRESHOLD,
@@ -176,51 +175,7 @@ marketListingsQueue.drain(() => {
     resetMarketRelistProgress();
 });
 
-marketListingsItemsQueue.drain(() => {
-    const myMarketListings = $('#tabContentsMyActiveMarketListingsRows');
-    myMarketListings.checkboxes('range', true);
-
-    // Sometimes the Steam API is returning duplicate entries (especially during item listing), filter these.
-    const seen: Record<string, boolean> = {};
-    $('.market_listing_row', myMarketListings).each(function () {
-        const item_id = String($(this).attr('id'));
-        if (seen[item_id]) {
-            $(this).remove();
-        } else {
-            seen[item_id] = true;
-        }
-
-        // Remove listings awaiting confirmations, they are already listed separately.
-        if (
-            $('.item_market_action_button', this)
-                .attr('href')!
-                .toLowerCase()
-                .includes('CancelMarketListingConfirmation'.toLowerCase())
-        ) {
-            $(this).remove();
-        }
-
-        // Remove buy order listings, they are already listed separately.
-        if (
-            $('.item_market_action_button', this)
-                .attr('href')!
-                .toLowerCase()
-                .includes('CancelMarketBuyOrder'.toLowerCase())
-        ) {
-            $(this).remove();
-        }
-    });
-
-    // Now add the market checkboxes.
-    addMarketCheckboxes();
-
-    // Show the listings again, rendering is done.
-    removeSpinner();
-
-    myMarketListings.show();
-
-    fillMarketListingsQueue();
-});
+marketListingsItemsQueue.drain(onMarketListingsItemsDrained);
 
 //#endregion
 
