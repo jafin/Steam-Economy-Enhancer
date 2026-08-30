@@ -1087,7 +1087,7 @@
 		retryPlacement: "front",
 		onTaskDone: () => {
 			marketProgress.relistDone += 1;
-			increaseMarketProgress();
+			workDone();
 		}
 	});
 	function marketOverpricedQueueWorker(item, ignoreErrors, callback) {
@@ -1162,7 +1162,7 @@
 			});
 			marketRelistQueuedListings.add(listingid);
 			marketProgress.relistTotal += 1;
-			increaseMarketProgressMax();
+			addWork(1);
 			refreshMarketOverpricedButtons();
 		}
 	}
@@ -1186,20 +1186,28 @@
 	function setProgressBar(el) {
 		bar = el;
 	}
-	function increaseMarketProgressMax() {
+	var progress = {
+		total: 0,
+		done: 0
+	};
+	function render() {
 		if (bar == null) return;
-		let value = bar.max;
-		if (bar.value === value) {
-			bar.value = 0;
-			value = 0;
-		}
-		bar.max = value + 1;
-		bar.removeAttribute("hidden");
+		bar.max = progress.total;
+		bar.value = progress.done;
+		if (progress.total > 0 && progress.done < progress.total) bar.removeAttribute("hidden");
+		else bar.setAttribute("hidden", "true");
 	}
-	function increaseMarketProgress() {
-		if (bar == null) return;
-		bar.value += 1;
-		if (bar.value === bar.max) bar.setAttribute("hidden", "true");
+	function addWork(n) {
+		if (progress.total > 0 && progress.done >= progress.total) {
+			progress.total = 0;
+			progress.done = 0;
+		}
+		progress.total += n;
+		render();
+	}
+	function workDone(n = 1) {
+		progress.done = Math.min(progress.done + n, progress.total);
+		render();
 		refreshMarketOverpricedButtons();
 	}
 	function resetMarketRelistProgress() {
@@ -1386,7 +1394,7 @@
 		retryOnFailure: true,
 		retryPlacement: "front",
 		successDelayMs: () => getRandomInt(50, 100),
-		onTaskDone: () => increaseMarketProgress()
+		onTaskDone: () => workDone()
 	});
 	function marketRemoveQueueWorker(task, ignoreErrors, callback) {
 		const listingid = task.listingid;
@@ -1520,7 +1528,7 @@
 				if (listing == null) continue;
 				(0, jquery.default)(listing.elm).addClass("removing");
 				marketRemoveQueue.push({ listingid });
-				increaseMarketProgressMax();
+				addWork(1);
 			}
 		});
 		(0, jquery.default)(".market_relist_auto").change(() => {
@@ -1584,7 +1592,7 @@
 	var marketListingsQueue = runQueue(marketListingsQueueWorker, {
 		retryOnFailure: true,
 		retryPlacement: "front",
-		onTaskDone: () => increaseMarketProgress()
+		onTaskDone: () => workDone()
 	});
 	function marketListingsQueueWorker(listing, ignoreErrors, callback) {
 		const asset = steamPage.assetFor(listing.appid, listing.contextid, listing.assetid);
@@ -1654,7 +1662,7 @@
 			});
 		});
 	}
-	var marketListingsItemsQueue = runQueue(marketListingsItemsQueueWorker, { onTaskDone: () => increaseMarketProgress() });
+	var marketListingsItemsQueue = runQueue(marketListingsItemsQueueWorker, { onTaskDone: () => workDone() });
 	function marketListingsItemsQueueWorker(task, ignoreErrors, callback) {
 		request(`${window.location.origin}/market/mylistings`, {
 			method: "GET",
@@ -1692,6 +1700,7 @@
 		let totalSellOrderAmount = 0;
 		let totalBuyOrderPrice = 0;
 		let totalBuyOrderAmount = 0;
+		let queuedSellListings = 0;
 		marketLists.flatMap((list) => list.items).forEach((item) => {
 			const isBuyOrder = item.elm.id.startsWith("mbuyorder_") || item.elm.id.startsWith("mybuyorder_");
 			if (item.elm.id.startsWith("mylisting_")) {
@@ -1710,6 +1719,7 @@
 					contextid: assetInfo.contextid,
 					assetid: assetInfo.assetid
 				});
+				queuedSellListings += 1;
 				return;
 			}
 			if (isBuyOrder) {
@@ -1725,7 +1735,7 @@
 			}
 			`${item.elm.id}`;
 		});
-		if (totalSellOrderAmount > 0) increaseMarketProgressMax();
+		if (queuedSellListings > 0) addWork(queuedSellListings);
 		(0, jquery.default)("#my_market_selllistings_number").append(`<span id="my_market_sell_listings_total_amount"> [${totalSellOrderAmount}]</span>`).append(`<span id="my_market_sell_listings_total_price">, Listed ${formatPrice(totalSellOrderPriceBuyer)} · You get ${formatPrice(totalSellOrderPriceSeller)}</span>`);
 		(0, jquery.default)("#my_market_buylistings_number").append(`<span id="my_market_buy_listings_total_amount"> [${totalBuyOrderAmount}]</span>`).append(`<span id="my_market_buy_listings_total_price">, ${formatPrice(totalBuyOrderPrice)}</span>`);
 	}
@@ -1780,7 +1790,7 @@
 			renderSpinner("Loading market listings");
 			while (currentCount < totalCount) {
 				marketListingsItemsQueue.push({ start: currentCount });
-				increaseMarketProgressMax();
+				addWork(1);
 				currentCount += 100;
 			}
 		} else {
@@ -1805,7 +1815,7 @@
 					contextid: assetInfo.contextid,
 					assetid: assetInfo.assetid
 				});
-				increaseMarketProgressMax();
+				addWork(1);
 			});
 		}
 	}
