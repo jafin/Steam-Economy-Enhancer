@@ -13,9 +13,34 @@
 import { test } from 'vitest';
 import assert from 'node:assert';
 import { markItemQueued } from '../src/items/index.ts';
+import { hasOwnerAction } from '../src/inventory/actions.ts';
 import { getInventorySelectedGemsItems } from '../src/inventory/selection.ts';
 import { turnSelectedItemsIntoGems } from '../src/inventory/gems.ts';
 import { endRun, runTotals } from '../src/totals.ts';
+
+test('hasOwnerAction is false when the item has no owner_actions at all', () => {
+    assert.strictEqual(hasOwnerAction({}, 'GetGooValue'), false);
+});
+
+test('hasOwnerAction is false when every action has a null link', () => {
+    const item = { owner_actions: [{ link: null }, { link: null }] };
+
+    assert.strictEqual(hasOwnerAction(item, 'GetGooValue'), false);
+});
+
+test('hasOwnerAction is true when one action link contains the fragment', () => {
+    const item = {
+        owner_actions: [{ link: null }, { link: 'https://.../ajaxgetgoovalue/?GetGooValue' }],
+    };
+
+    assert.strictEqual(hasOwnerAction(item, 'GetGooValue'), true);
+});
+
+test('hasOwnerAction is false when a link is present but does not match the fragment', () => {
+    const item = { owner_actions: [{ link: 'https://.../ajaxunpackbooster/?OpenBooster' }] };
+
+    assert.strictEqual(hasOwnerAction(item, 'GetGooValue'), false);
+});
 
 // A gem-able asset: an owner_actions entry whose link contains 'GetGooValue', same as Steam's
 // real inventory data and what selection.ts/gems.ts both probe for.
@@ -24,7 +49,9 @@ function gemmableAsset() {
         appid: 730,
         contextid: 2,
         marketable: 1,
-        owner_actions: [{ link: 'https://steamcommunity.com/id/test/ajaxgetgoovalue/?GetGooValue' }],
+        owner_actions: [
+            { link: 'https://steamcommunity.com/id/test/ajaxgetgoovalue/?GetGooValue' },
+        ],
         description: {},
     };
 }

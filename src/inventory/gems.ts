@@ -3,6 +3,7 @@
 // Steam calls this 'grinding into goo'. The queue asks Steam what an item is worth in gems
 // before grinding it, so a mispriced item is not destroyed for nothing.
 
+import { hasOwnerAction } from './actions.ts';
 import { getInventoryItems, loadAllInventories } from './data.ts';
 import { updateTotals } from './progress.ts';
 import { getSelectedItems } from './selection.ts';
@@ -34,21 +35,7 @@ export function gemAllDuplicateItems() {
                 return;
             }
 
-            if (item.owner_actions == null) {
-                return;
-            }
-
-            let canTurnIntoGems = false;
-            for (const owner_action in item.owner_actions) {
-                if (
-                    item.owner_actions[owner_action].link != null &&
-                    item.owner_actions[owner_action].link.includes('GetGooValue')
-                ) {
-                    canTurnIntoGems = true;
-                }
-            }
-
-            if (!canTurnIntoGems) {
+            if (!hasOwnerAction(item, 'GetGooValue')) {
                 return;
             }
 
@@ -129,21 +116,7 @@ export function turnSelectedItemsIntoGems() {
                 return;
             }
 
-            if (item.owner_actions == null) {
-                return;
-            }
-
-            let canTurnIntoGems = false;
-            for (const owner_action in item.owner_actions) {
-                if (
-                    item.owner_actions[owner_action].link != null &&
-                    item.owner_actions[owner_action].link.includes('GetGooValue')
-                ) {
-                    canTurnIntoGems = true;
-                }
-            }
-
-            if (!canTurnIntoGems) {
+            if (!hasOwnerAction(item, 'GetGooValue')) {
                 return;
             }
 

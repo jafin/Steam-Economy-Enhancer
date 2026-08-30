@@ -11,6 +11,7 @@ import { processed, queued, runTotals } from '../totals.ts';
 import { markRow, removeSpinner, renderSpinner } from '../ui/index.ts';
 import { logConsole, logDOM } from '../ui/logger.ts';
 import { getNumberOfDigits, padLeftZero } from '../util/numbers.ts';
+import { hasOwnerAction } from './actions.ts';
 import { getInventoryItems, loadAllInventories } from './data.ts';
 import { getSelectedItems } from './selection.ts';
 export const boosterQueue = runQueue(boosterQueueWorker, { successDelayMs: 250 });
@@ -53,22 +54,7 @@ export function unpackAllBoosterPacks() {
         let numberOfQueuedItems = 0;
 
         items.forEach((item) => {
-            if (isItemQueued(item) || item.owner_actions == null) {
-                return;
-            }
-
-            let canOpenBooster = false;
-
-            for (const owner_action in item.owner_actions) {
-                if (
-                    item.owner_actions[owner_action].link != null &&
-                    item.owner_actions[owner_action].link.includes('OpenBooster')
-                ) {
-                    canOpenBooster = true;
-                }
-            }
-
-            if (!canOpenBooster) {
+            if (isItemQueued(item) || !hasOwnerAction(item, 'OpenBooster')) {
                 return;
             }
 
@@ -103,21 +89,7 @@ export function unpackSelectedBoosterPacks() {
         let numberOfQueuedItems = 0;
         items.forEach((item) => {
             // Ignored queued items.
-            if (isItemQueued(item) || item.owner_actions == null) {
-                return;
-            }
-
-            let canOpenBooster = false;
-            for (const owner_action in item.owner_actions) {
-                if (
-                    item.owner_actions[owner_action].link != null &&
-                    item.owner_actions[owner_action].link.includes('OpenBooster')
-                ) {
-                    canOpenBooster = true;
-                }
-            }
-
-            if (!canOpenBooster) {
+            if (isItemQueued(item) || !hasOwnerAction(item, 'OpenBooster')) {
                 return;
             }
 

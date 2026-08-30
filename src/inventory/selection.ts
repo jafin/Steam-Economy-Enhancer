@@ -9,6 +9,7 @@
 import $ from 'jquery';
 import { getIsTradingCard } from '../items/index.ts';
 import { steamPage } from '../steam/instance.ts';
+import { hasOwnerAction } from './actions.ts';
 import { getInventoryItems, loadAllInventories } from './data.ts';
 // Gets the selected items in the inventory.
 export function getSelectedItems() {
@@ -47,17 +48,7 @@ export function getInventorySelectedGemsItems(callback) {
         const filteredItems: any[] = [];
 
         items.forEach((item) => {
-            let canTurnIntoGems = false;
-            for (const owner_action in item.owner_actions) {
-                if (
-                    item.owner_actions[owner_action].link != null &&
-                    item.owner_actions[owner_action].link.includes('GetGooValue')
-                ) {
-                    canTurnIntoGems = true;
-                }
-            }
-
-            if (!canTurnIntoGems) {
+            if (!hasOwnerAction(item, 'GetGooValue')) {
                 return;
             }
 
@@ -80,17 +71,7 @@ export function getInventorySelectedBoosterPackItems(callback) {
         const filteredItems: any[] = [];
 
         items.forEach((item) => {
-            let canOpenBooster = false;
-            for (const owner_action in item.owner_actions) {
-                if (
-                    item.owner_actions[owner_action].link != null &&
-                    item.owner_actions[owner_action].link.includes('OpenBooster')
-                ) {
-                    canOpenBooster = true;
-                }
-            }
-
-            if (!canOpenBooster) {
+            if (!hasOwnerAction(item, 'OpenBooster')) {
                 return;
             }
 
