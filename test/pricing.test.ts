@@ -211,6 +211,47 @@ test('a null orderbook is priced, not thrown on', () => {
     );
 });
 
+// Steam answers with a buy side and no sell side whenever it holds no sell listings for the
+// item. That includes the window after a listing is created and before the histogram catches
+// up with it, which is how a card that is the only one on the market gets priced against
+// nothing at all. buildOrderBook writes that absence as `lowest_sell_order: 0` and an empty
+// graph rather than as null -- see src/steam/market.ts -- so 0 has to read here as "nobody is
+// selling", not as a price of zero.
+test('an orderbook with no sell side has no listing price', () => {
+    setAlgorithm(ALGORITHM_LOWEST_LISTING);
+
+    assert.strictEqual(
+        calculateListingPriceBeforeFees({
+            highest_buy_order: 92,
+            lowest_sell_order: 0,
+            sell_order_graph: [],
+        }),
+        0,
+        'no sell listings is no price, not the 1-cent floor that priceBeforeFees(0) returns',
+    );
+});
+
+test('a listing with nobody to undercut is priced at the maximum, not at the buy order', () => {
+    // The report this came from: one card listed at A$1.87, the only one on the market, a
+    // highest buy order of A$0.92, flagged overpriced with the best price sitting exactly on
+    // the buy order. The sell side was missing from the orderbook the script held, so the
+    // lowest listing came out as the 1-cent floor instead of nothing; being 1 rather than 0 it
+    // missed the "no listings, use the maximum" branch, clamped to the minimum, and was then
+    // lifted to the buy order by the trailing buy-order override. Landing exactly on the buy
+    // order is the signature -- no real rival listing can sit at the top buy order, because it
+    // would have matched and sold.
+    setAlgorithm(ALGORITHM_MAX_OF_HISTORY_AND_LISTING);
+
+    const price = calculateSellPriceBeforeFees(
+        null,
+        { highest_buy_order: 92, lowest_sell_order: 0, sell_order_graph: [] },
+        false,
+        rulesWithBounds(5, 250),
+    );
+
+    assert.strictEqual(price, 250, 'nobody is selling, so the maximum -- not the buy order');
+});
+
 test('the offset is applied only when the price was not forced to the maximum', () => {
     setAlgorithm(ALGORITHM_LOWEST_LISTING);
     globalThis.localStorage.setItem('SETTING_PRICE_OFFSET', '1');

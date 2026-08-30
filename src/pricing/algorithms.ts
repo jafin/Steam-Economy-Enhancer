@@ -174,10 +174,18 @@ export function calculateListingPriceBeforeFees(
     orderbook,
     rules: PricingRules = createPricingRules(),
 ) {
+    // A falsy lowest sell order, not just a null one. buildOrderBook writes an absent
+    // amtMinSellOrder as 0 rather than as null, so `== null` lets "nobody is selling" through
+    // as if it were a price -- and priceBeforeFees(0) does not return 0, it returns the 1-cent
+    // floor every Steam price is held above. A 1-cent lowest listing is not nothing: it is
+    // small enough to clamp to the user's minimum and to lose to the buy-order override at the
+    // end of calculateSellPriceBeforeFees, which is how a card that was the only one on the
+    // market came to be judged overpriced against the highest buy order. Returning 0 is what
+    // lets that function reach its "no listings yet, use the maximum" branch.
     if (
         typeof orderbook === 'undefined' ||
         orderbook == null ||
-        orderbook.lowest_sell_order == null ||
+        !orderbook.lowest_sell_order ||
         orderbook.sell_order_graph == null
     ) {
         return 0;

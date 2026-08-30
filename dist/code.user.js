@@ -605,7 +605,7 @@
 		return priceBeforeFees(highest, null, rules);
 	}
 	function calculateListingPriceBeforeFees(orderbook, rules = createPricingRules()) {
-		if (typeof orderbook === "undefined" || orderbook == null || orderbook.lowest_sell_order == null || orderbook.sell_order_graph == null) return 0;
+		if (typeof orderbook === "undefined" || orderbook == null || !orderbook.lowest_sell_order || orderbook.sell_order_graph == null) return 0;
 		let listingPrice = priceBeforeFees(orderbook.lowest_sell_order, null, rules);
 		if (rules.ignoreLowestOnLowQuantity && orderbook.sell_order_graph.length >= 2) {
 			const listingPrice2ndLowest = priceBeforeFees(orderbook.sell_order_graph[1][0] * 100, null, rules);
