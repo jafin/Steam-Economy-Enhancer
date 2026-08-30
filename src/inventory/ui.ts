@@ -406,7 +406,13 @@ export async function updateInventorySelection(selectedItem) {
                 </a>
             </div>`);
 
-        $('.quick_sell').on('click', function () {
+        // Scoped to ownerActions rather than document-wide: a document-wide selector matches
+        // any leftover .quick_sell/.quick_sell_custom button from a panel Steam has not yet
+        // removed, and that stale button still closes over the *previous* selectedItem -- a
+        // click on it would queue the wrong item at the previous item's price. Correctness
+        // used to depend entirely on Steam having torn down the old panel before this one
+        // rendered; nothing asserted that.
+        ownerActions.find('.quick_sell').on('click', function () {
             let price = $(this).attr('id')!.replace('quick_sell', '');
             price = market.getPriceBeforeFees(price);
 
@@ -418,7 +424,7 @@ export async function updateInventorySelection(selectedItem) {
             });
         });
 
-        $('.quick_sell_custom').on('click', () => {
+        ownerActions.find('.quick_sell_custom').on('click', () => {
             let price = Number($('#quick_sell_input', ownerActions).val()) * 100;
             price = market.getPriceBeforeFees(price);
 
