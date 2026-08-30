@@ -1,11 +1,11 @@
 import { test } from 'vitest';
 import assert from 'node:assert';
-import * as see from '../src/main.ts';
+import { pickSellListingsHeader } from '../src/steam/page.ts';
 
 import { createFixtureSteamPage } from './steam-page-fixture.ts';
 
 function fixturePage(fixture: any) {
-    return createFixtureSteamPage(fixture, { pickSellListingsHeader: see.pickSellListingsHeader });
+    return createFixtureSteamPage(fixture, { pickSellListingsHeader });
 }
 
 // The PR #334 bug class: Steam changed which DOM element the sell listings' header actually
@@ -59,7 +59,7 @@ test('the live adapter and the fixture adapter make the same call from the same 
     // (pickSellListingsHeader), so this is really pinning that the fixture's "which section
     // holds the sell listings table" shape produces the same anchored/all inputs a real
     // $('#tabContentsMyActiveMarketListingsRows').closest(...).find(...) lookup would.
-    const anchoredFound = see.pickSellListingsHeader(
+    const anchoredFound = pickSellListingsHeader(
         ['header-sell-listings'],
         ['header-confirmations', 'header-sell-listings'],
     );

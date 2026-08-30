@@ -1,7 +1,8 @@
 import { test, beforeEach, afterEach, vi } from 'vitest';
 import assert from 'node:assert';
 import $ from 'jquery';
-import * as see from '../src/main.ts';
+import { market } from '../src/steam/market.ts';
+import { request } from '../src/net/request.ts';
 
 // What SteamMarket's methods report.
 //
@@ -80,9 +81,9 @@ beforeEach(() => {
     // request() keeps per-call state on the function object. Left alone it leaks between
     // tests: a pending flag from a previous test queues this test's request instead of
     // sending it.
-    see.request.pending = false;
-    see.request.queue = [];
-    see.request.errors = 0;
+    request.pending = false;
+    request.queue = [];
+    request.errors = 0;
 });
 
 afterEach(() => {
@@ -98,7 +99,7 @@ test('sellItem reports a listed item as (null, data)', () => {
     answerWith({ data: { success: true } });
 
     const cb = recorder();
-    see.market.sellItem(anItem, 100, cb);
+    market.sellItem(anItem, 100, cb);
     vi.advanceTimersByTime(0);
 
     assert.deepStrictEqual(cb.calls, [[null, { success: true }]]);
@@ -114,7 +115,7 @@ test('sellItem reports a listing Steam rejected as ERROR_DATA, keeping the messa
     answerWith({ data: { success: false, message } });
 
     const cb = recorder();
-    see.market.sellItem(anItem, 100, cb);
+    market.sellItem(anItem, 100, cb);
     vi.advanceTimersByTime(0);
 
     assert.deepStrictEqual(cb.calls, [[ERROR_DATA, { success: false, message }]]);
@@ -126,7 +127,7 @@ test('sellItem reports a 200 with no success field as ERROR_DATA', () => {
     answerWith({ data: {} });
 
     const cb = recorder();
-    see.market.sellItem(anItem, 100, cb);
+    market.sellItem(anItem, 100, cb);
     vi.advanceTimersByTime(0);
 
     assert.deepStrictEqual(cb.calls, [[ERROR_DATA, {}]]);
@@ -136,7 +137,7 @@ test('sellItem reports a transport failure as (ERROR_FAILED, null)', () => {
     answerWith(transportError);
 
     const cb = recorder();
-    see.market.sellItem(anItem, 100, cb);
+    market.sellItem(anItem, 100, cb);
     vi.advanceTimersByTime(0);
 
     // This used to be request()'s own Error object, because sellItem forwarded request()'s
@@ -151,7 +152,7 @@ test('removeListing reports success as (ERROR_SUCCESS, data)', () => {
     answerWith({ data: { ok: 1 } });
 
     const cb = recorder();
-    see.market.removeListing('99', false, cb);
+    market.removeListing('99', false, cb);
     vi.advanceTimersByTime(0);
 
     assert.deepStrictEqual(cb.calls, [[ERROR_SUCCESS, { ok: 1 }]]);
@@ -163,7 +164,7 @@ test('removeListing reports a success:false body as ERROR_SUCCESS', () => {
     answerWith({ data: { success: false } });
 
     const cb = recorder();
-    see.market.removeListing('99', false, cb);
+    market.removeListing('99', false, cb);
     vi.advanceTimersByTime(0);
 
     assert.strictEqual(cb.calls[0][0], ERROR_SUCCESS);
@@ -173,7 +174,7 @@ test('removeListing reports a transport failure as (ERROR_FAILED, null)', () => 
     answerWith(transportError);
 
     const cb = recorder();
-    see.market.removeListing('99', false, cb);
+    market.removeListing('99', false, cb);
     vi.advanceTimersByTime(0);
 
     // Passed one argument here and two in getGooValue, for the same kind of failure, until
@@ -187,7 +188,7 @@ test('getGooValue reports success as (ERROR_SUCCESS, data)', () => {
     answerWith({ data: { goo_value: '12' } });
 
     const cb = recorder();
-    see.market.getGooValue(anItem, cb);
+    market.getGooValue(anItem, cb);
     vi.advanceTimersByTime(0);
 
     assert.deepStrictEqual(cb.calls, [[ERROR_SUCCESS, { goo_value: '12' }]]);
@@ -197,7 +198,7 @@ test('getGooValue reports a transport failure as (ERROR_FAILED, null)', () => {
     answerWith(transportError);
 
     const cb = recorder();
-    see.market.getGooValue(anItem, cb);
+    market.getGooValue(anItem, cb);
     vi.advanceTimersByTime(0);
 
     assert.deepStrictEqual(cb.calls, [[ERROR_FAILED, null]]);
@@ -213,7 +214,7 @@ test('getGooValue reports a missing owner_actions as ERROR_FAILED, without reque
     };
 
     const cb = recorder();
-    see.market.getGooValue({ ...anItem, owner_actions: undefined }, cb);
+    market.getGooValue({ ...anItem, owner_actions: undefined }, cb);
     vi.advanceTimersByTime(0);
 
     assert.deepStrictEqual(cb.calls, [[ERROR_FAILED, null]]);
@@ -226,7 +227,7 @@ test('grindIntoGoo reports success as (ERROR_SUCCESS, data)', () => {
     answerWith({ data: { ok: 1 } });
 
     const cb = recorder();
-    see.market.grindIntoGoo(anItem, 12, cb);
+    market.grindIntoGoo(anItem, 12, cb);
     vi.advanceTimersByTime(0);
 
     assert.deepStrictEqual(cb.calls, [[ERROR_SUCCESS, { ok: 1 }]]);
@@ -236,7 +237,7 @@ test('grindIntoGoo reports a success:false body as ERROR_SUCCESS', () => {
     answerWith({ data: { success: false, message: 'nope' } });
 
     const cb = recorder();
-    see.market.grindIntoGoo(anItem, 12, cb);
+    market.grindIntoGoo(anItem, 12, cb);
     vi.advanceTimersByTime(0);
 
     assert.strictEqual(cb.calls[0][0], ERROR_SUCCESS);
@@ -248,7 +249,7 @@ test('unpackBoosterPack reports success as (ERROR_SUCCESS, data)', () => {
     answerWith({ data: { ok: 1 } });
 
     const cb = recorder();
-    see.market.unpackBoosterPack(anItem, cb);
+    market.unpackBoosterPack(anItem, cb);
     vi.advanceTimersByTime(0);
 
     assert.deepStrictEqual(cb.calls, [[ERROR_SUCCESS, { ok: 1 }]]);
@@ -258,7 +259,7 @@ test('unpackBoosterPack reports a success:false body as ERROR_SUCCESS', () => {
     answerWith({ data: { success: false, message: 'nope' } });
 
     const cb = recorder();
-    see.market.unpackBoosterPack(anItem, cb);
+    market.unpackBoosterPack(anItem, cb);
     vi.advanceTimersByTime(0);
 
     assert.strictEqual(cb.calls[0][0], ERROR_SUCCESS);
@@ -273,7 +274,7 @@ test('getCurrentPriceHistory reports a success:false body as ERROR_DATA', () => 
     answerWith({ data: { success: false } });
 
     const cb = recorder();
-    see.market.getCurrentPriceHistory(730, 'Some Item', cb);
+    market.getCurrentPriceHistory(730, 'Some Item', cb);
     vi.advanceTimersByTime(0);
 
     assert.deepStrictEqual(cb.calls, [[ERROR_DATA, null, false]]);
@@ -283,7 +284,7 @@ test('getCurrentPriceHistory reports prices in pennies, uncached', () => {
     answerWith({ data: { success: true, prices: [['1 Jan 2026 01: +0', 1.5, '3']] } });
 
     const cb = recorder();
-    see.market.getCurrentPriceHistory(730, 'Some Item', cb);
+    market.getCurrentPriceHistory(730, 'Some Item', cb);
     vi.advanceTimersByTime(0);
 
     assert.deepStrictEqual(cb.calls, [[ERROR_SUCCESS, [['1 Jan 2026 01: +0', 150, 3]], false]]);
@@ -293,7 +294,7 @@ test('getCurrentOrderBook reports an unusable body as (ERROR_DATA, null, false)'
     answerWith({ data: {} });
 
     const cb = recorder();
-    see.market.getCurrentOrderBook(anItem, 'Some Item', cb);
+    market.getCurrentOrderBook(anItem, 'Some Item', cb);
     vi.advanceTimersByTime(0);
 
     assert.deepStrictEqual(cb.calls, [[ERROR_DATA, null, false]]);
@@ -303,7 +304,7 @@ test('getCurrentOrderBook reports a transport failure as (ERROR_FAILED, null, fa
     answerWith(transportError);
 
     const cb = recorder();
-    see.market.getCurrentOrderBook(anItem, 'Some Item', cb);
+    market.getCurrentOrderBook(anItem, 'Some Item', cb);
     vi.advanceTimersByTime(0);
 
     // The read methods omitted their third argument entirely when they failed, so callers

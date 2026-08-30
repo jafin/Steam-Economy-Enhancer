@@ -1,6 +1,7 @@
 import { test } from 'vitest';
 import assert from 'node:assert';
-import * as see from '../src/main.ts';
+import { aggregateTradeOfferAssets } from '../src/tradeoffer/totals.ts';
+import { sumTradeOfferAssets } from '../src/tradeoffer/ui.ts';
 
 // The aggregation takes the assets of one side of a trade offer and a `resolve` that turns
 // an asset into what is known about it, so the test can say what an asset is without a page.
@@ -9,7 +10,7 @@ function resolver(byId: Record<string, any>) {
 }
 
 test('an asset that resolves to nothing is an unknown item', () => {
-    const summary = see.aggregateTradeOfferAssets([{ assetid: '1' }], resolver({}));
+    const summary = aggregateTradeOfferAssets([{ assetid: '1' }], resolver({}));
 
     assert.deepStrictEqual(summary.items, [{ text: 'Unknown Item', count: 1 }]);
     assert.strictEqual(summary.totalPrice, 0);
@@ -17,7 +18,7 @@ test('an asset that resolves to nothing is an unknown item', () => {
 
 test('the same item twice is counted once with a count of two', () => {
     const card = { name: 'Sackboy', type: 'Trading Card', price: 300 };
-    const summary = see.aggregateTradeOfferAssets(
+    const summary = aggregateTradeOfferAssets(
         [{ assetid: '1' }, { assetid: '2' }],
         resolver({ 1: card, 2: card }),
     );
@@ -26,7 +27,7 @@ test('the same item twice is counted once with a count of two', () => {
 });
 
 test('the total is the sum of the prices of the assets in the offer', () => {
-    const summary = see.aggregateTradeOfferAssets(
+    const summary = aggregateTradeOfferAssets(
         [{ assetid: '1' }, { assetid: '2' }],
         resolver({
             1: { name: 'Sackboy', price: 300 },
@@ -38,7 +39,7 @@ test('the total is the sum of the prices of the assets in the offer', () => {
 });
 
 test('an item that was never priced adds nothing to the total', () => {
-    const summary = see.aggregateTradeOfferAssets(
+    const summary = aggregateTradeOfferAssets(
         [{ assetid: '1' }],
         resolver({ 1: { name: 'Sackboy' } }),
     );
@@ -47,7 +48,7 @@ test('an item that was never priced adds nothing to the total', () => {
 });
 
 test('an item without a type is named by its name alone', () => {
-    const summary = see.aggregateTradeOfferAssets(
+    const summary = aggregateTradeOfferAssets(
         [{ assetid: '1' }],
         resolver({ 1: { name: 'Sackboy', type: '' } }),
     );
@@ -56,7 +57,7 @@ test('an item without a type is named by its name alone', () => {
 });
 
 test('a stack says how many of it are in the offer', () => {
-    const summary = see.aggregateTradeOfferAssets(
+    const summary = aggregateTradeOfferAssets(
         [{ assetid: '1' }],
         resolver({ 1: { name: 'Gems', originalAmount: '5', amount: '2' } }),
     );
@@ -65,7 +66,7 @@ test('a stack says how many of it are in the offer', () => {
 });
 
 test('the items keep the order they were first seen in', () => {
-    const summary = see.aggregateTradeOfferAssets(
+    const summary = aggregateTradeOfferAssets(
         [{ assetid: '1' }, { assetid: '2' }, { assetid: '3' }],
         resolver({
             1: { name: 'Sackboy' },
@@ -81,7 +82,7 @@ test('the items keep the order they were first seen in', () => {
 });
 
 test('an offer with nothing in it is worth nothing', () => {
-    const summary = see.aggregateTradeOfferAssets([], resolver({}));
+    const summary = aggregateTradeOfferAssets([], resolver({}));
 
     assert.deepStrictEqual(summary.items, []);
     assert.strictEqual(summary.totalPrice, 0);
@@ -117,7 +118,7 @@ test('equal counts display in reverse first-seen order', () => {
     win.UserYou.findAsset = (appid: unknown, contextid: unknown, assetid: string) =>
         itemsById[assetid] || null;
 
-    const summaryText = see.sumTradeOfferAssets('me');
+    const summaryText = sumTradeOfferAssets('me');
 
     const alphaIndex = summaryText.indexOf('2x Alpha');
     const betaIndex = summaryText.indexOf('2x Beta');
