@@ -123,25 +123,15 @@ $.noConflict(true);
 // and none of which anything pushes to unless the dispatch runs.
 // Original guard: currentPage == PAGE_INVENTORY
 
-sellQueue.drain(() => {
-    onQueueDrain();
-});
-
-scrapQueue.drain(() => {
-    onQueueDrain();
-});
-
-boosterQueue.drain(() => {
-    onQueueDrain();
-});
+sellQueue.drain(onQueueDrain);
+scrapQueue.drain(onQueueDrain);
+boosterQueue.drain(onQueueDrain);
 
 // itemQueue feeds sellQueue but never triggered onQueueDrain itself; only sellQueue
 // finishing did, relying on it always draining after the last item itemQueue produced.
 // True in practice, but only by luck of the two queues' relative timing. Registered
 // directly now, like the other three queues onQueueDrain checks.
-itemQueue.drain(() => {
-    onQueueDrain();
-});
+itemQueue.drain(onQueueDrain);
 
 //#endregion
 
