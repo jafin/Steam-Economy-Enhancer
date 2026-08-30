@@ -217,12 +217,56 @@ export function updateButtons() {
     });
 }
 
+// The order book rows and the quick-sell price ladder, as a value rather than a page
+// side-effect -- so the ladder rule below, including the exact boundary it turns on, can be
+// tested without a DOM, a market call or updateInventorySelection's own timing.
+export function quickSellPanel(orderbook, formatPrice) {
+    const sellRows = (orderbook.sell_order_graph || [])
+        .slice(0, 10)
+        .map(
+            ([price, qty]) =>
+                `<tr><td align="right">${formatPrice(Math.round(price * 100))}</td><td align="right">${qty}</td></tr>`,
+        )
+        .join('');
+
+    const buyRows = (orderbook.buy_order_graph || [])
+        .slice(0, 10)
+        .map(
+            ([price, qty]) =>
+                `<tr><td align="right">${formatPrice(Math.round(price * 100))}</td><td align="right">${qty}</td></tr>`,
+        )
+        .join('');
+
+    let prices: number[] = [];
+
+    if (orderbook != null && orderbook.highest_buy_order != null) {
+        prices.push(parseInt(orderbook.highest_buy_order));
+    }
+
+    if (orderbook != null && orderbook.lowest_sell_order != null) {
+        // Transaction volume must be separable into three or more parts (no matter if equal): valve+publisher+seller.
+        if (parseInt(orderbook.lowest_sell_order) > 3) {
+            prices.push(parseInt(orderbook.lowest_sell_order) - 1);
+        }
+        prices.push(parseInt(orderbook.lowest_sell_order));
+    }
+
+    prices = prices.filter((v, i) => prices.indexOf(v) === i).sort((a, b) => a - b);
+
+    return {
+        sellRows,
+        buyRows,
+        prices,
+        defaultPrice: orderbook.lowest_sell_order || 0,
+    };
+}
+
 export async function updateInventorySelection(selectedItem) {
     if (getSetting(SETTING_QUICK_SELL_BUTTONS) != 1) {
         return;
     }
 
-    const item_info = $(`#iteminfo${steamPage.activeSelectView()}`);
+    const item_info = steamPage.itemInfoPanel();
 
     if (!item_info.length) {
         return;
@@ -278,7 +322,7 @@ export async function updateInventorySelection(selectedItem) {
 
     const marketLink = `https://steamcommunity.com/market/listings/${appid}/${encodeURIComponent(market_hash_name)}`;
     const baseLink = $(`a[href^="${marketLink}"]`, item_info);
-    const ownerActions = baseLink.parent().parent();
+    const ownerActions = steamPage.itemOwnerActions(item_info, marketLink);
 
     market.getOrderBook(item, false, (err, orderbook) => {
         if (err) {
@@ -293,21 +337,7 @@ export async function updateInventorySelection(selectedItem) {
             return;
         }
 
-        const sellRows = (orderbook.sell_order_graph || [])
-            .slice(0, 10)
-            .map(
-                ([price, qty]) =>
-                    `<tr><td align="right">${formatPrice(Math.round(price * 100))}</td><td align="right">${qty}</td></tr>`,
-            )
-            .join('');
-
-        const buyRows = (orderbook.buy_order_graph || [])
-            .slice(0, 10)
-            .map(
-                ([price, qty]) =>
-                    `<tr><td align="right">${formatPrice(Math.round(price * 100))}</td><td align="right">${qty}</td></tr>`,
-            )
-            .join('');
+        const { sellRows, buyRows, prices, defaultPrice } = quickSellPanel(orderbook, formatPrice);
 
         const groupMain = $(`<div id="listings_group">
                 <div>
@@ -321,23 +351,6 @@ export async function updateInventorySelection(selectedItem) {
             </div>`);
 
         baseLink.next().append(groupMain);
-
-        // Generate quick sell buttons.
-        let prices: number[] = [];
-
-        if (orderbook != null && orderbook.highest_buy_order != null) {
-            prices.push(parseInt(orderbook.highest_buy_order));
-        }
-
-        if (orderbook != null && orderbook.lowest_sell_order != null) {
-            // Transaction volume must be separable into three or more parts (no matter if equal): valve+publisher+seller.
-            if (parseInt(orderbook.lowest_sell_order) > 3) {
-                prices.push(parseInt(orderbook.lowest_sell_order) - 1);
-            }
-            prices.push(parseInt(orderbook.lowest_sell_order));
-        }
-
-        prices = prices.filter((v, i) => prices.indexOf(v) === i).sort((a, b) => a - b);
 
         let buttons = '<div id="price_buttons">';
         prices.forEach((e) => {
@@ -353,7 +366,7 @@ export async function updateInventorySelection(selectedItem) {
         ownerActions.append(buttons);
 
         ownerActions.append(`<div id="sell_button" style="display:flex">
-                <input id="quick_sell_input" style="background-color: black;color: white;border: transparent;max-width:65px;text-align:center;" type="number" value="${((orderbook.lowest_sell_order || 0) / 100).toFixed(2)}" step="0.01" />&nbsp;
+                <input id="quick_sell_input" style="background-color: black;color: white;border: transparent;max-width:65px;text-align:center;" type="number" value="${(defaultPrice / 100).toFixed(2)}" step="0.01" />&nbsp;
                 <a class="item_market_action_button item_market_action_button_green quick_sell_custom">
                     <span class="item_market_action_button_edge item_market_action_button_left"></span>
                     <span class="item_market_action_button_contents">➜ Sell</span>
@@ -362,7 +375,13 @@ export async function updateInventorySelection(selectedItem) {
                 </a>
             </div>`);
 
-        $('.quick_sell').on('click', function () {
+        // Scoped to ownerActions rather than document-wide: a document-wide selector matches
+        // any leftover .quick_sell/.quick_sell_custom button from a panel Steam has not yet
+        // removed, and that stale button still closes over the *previous* selectedItem -- a
+        // click on it would queue the wrong item at the previous item's price. Correctness
+        // used to depend entirely on Steam having torn down the old panel before this one
+        // rendered; nothing asserted that.
+        ownerActions.find('.quick_sell').on('click', function () {
             let price = $(this).attr('id')!.replace('quick_sell', '');
             price = market.getPriceBeforeFees(price);
 
@@ -374,7 +393,7 @@ export async function updateInventorySelection(selectedItem) {
             });
         });
 
-        $('.quick_sell_custom').on('click', () => {
+        ownerActions.find('.quick_sell_custom').on('click', () => {
             let price = Number($('#quick_sell_input', ownerActions).val()) * 100;
             price = market.getPriceBeforeFees(price);
 

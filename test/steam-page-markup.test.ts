@@ -113,6 +113,78 @@ test('selectedAssetIds does not filter by the page itself being hidden -- only t
     assert.deepStrictEqual(see.createSteamPage({}).selectedAssetIds(), ['111', '222']);
 });
 
+// itemInfoPanel / itemOwnerActions. ui.ts used to reach for these directly --
+// $('#iteminfo' + activeSelectView()) and baseLink.parent().parent() -- which is the PR #334
+// shape again: change how many levels separate the market listing anchor from the container
+// the quick-sell buttons attach to, and they attach to the wrong element without an error.
+function itemInfoPanel(view: number, marketLink: string): string {
+    return `
+        <div id="iteminfo${view}">
+            <div class="item_market_actions">
+                <div class="market_actionable">
+                    <a href="${marketLink}">See listings</a>
+                </div>
+            </div>
+        </div>`;
+}
+
+test('itemInfoPanel finds the panel for the active select view', () => {
+    render(
+        itemInfoPanel(
+            0,
+            'https://steamcommunity.com/market/listings/440/Mann Co. Supply Crate Key',
+        ),
+    );
+
+    const panel = see.createSteamPage({ iActiveSelectView: 0 }).itemInfoPanel();
+
+    assert.strictEqual(panel.attr('id'), 'iteminfo0');
+});
+
+test('itemInfoPanel does not find a panel for a different select view', () => {
+    render(
+        itemInfoPanel(
+            1,
+            'https://steamcommunity.com/market/listings/440/Mann Co. Supply Crate Key',
+        ),
+    );
+
+    const panel = see.createSteamPage({ iActiveSelectView: 0 }).itemInfoPanel();
+
+    assert.strictEqual(panel.length, 0);
+});
+
+test('itemOwnerActions walks up from the market listing anchor to its owning container', () => {
+    const marketLink = 'https://steamcommunity.com/market/listings/440/Mann Co. Supply Crate Key';
+    render(itemInfoPanel(0, marketLink));
+
+    const page = see.createSteamPage({ iActiveSelectView: 0 });
+    const ownerActions = page.itemOwnerActions(page.itemInfoPanel(), marketLink);
+
+    assert.strictEqual(
+        ownerActions.hasClass('item_market_actions'),
+        true,
+        'two parents above the anchor is the item_market_actions container',
+    );
+});
+
+test('itemOwnerActions is scoped to the given panel, not the whole document', () => {
+    // Two panels for two select views, as Steam renders per item. A lookup that was not
+    // scoped to the panel passed in would find the first matching anchor anywhere on the
+    // page rather than the one in this item's own panel.
+    const marketLink = 'https://steamcommunity.com/market/listings/440/Mann Co. Supply Crate Key';
+    render(
+        `<div id="owner-actions-0" class="item_market_actions"><div class="market_actionable"><a href="${marketLink}">See listings</a></div></div>`,
+        itemInfoPanel(1, marketLink),
+    );
+
+    const page = see.createSteamPage({ iActiveSelectView: 1 });
+    const ownerActions = page.itemOwnerActions(page.itemInfoPanel(), marketLink);
+
+    assert.strictEqual(ownerActions.attr('id'), undefined);
+    assert.strictEqual(ownerActions.hasClass('item_market_actions'), true);
+});
+
 test('real markup and the fixture agree on which header wins', () => {
     // The point of keeping both adapters. If Steam's markup changes so that the live lookup
     // starts producing different anchored/all inputs, this is the test that notices -- the

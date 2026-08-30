@@ -383,6 +383,8 @@
 			activeUser: () => win.g_ActiveUser,
 			steamId: () => win.g_steamID,
 			activeSelectView: () => win.iActiveSelectView,
+			itemInfoPanel: () => (0, jquery.default)(`#iteminfo${win.iActiveSelectView}`),
+			itemOwnerActions: (panel, marketLink) => (0, jquery.default)(`a[href^="${marketLink}"]`, panel).parent().parent(),
 			selectedAssetIds: () => {
 				const ids = [];
 				(0, jquery.default)(".inventory_ctn").each(function() {
@@ -2489,9 +2491,26 @@
 			updateOpenBoosterPacksButton(selected.filter((item) => !isItemQueued(item) && hasOwnerAction(item, "OpenBooster")));
 		});
 	}
+	function quickSellPanel(orderbook, formatPrice) {
+		const sellRows = (orderbook.sell_order_graph || []).slice(0, 10).map(([price, qty]) => `<tr><td align="right">${formatPrice(Math.round(price * 100))}</td><td align="right">${qty}</td></tr>`).join("");
+		const buyRows = (orderbook.buy_order_graph || []).slice(0, 10).map(([price, qty]) => `<tr><td align="right">${formatPrice(Math.round(price * 100))}</td><td align="right">${qty}</td></tr>`).join("");
+		let prices = [];
+		if (orderbook != null && orderbook.highest_buy_order != null) prices.push(parseInt(orderbook.highest_buy_order));
+		if (orderbook != null && orderbook.lowest_sell_order != null) {
+			if (parseInt(orderbook.lowest_sell_order) > 3) prices.push(parseInt(orderbook.lowest_sell_order) - 1);
+			prices.push(parseInt(orderbook.lowest_sell_order));
+		}
+		prices = prices.filter((v, i) => prices.indexOf(v) === i).sort((a, b) => a - b);
+		return {
+			sellRows,
+			buyRows,
+			prices,
+			defaultPrice: orderbook.lowest_sell_order || 0
+		};
+	}
 	async function updateInventorySelection(selectedItem) {
 		if (getSetting("SETTING_QUICK_SELL_BUTTONS") != 1) return;
-		const item_info = (0, jquery.default)(`#iteminfo${steamPage.activeSelectView()}`);
+		const item_info = steamPage.itemInfoPanel();
 		if (!item_info.length) return;
 		if (item_info.html().indexOf("checkout/sendgift/") > -1) return;
 		let timeDelayed = 0;
@@ -2515,15 +2534,14 @@
 		if (isItemQueued(selectedItem)) return;
 		const marketLink = `https://steamcommunity.com/market/listings/${appid}/${encodeURIComponent(market_hash_name)}`;
 		const baseLink = (0, jquery.default)(`a[href^="${marketLink}"]`, item_info);
-		const ownerActions = baseLink.parent().parent();
+		const ownerActions = steamPage.itemOwnerActions(item_info, marketLink);
 		market.getOrderBook(item, false, (err, orderbook) => {
 			if (err) {
 				`${selectedItem.name || selectedItem.description.name}`;
 				return;
 			}
 			if (isItemQueued(selectedItem)) return;
-			const sellRows = (orderbook.sell_order_graph || []).slice(0, 10).map(([price, qty]) => `<tr><td align="right">${formatPrice(Math.round(price * 100))}</td><td align="right">${qty}</td></tr>`).join("");
-			const buyRows = (orderbook.buy_order_graph || []).slice(0, 10).map(([price, qty]) => `<tr><td align="right">${formatPrice(Math.round(price * 100))}</td><td align="right">${qty}</td></tr>`).join("");
+			const { sellRows, buyRows, prices, defaultPrice } = quickSellPanel(orderbook, formatPrice);
 			const groupMain = (0, jquery.default)(`<div id="listings_group">
                 <div>
                     <div id="listings_sell">Sell</div>
@@ -2535,13 +2553,6 @@
                 </div>
             </div>`);
 			baseLink.next().append(groupMain);
-			let prices = [];
-			if (orderbook != null && orderbook.highest_buy_order != null) prices.push(parseInt(orderbook.highest_buy_order));
-			if (orderbook != null && orderbook.lowest_sell_order != null) {
-				if (parseInt(orderbook.lowest_sell_order) > 3) prices.push(parseInt(orderbook.lowest_sell_order) - 1);
-				prices.push(parseInt(orderbook.lowest_sell_order));
-			}
-			prices = prices.filter((v, i) => prices.indexOf(v) === i).sort((a, b) => a - b);
 			let buttons = "<div id=\"price_buttons\">";
 			prices.forEach((e) => {
 				buttons += `<a class="item_market_action_button item_market_action_button_green quick_sell" id="quick_sell${e}">
@@ -2554,7 +2565,7 @@
 			buttons += "</div>";
 			ownerActions.append(buttons);
 			ownerActions.append(`<div id="sell_button" style="display:flex">
-                <input id="quick_sell_input" style="background-color: black;color: white;border: transparent;max-width:65px;text-align:center;" type="number" value="${((orderbook.lowest_sell_order || 0) / 100).toFixed(2)}" step="0.01" />&nbsp;
+                <input id="quick_sell_input" style="background-color: black;color: white;border: transparent;max-width:65px;text-align:center;" type="number" value="${(defaultPrice / 100).toFixed(2)}" step="0.01" />&nbsp;
                 <a class="item_market_action_button item_market_action_button_green quick_sell_custom">
                     <span class="item_market_action_button_edge item_market_action_button_left"></span>
                     <span class="item_market_action_button_contents">➜ Sell</span>
@@ -2562,7 +2573,7 @@
                     <span class="item_market_action_button_preload"></span>
                 </a>
             </div>`);
-			(0, jquery.default)(".quick_sell").on("click", function() {
+			ownerActions.find(".quick_sell").on("click", function() {
 				let price = (0, jquery.default)(this).attr("id").replace("quick_sell", "");
 				price = market.getPriceBeforeFees(price);
 				queued(1);
@@ -2571,7 +2582,7 @@
 					sellPrice: price
 				});
 			});
-			(0, jquery.default)(".quick_sell_custom").on("click", () => {
+			ownerActions.find(".quick_sell_custom").on("click", () => {
 				let price = Number((0, jquery.default)("#quick_sell_input", ownerActions).val()) * 100;
 				price = market.getPriceBeforeFees(price);
 				queued(1);

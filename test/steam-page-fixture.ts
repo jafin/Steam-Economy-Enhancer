@@ -38,9 +38,26 @@ export interface FixtureItemHolder {
     hidden: boolean;
 }
 
+/**
+ * The '#iteminfo{view}' panel quick-sell buttons render into, and where within it they
+ * attach. `ownerActionsId` stands in for the container two parents above the market listing
+ * anchor -- what real markup finds by walking baseLink.parent().parent() -- so a fixture can
+ * state "the buttons belong here" without needing a real DOM tree to walk.
+ */
+export interface FixtureItemInfoPanel {
+    /** Whether '#iteminfo{view}' exists at all -- absent while Steam is still rendering it. */
+    exists: boolean;
+    /** Gifts render '#iteminfo{view}' with no market information at all. */
+    isGift?: boolean;
+    /** The id of the container the quick-sell buttons attach to, present only once the
+     *  market listing anchor itself has rendered. */
+    ownerActionsId?: string;
+}
+
 export interface SteamPageFixture {
     sections: FixtureSection[];
     itemHolders?: FixtureItemHolder[];
+    itemInfo?: FixtureItemInfoPanel;
 }
 
 /** The pieces of the steamPage adapter a fixture can meaningfully stand in for. */
@@ -48,6 +65,11 @@ export interface FixtureSteamPage {
     sellListingsHeader(): string | undefined;
     selectedAssetIds(): string[];
     visibleItemHolderSelector(): string;
+    itemInfoPanel(): FixtureItemInfoPanel | undefined;
+    itemOwnerActions(
+        panel: FixtureItemInfoPanel | undefined,
+        marketLink: string,
+    ): string | undefined;
 }
 
 export function createFixtureSteamPage(
@@ -71,5 +93,9 @@ export function createFixtureSteamPage(
                 .filter((holder) => holder.selected && !holder.hidden)
                 .map((holder) => holder.assetId),
         visibleItemHolderSelector: () => visibleItemHolderSelector,
+        itemInfoPanel: () => fixture.itemInfo,
+        // marketLink is part of the real adapter's signature -- it is what the live lookup
+        // re-finds the anchor by -- but the fixture already states the outcome directly.
+        itemOwnerActions: (panel, _marketLink) => panel?.ownerActionsId,
     };
 }
