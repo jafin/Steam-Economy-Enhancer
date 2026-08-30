@@ -204,7 +204,6 @@
 		logger.innerHTML += `${text}<br/>`;
 		updateScroll();
 	}
-	var REQUEST_DELAY_MARKET = 1e3;
 	var REQUEST_DELAY_ERROR = 5e3;
 	var REQUEST_BREAKER_STATUSES = [
 		400,
@@ -226,7 +225,7 @@
 	}
 	function getRequestDelay(url, status, statusText) {
 		if (status === 0 || status >= 400 || statusText === "error") return REQUEST_DELAY_ERROR;
-		if (url.startsWith("https://steamcommunity.com/market/")) return REQUEST_DELAY_MARKET;
+		if (url.startsWith("https://steamcommunity.com/market/")) return 800;
 		return 300;
 	}
 	function request(url, options, callback, { transport = jquery.default.ajax } = {}) {

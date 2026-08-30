@@ -29,7 +29,7 @@ export interface RequestError extends Error {
 // anything that failed waits longer still.
 export const REQUEST_DELAY_DEFAULT = 300;
 
-export const REQUEST_DELAY_MARKET = 1000;
+export const REQUEST_DELAY_MARKET = 800;
 
 export const REQUEST_DELAY_ERROR = 5000;
 
