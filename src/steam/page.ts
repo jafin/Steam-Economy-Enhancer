@@ -13,6 +13,12 @@
 
 import $ from 'jquery';
 
+// Steam adds `style="display:none"` to inventory pages and items while a search filters
+// them out. Both the read side below (selectedAssetIds) and the write sides in
+// src/inventory/ui.ts and src/inventory/selection.ts have to agree on what counts as "on
+// screen", so the rule is a single constant rather than four independently-typed selectors.
+const NOT_HIDDEN_WHILE_SEARCHING = ':not([style*=none])';
+
 // The rule PR #334 needed, pulled out of the DOM lookup that feeds it: prefer the header
 // anchored to the sell listings table itself, and only fall back to "whichever header
 // is first" when the anchored lookup truly finds nothing. `anchored`/`all` need only
@@ -49,6 +55,39 @@ export function createSteamPage(win: any) {
         activeUser: () => win.g_ActiveUser,
         steamId: () => win.g_steamID,
         activeSelectView: () => win.iActiveSelectView,
+
+        // The asset ids the user has selected in the inventory grid, read back off the
+        // 'ui-selected' class src/inventory/ui.ts writes. Walks every inventory page rather
+        // than just the one on screen, because the selection those buttons act on spans
+        // pages -- see selectAllCards's comment in src/inventory/selection.ts.
+        selectedAssetIds: () => {
+            const ids: string[] = [];
+            $('.inventory_ctn').each(function () {
+                $(this)
+                    .find('.inventory_page')
+                    .each(function () {
+                        $(this)
+                            .find(`.itemHolder.ui-selected${NOT_HIDDEN_WHILE_SEARCHING}`)
+                            .each(function () {
+                                $(this)
+                                    .find('.item')
+                                    .each(function () {
+                                        const matches = this.id.match(/_(-?\d+)$/);
+                                        if (matches) {
+                                            ids.push(matches[1]);
+                                        }
+                                    });
+                            });
+                    });
+            });
+
+            return ids;
+        },
+
+        // The "on screen, not hidden by search" rule, defined once. Shared by the write
+        // side (click/Ctrl/Shift selection and "Select All Cards") so the items they can
+        // select are exactly the items selectedAssetIds() above can read back.
+        visibleItemHolderSelector: () => NOT_HIDDEN_WHILE_SEARCHING,
 
         // Patches CInventory.prototype.SelectItem to also call handler(rgItem) after
         // Steam's own selection handling, and returns a teardown that restores the

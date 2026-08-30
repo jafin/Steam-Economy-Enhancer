@@ -30,20 +30,35 @@ export interface FixtureSection {
     hasSellListingsTable: boolean;
 }
 
-export interface SteamPageFixture {
-    sections: FixtureSection[];
+/** One `.itemHolder > .item` in the inventory grid. */
+export interface FixtureItemHolder {
+    assetId: string;
+    selected: boolean;
+    /** Steam's display:none while searching. */
+    hidden: boolean;
 }
 
-/** The one piece of the steamPage adapter a fixture can meaningfully stand in for. */
+export interface SteamPageFixture {
+    sections: FixtureSection[];
+    itemHolders?: FixtureItemHolder[];
+}
+
+/** The pieces of the steamPage adapter a fixture can meaningfully stand in for. */
 export interface FixtureSteamPage {
     sellListingsHeader(): string | undefined;
+    selectedAssetIds(): string[];
+    visibleItemHolderSelector(): string;
 }
 
 export function createFixtureSteamPage(
     fixture: SteamPageFixture,
     {
         pickSellListingsHeader,
-    }: { pickSellListingsHeader: (anchored: string[], all: string[]) => string | undefined },
+        visibleItemHolderSelector = ':not([style*=none])',
+    }: {
+        pickSellListingsHeader: (anchored: string[], all: string[]) => string | undefined;
+        visibleItemHolderSelector?: string;
+    },
 ): FixtureSteamPage {
     const sellListingsSection = fixture.sections.find((section) => section.hasSellListingsTable);
     const anchored = sellListingsSection ? [sellListingsSection.id] : [];
@@ -51,5 +66,10 @@ export function createFixtureSteamPage(
 
     return {
         sellListingsHeader: () => pickSellListingsHeader(anchored, all),
+        selectedAssetIds: () =>
+            (fixture.itemHolders ?? [])
+                .filter((holder) => holder.selected && !holder.hidden)
+                .map((holder) => holder.assetId),
+        visibleItemHolderSelector: () => visibleItemHolderSelector,
     };
 }

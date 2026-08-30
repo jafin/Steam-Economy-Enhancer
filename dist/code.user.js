@@ -362,6 +362,7 @@
 	function setSetting(name, value) {
 		return setLocalStorageItem(name, value);
 	}
+	var NOT_HIDDEN_WHILE_SEARCHING = ":not([style*=none])";
 	function pickSellListingsHeader(anchored, all) {
 		return anchored.length > 0 ? anchored[0] : all[0];
 	}
@@ -382,6 +383,21 @@
 			activeUser: () => win.g_ActiveUser,
 			steamId: () => win.g_steamID,
 			activeSelectView: () => win.iActiveSelectView,
+			selectedAssetIds: () => {
+				const ids = [];
+				(0, jquery.default)(".inventory_ctn").each(function() {
+					(0, jquery.default)(this).find(".inventory_page").each(function() {
+						(0, jquery.default)(this).find(`.itemHolder.ui-selected${NOT_HIDDEN_WHILE_SEARCHING}`).each(function() {
+							(0, jquery.default)(this).find(".item").each(function() {
+								const matches = this.id.match(/_(-?\d+)$/);
+								if (matches) ids.push(matches[1]);
+							});
+						});
+					});
+				});
+				return ids;
+			},
+			visibleItemHolderSelector: () => NOT_HIDDEN_WHILE_SEARCHING,
 			onInventorySelectItem(handler) {
 				if (typeof win.CInventory === "undefined") return () => {};
 				const original = win.CInventory.prototype.SelectItem;
