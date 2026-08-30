@@ -37,7 +37,7 @@ import {
     getPriceValueAsInt,
 } from './assets.ts';
 import { getListingPriceDelta, getListingVerdict, listingState } from './listingState.ts';
-import { increaseMarketProgress, increaseMarketProgressMax } from './progress.ts';
+import { addWork, workDone } from './progress.ts';
 import { queueOverpricedItemListing, refreshMarketOverpricedButtons } from './relist.ts';
 import { getListingFromLists, marketLists } from './rows.ts';
 import { sortMarketListings } from './sort.ts';
@@ -109,7 +109,7 @@ function clearPriceCellGrid(listingUI) {
 export const marketListingsQueue = runQueue(marketListingsQueueWorker, {
     retryOnFailure: true,
     retryPlacement: 'front',
-    onTaskDone: () => increaseMarketProgress(),
+    onTaskDone: () => workDone(),
 });
 
 export function marketListingsQueueWorker(listing, ignoreErrors, callback) {
@@ -334,7 +334,7 @@ export function marketListingsQueueWorker(listing, ignoreErrors, callback) {
 // real failure does anywhere else, instead of waiting the same short jittered gap it would
 // have waited on success.
 export const marketListingsItemsQueue = runQueue(marketListingsItemsQueueWorker, {
-    onTaskDone: () => increaseMarketProgress(),
+    onTaskDone: () => workDone(),
 });
 
 export function marketListingsItemsQueueWorker(task, ignoreErrors, callback) {
@@ -400,6 +400,12 @@ export function fillMarketListingsQueue() {
     let totalBuyOrderPrice = 0;
     let totalBuyOrderAmount = 0;
 
+    // The queue is pushed once per sell listing, not once per assetInfo.amount -- a stacked
+    // listing's amount can be more than one while it is still a single row to price. This is
+    // the count addWork() below needs; totalSellOrderAmount is a sum of quantities and can
+    // overstate it, which is the off-by-N the bar used to show.
+    let queuedSellListings = 0;
+
     // Add the listings to the queue to be checked for the price.
     marketLists
         .flatMap((list) => list.items)
@@ -432,6 +438,7 @@ export function fillMarketListingsQueue() {
                     contextid: assetInfo.contextid,
                     assetid: assetInfo.assetid,
                 });
+                queuedSellListings += 1;
 
                 return;
             }
@@ -457,8 +464,8 @@ export function fillMarketListingsQueue() {
             logConsole(`Skipping item ${item.elm.id} (not a buy or sell order)`);
         });
 
-    if (totalSellOrderAmount > 0) {
-        increaseMarketProgressMax();
+    if (queuedSellListings > 0) {
+        addWork(queuedSellListings);
     }
 
     // The two totals are the same pair the price grid labels on every row: what the buyers
@@ -561,7 +568,7 @@ export function processMarketListings() {
 
         while (currentCount < totalCount) {
             marketListingsItemsQueue.push({ start: currentCount });
-            increaseMarketProgressMax();
+            addWork(1);
             currentCount += 100;
         }
     } else {
@@ -610,7 +617,7 @@ export function processMarketListings() {
                 contextid: assetInfo.contextid,
                 assetid: assetInfo.assetid,
             });
-            increaseMarketProgressMax();
+            addWork(1);
         });
     }
 }

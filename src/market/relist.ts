@@ -13,7 +13,7 @@ import { getRandomInt } from '../util/numbers.ts';
 import { getAssetInfoFromListingId } from './assets.ts';
 import { marketListingsRelistedAssets } from './listings.ts';
 import { listingState } from './listingState.ts';
-import { increaseMarketProgress, increaseMarketProgressMax, marketProgress } from './progress.ts';
+import { addWork, marketProgress, workDone } from './progress.ts';
 import { getListingFromLists, removeListingFromLists } from './rows.ts';
 import { selectionFor } from './selection.ts';
 import $ from 'jquery';
@@ -58,7 +58,7 @@ export const marketOverpricedQueue = runQueue(marketOverpricedQueueWorker, {
     onTaskDone: () => {
         marketProgress.relistDone += 1;
 
-        increaseMarketProgress();
+        workDone();
     },
 });
 
@@ -195,7 +195,7 @@ export function queueOverpricedItemListing(listingid) {
         marketRelistQueuedListings.add(listingid);
         marketProgress.relistTotal += 1;
 
-        increaseMarketProgressMax();
+        addWork(1);
         refreshMarketOverpricedButtons();
     }
 }

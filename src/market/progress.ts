@@ -23,47 +23,72 @@ export const marketProgress = {
 
 // The <progress> element the market header carries. Not part of marketProgress above: it is
 // written once, from market/ui.ts, well before anything here reads it, and every read went
-// unguarded -- setProgressBar and the null checks below are what stop a page where the market
-// header failed to build from throwing out of increaseMarketProgress instead.
+// unguarded -- setProgressBar and the null check in render() are what stop a page where the
+// market header failed to build from throwing out of workDone instead.
 let bar: HTMLProgressElement | null = null;
 
 export function setProgressBar(el: HTMLProgressElement): void {
     bar = el;
 }
 
-// Progress of the current relist run, shown on the relist overpriced button.
-// Both are reset once nothing is queueing relists any more, see resetMarketRelistProgress.
-
-export function increaseMarketProgressMax() {
-    if (bar == null) {
-        return;
-    }
-
-    let value = bar.max;
-
-    // Reset the progress bar if it already completed
-    if (bar.value === value) {
-        bar.value = 0;
-        value = 0;
-    }
-
-    bar.max = value + 1;
-    bar.removeAttribute('hidden');
+// The bar's own counter: how much work this run declared with addWork(), and how much of it
+// workDone() has finished. Plain numbers rather than fields on the <progress> element itself,
+// so the count can be asserted with no DOM in the loop -- see test/market-progress.test.ts.
+interface ProgressCounter {
+    total: number;
+    done: number;
 }
 
-export function increaseMarketProgress() {
+const progress: ProgressCounter = { total: 0, done: 0 };
+
+// The only place progress and bar meet. Writes max, value and hidden from the counter in one
+// step, rather than the counter and the element drifting out of step the way bar.max and
+// bar.value used to.
+function render(): void {
     if (bar == null) {
         return;
     }
 
-    bar.value += 1;
+    bar.max = progress.total;
+    bar.value = progress.done;
 
-    if (bar.value === bar.max) {
+    if (progress.total > 0 && progress.done < progress.total) {
+        bar.removeAttribute('hidden');
+    } else {
         bar.setAttribute('hidden', 'true');
     }
+}
+
+/**
+ * Declare `n` more items of work queued this run.
+ *
+ * A market page can run several passes, so a batch that starts after the previous one
+ * finished is a new run, not more of the last one: if the counter is already at a completed
+ * total (done caught up with total), the count starts over rather than piling onto a run
+ * that is already done.
+ */
+export function addWork(n: number): void {
+    if (progress.total > 0 && progress.done >= progress.total) {
+        progress.total = 0;
+        progress.done = 0;
+    }
+
+    progress.total += n;
+    render();
+}
+
+/** `n` items of the declared work finished, successfully or not. */
+export function workDone(n = 1): void {
+    progress.done = Math.min(progress.done + n, progress.total);
+    render();
 
     // A listing was just priced, relisted or removed, so the overpriced count may have changed.
     refreshMarketOverpricedButtons();
+}
+
+/** The bar's counter, assertable with no DOM. */
+export function progressState(): { total: number; done: number } {
+    return progress;
 }
 
 // The relist run is over, put the buttons back to showing the (now lower) overpriced count.
