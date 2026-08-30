@@ -23,7 +23,7 @@ export default defineConfig({
     },
     plugins: [
         monkey({
-            entry: 'src/main.ts',
+            entry: 'src/entry.ts',
             userscript: { ...userscript, version },
             build: {
                 fileName: 'code.user.js',
