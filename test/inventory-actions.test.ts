@@ -12,9 +12,11 @@
 
 import { test } from 'vitest';
 import assert from 'node:assert';
+import $ from 'jquery';
 import { markItemQueued } from '../src/items/index.ts';
-import { hasOwnerAction, selectedItemsWhere } from '../src/inventory/actions.ts';
+import { hasOwnerAction } from '../src/inventory/actions.ts';
 import { turnSelectedItemsIntoGems } from '../src/inventory/gems.ts';
+import { updateTurnIntoGemsButton } from '../src/inventory/ui.ts';
 import { endRun, runTotals } from '../src/totals.ts';
 
 test('hasOwnerAction is false when the item has no owner_actions at all', () => {
@@ -61,8 +63,10 @@ function setInventoryAssets(assets: Record<string, unknown>) {
 }
 
 // Marks every asset id as selected in the DOM -- both getSelectedItems() (selection.ts) and
-// turnSelectedItemsIntoGems() read the selection back this way, through steamPage.
-function selectInInventory(assetIds: string[]) {
+// turnSelectedItemsIntoGems() read the selection back this way, through steamPage. The
+// turn_into_gems button markup is the same shape updateInventoryUI builds it as (see ui.ts),
+// cut down to what updateTurnIntoGemsButton actually reads and writes.
+function buildInventoryPage(assetIds: string[]) {
     const holders = assetIds
         .map(
             (id) =>
@@ -73,7 +77,8 @@ function selectInInventory(assetIds: string[]) {
     document.body.innerHTML = `
         <div id="inventories">
             <div class="inventory_ctn"><div class="inventory_page">${holders}</div></div>
-        </div>`;
+        </div>
+        <a class="turn_into_gems" style="display:none"><span></span></a>`;
 }
 
 // Waits out the loadAllInventories().then(...) microtask chain both functions under test run
@@ -82,19 +87,29 @@ function flush() {
     return new Promise((resolve) => setTimeout(resolve, 0));
 }
 
-test('the gems button label counts an item the actual enqueue skips because it is already queued', async () => {
+// The count the "Turn N Items Into Gems" button currently displays.
+function turnIntoGemsButtonCount(): number {
+    const match = $('.turn_into_gems > span')
+        .text()
+        .match(/^Turn (\d+)/);
+
+    return match ? Number(match[1]) : 0;
+}
+
+test('the gems button label and the actual enqueue count agree, even when an item is already queued', async () => {
     endRun();
 
     setInventoryAssets({ 501: gemmableAsset(), 502: gemmableAsset() });
-    selectInInventory(['501', '502']);
+    buildInventoryPage(['501', '502']);
 
     // One of the two selected items is already on a queue from an earlier action.
     markItemQueued({ appid: 730, contextid: 2, id: '501' });
 
-    const labelItems = await selectedItemsWhere((item) => hasOwnerAction(item, 'GetGooValue'));
-    const labelCount = labelItems.length;
+    updateTurnIntoGemsButton();
+    await flush();
 
-    assert.strictEqual(labelCount, 2, 'sanity check: both selected items are gem-able');
+    const labelCount = turnIntoGemsButtonCount();
+    assert.strictEqual(labelCount, 1, 'the already-queued item must not be counted');
 
     turnSelectedItemsIntoGems();
     await flush();

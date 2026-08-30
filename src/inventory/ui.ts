@@ -170,8 +170,14 @@ export function updateSellSelectedButton() {
 }
 
 // Updates the (selected) turn into ... gems button.
+//
+// Excludes queued items, same as the action itself (turnSelectedItemsIntoGems) already did --
+// otherwise the button can read a higher count than the click actually enqueues.
 export function updateTurnIntoGemsButton() {
-    selectedItemsWhere((item) => hasOwnerAction(item, 'GetGooValue')).then((items) => {
+    const isGemmableAndUnqueued = (item) =>
+        !isItemQueued(item) && hasOwnerAction(item, 'GetGooValue');
+
+    selectedItemsWhere(isGemmableAndUnqueued).then((items) => {
         const selectedItems = items.length;
         if (items.length == 0) {
             $('.turn_into_gems').hide();
@@ -185,8 +191,14 @@ export function updateTurnIntoGemsButton() {
 }
 
 // Updates the (selected) open ... booster packs button.
+//
+// Excludes queued items, same as the action itself (unpackSelectedBoosterPacks) already did --
+// otherwise the button can read a higher count than the click actually enqueues.
 export function updateOpenBoosterPacksButton() {
-    selectedItemsWhere((item) => hasOwnerAction(item, 'OpenBooster')).then((items) => {
+    const isBoosterAndUnqueued = (item) =>
+        !isItemQueued(item) && hasOwnerAction(item, 'OpenBooster');
+
+    selectedItemsWhere(isBoosterAndUnqueued).then((items) => {
         const selectedItems = items.length;
         if (items.length == 0) {
             $('.unpack_selected_booster_packs').hide();
