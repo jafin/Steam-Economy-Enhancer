@@ -14,7 +14,8 @@ import { getAssetInfoFromListingId } from './assets.ts';
 import { marketListingsRelistedAssets } from './listings.ts';
 import { listingState } from './listingState.ts';
 import { increaseMarketProgress, increaseMarketProgressMax, marketProgress } from './progress.ts';
-import { getListFromContainer, getListingFromLists, removeListingFromLists } from './rows.ts';
+import { getListingFromLists, removeListingFromLists } from './rows.ts';
+import { selectionFor } from './selection.ts';
 import $ from 'jquery';
 // Listings already queued for relisting. Relisting one twice is pointless work: the
 // second attempt looks up a listing that the first one already removed. This replaces
@@ -211,25 +212,23 @@ export function updateMarketOverpricedButtons() {
     const isRelisting = marketProgress.relistTotal > 0;
 
     $('.market_listing_buttons').each(function () {
-        const selectionGroup = $(this).parent().parent();
-        const marketList = getListFromContainer(selectionGroup);
+        const selection = selectionFor(this);
 
-        if (marketList == null) {
+        if (selection == null) {
             return;
         }
 
-        const count = marketList.matchingItems.filter((item) =>
-            $(item.elm).hasClass(VERDICT_OVERPRICED),
-        ).length;
+        const { rows, group } = selection;
+        const count = rows.filter((item) => $(item.elm).hasClass(VERDICT_OVERPRICED)).length;
 
-        $('.relist_overpriced > span', selectionGroup).text(
+        $('.relist_overpriced > span', group).text(
             isRelisting
                 ? `Relisting ${marketProgress.relistDone}/${marketProgress.relistTotal}`
                 : `Relist overpriced (${count})`,
         );
 
-        $('.relist_overpriced', selectionGroup).toggleClass('see_button_busy', isRelisting);
+        $('.relist_overpriced', group).toggleClass('see_button_busy', isRelisting);
 
-        $('.select_overpriced > span', selectionGroup).text(`Select overpriced (${count})`);
+        $('.select_overpriced > span', group).text(`Select overpriced (${count})`);
     });
 }

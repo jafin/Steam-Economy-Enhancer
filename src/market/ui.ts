@@ -11,21 +11,21 @@ import { increaseMarketProgressMax, marketProgress } from './progress.ts';
 import { queueOverpricedItemListing } from './relist.ts';
 import { marketRemoveQueue } from './remove.ts';
 import { getListingFromLists } from './rows.ts';
-import { selectionFor } from './selection.ts';
+import { marketSectionFor, selectionFor, tableHeaderSectionFor } from './selection.ts';
 import { sortMarketListings } from './sort.ts';
 import $ from 'jquery';
 // Update the select/deselect all button on the market.
 export function updateMarketSelectAllButton() {
     $('.market_listing_buttons').each(function () {
-        const selectionGroup = $(this).parent().parent();
+        const group = marketSectionFor(this);
         let invert =
-            $('.market_select_item:checked', selectionGroup).length ==
-            $('.market_select_item', selectionGroup).length;
-        if ($('.market_select_item', selectionGroup).length == 0) {
+            $('.market_select_item:checked', group).length ==
+            $('.market_select_item', group).length;
+        if ($('.market_select_item', group).length == 0) {
             // If there are no items to select, keep it at Select all.
             invert = false;
         }
-        $('.select_all > span', selectionGroup).text(invert ? 'Deselect all' : 'Select all');
+        $('.select_all > span', group).text(invert ? 'Deselect all' : 'Select all');
     });
 }
 
@@ -83,17 +83,16 @@ export function initializeMarketUI() {
             return;
         }
 
-        const isPrice =
-            $('.market_listing_table_header', $(this).parent().parent()).children().eq(1).text() ==
-            $(this).text();
-        const isDate =
-            $('.market_listing_table_header', $(this).parent().parent()).children().eq(2).text() ==
-            $(this).text();
-        const isName =
-            $('.market_listing_table_header', $(this).parent().parent()).children().eq(3).text() ==
-            $(this).text();
+        const section = tableHeaderSectionFor(this);
 
-        sortMarketListings($(this).parent().parent(), isPrice, isDate, isName);
+        const isPrice =
+            $('.market_listing_table_header', section).children().eq(1).text() == $(this).text();
+        const isDate =
+            $('.market_listing_table_header', section).children().eq(2).text() == $(this).text();
+        const isName =
+            $('.market_listing_table_header', section).children().eq(3).text() == $(this).text();
+
+        sortMarketListings(section, isPrice, isDate, isName);
     });
 
     $('.select_all').on('click', '*', function () {
