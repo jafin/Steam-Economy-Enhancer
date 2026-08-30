@@ -56,6 +56,17 @@ export function createSteamPage(win: any) {
         steamId: () => win.g_steamID,
         activeSelectView: () => win.iActiveSelectView,
 
+        // The item info panel quick-sell buttons render into. Replaces a direct
+        // $('#iteminfo' + activeSelectView()) reach-in in src/inventory/ui.ts.
+        itemInfoPanel: () => $(`#iteminfo${win.iActiveSelectView}`),
+
+        // The two-level parent walk that decides which element the quick-sell buttons
+        // attach to -- the PR #334 shape applied to the iteminfo panel instead of the sell
+        // listings header: change the nesting between the market listing anchor and its
+        // owning container, and the buttons silently attach to the wrong element.
+        itemOwnerActions: (panel, marketLink) =>
+            $(`a[href^="${marketLink}"]`, panel).parent().parent(),
+
         // The asset ids the user has selected in the inventory grid, read back off the
         // 'ui-selected' class src/inventory/ui.ts writes. Walks every inventory page rather
         // than just the one on screen, because the selection those buttons act on spans
