@@ -14,7 +14,7 @@ import {
 } from '../settings/index.ts';
 import { steamPage } from '../steam/instance.ts';
 import { market } from '../steam/market.ts';
-import { totals } from '../totals.ts';
+import { queued } from '../totals.ts';
 import { logConsole, logger, setUserScrolled } from '../ui/logger.ts';
 import { unpackAllBoosterPacks, unpackSelectedBoosterPacks } from './boosters.ts';
 import {
@@ -358,7 +358,7 @@ export async function updateInventorySelection(selectedItem) {
             let price = $(this).attr('id')!.replace('quick_sell', '');
             price = market.getPriceBeforeFees(price);
 
-            totals.queuedItems++;
+            queued(1);
 
             sellQueue.push({
                 item: selectedItem,
@@ -370,7 +370,7 @@ export async function updateInventorySelection(selectedItem) {
             let price = Number($('#quick_sell_input', ownerActions).val()) * 100;
             price = market.getPriceBeforeFees(price);
 
-            totals.queuedItems++;
+            queued(1);
 
             sellQueue.push({
                 item: selectedItem,

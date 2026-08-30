@@ -10,7 +10,7 @@ import { ERROR_SUCCESS } from '../constants.ts';
 import { isItemQueued, markItemQueued } from '../items/index.ts';
 import { runQueue } from '../queue/index.ts';
 import { market } from '../steam/market.ts';
-import { totals } from '../totals.ts';
+import { processed, queued, runTotals, scrapped } from '../totals.ts';
 import { markRow, removeSpinner, renderSpinner } from '../ui/index.ts';
 import { logConsole, logDOM } from '../ui/logger.ts';
 import { getNumberOfDigits, padLeftZero } from '../util/numbers.ts';
@@ -58,7 +58,7 @@ export function gemAllDuplicateItems() {
         });
 
         if (numberOfQueuedItems > 0) {
-            totals.queuedItems += numberOfQueuedItems;
+            queued(numberOfQueuedItems);
 
             renderSpinner(`Processing ${numberOfQueuedItems} items`);
         }
@@ -72,10 +72,11 @@ export function scrapQueueWorker(item, ignoreErrors, callback) {
     const itemId = item.assetid || item.id;
 
     market.getGooValue(item, (err, goo) => {
-        totals.processedQueueItems++;
+        processed();
 
-        const digits = getNumberOfDigits(totals.queuedItems);
-        const padLeft = `${padLeftZero(`${totals.processedQueueItems}`, digits)} / ${totals.queuedItems}`;
+        const current = runTotals();
+        const digits = getNumberOfDigits(current.queuedItems);
+        const padLeft = `${padLeftZero(`${current.processedQueueItems}`, digits)} / ${current.queuedItems}`;
 
         if (err != ERROR_SUCCESS) {
             logConsole(`Failed to get gems value for ${itemName}`);
@@ -102,7 +103,7 @@ export function scrapQueueWorker(item, ignoreErrors, callback) {
             logDOM(`${padLeft} - ${itemName} turned into ${gooValueExpected} gems.`);
             markRow(`${item.appid}_${item.contextid}_${itemId}`, 'success');
 
-            totals.scrap += gooValueExpected;
+            scrapped(gooValueExpected);
             updateTotals();
 
             callback(true);
@@ -155,7 +156,7 @@ export function turnSelectedItemsIntoGems() {
         });
 
         if (numberOfQueuedItems > 0) {
-            totals.queuedItems += numberOfQueuedItems;
+            queued(numberOfQueuedItems);
 
             renderSpinner(`Processing ${numberOfQueuedItems} items`);
         }

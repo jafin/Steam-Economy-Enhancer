@@ -9,41 +9,57 @@ import { marketRelistQueuedListings, refreshMarketOverpricedButtons } from './re
 /**
  * Progress of the current relist run.
  *
- * One object rather than three loose bindings because market/ui.ts and market/relist.ts
- * both write to these, and a module cannot assign to a binding it imported. Reset together
- * by resetMarketRelistProgress once nothing is queueing relists any more -- not per queue,
- * since several can be draining at once.
+ * One object rather than two loose bindings because market/ui.ts and market/relist.ts both
+ * write to these, and a module cannot assign to a binding it imported. Reset together by
+ * resetMarketRelistProgress once nothing is queueing relists any more -- not per queue, since
+ * several can be draining at once.
  */
 export const marketProgress = {
-    /** The <progress> element the market header carries, once the UI has built it. */
-    bar: null as any,
     /** Listings this run intends to relist. */
     relistTotal: 0,
     /** Listings it has finished relisting. */
     relistDone: 0,
 };
 
+// The <progress> element the market header carries. Not part of marketProgress above: it is
+// written once, from market/ui.ts, well before anything here reads it, and every read went
+// unguarded -- setProgressBar and the null checks below are what stop a page where the market
+// header failed to build from throwing out of increaseMarketProgress instead.
+let bar: HTMLProgressElement | null = null;
+
+export function setProgressBar(el: HTMLProgressElement): void {
+    bar = el;
+}
+
 // Progress of the current relist run, shown on the relist overpriced button.
 // Both are reset once nothing is queueing relists any more, see resetMarketRelistProgress.
 
 export function increaseMarketProgressMax() {
-    let value = marketProgress.bar.max;
+    if (bar == null) {
+        return;
+    }
+
+    let value = bar.max;
 
     // Reset the progress bar if it already completed
-    if (marketProgress.bar.value === value) {
-        marketProgress.bar.value = 0;
+    if (bar.value === value) {
+        bar.value = 0;
         value = 0;
     }
 
-    marketProgress.bar.max = value + 1;
-    marketProgress.bar.removeAttribute('hidden');
+    bar.max = value + 1;
+    bar.removeAttribute('hidden');
 }
 
 export function increaseMarketProgress() {
-    marketProgress.bar.value += 1;
+    if (bar == null) {
+        return;
+    }
 
-    if (marketProgress.bar.value === marketProgress.bar.max) {
-        marketProgress.bar.setAttribute('hidden', 'true');
+    bar.value += 1;
+
+    if (bar.value === bar.max) {
+        bar.setAttribute('hidden', 'true');
     }
 
     // A listing was just priced, relisted or removed, so the overpriced count may have changed.

@@ -23,7 +23,7 @@ import { QueueTask, runQueue } from '../queue/index.ts';
 import { SETTING_PRICE_MIN_LIST_PRICE, getSetting } from '../settings/index.ts';
 import { steamPage } from '../steam/instance.ts';
 import { market } from '../steam/market.ts';
-import { totals } from '../totals.ts';
+import { listed, processed, queued, runTotals, unprocessed } from '../totals.ts';
 import { markRow, removeSpinner, renderSpinner } from '../ui/index.ts';
 import { logConsole, logDOM } from '../ui/logger.ts';
 import { getNumberOfDigits, getRandomInt, padLeftZero } from '../util/numbers.ts';
@@ -31,14 +31,15 @@ import { getInventoryItems, loadAllInventories } from './data.ts';
 import { updateTotals } from './progress.ts';
 import { getInventorySelectedMarketableItems } from './selection.ts';
 export const sellQueue = async.queue((task: QueueTask, next) => {
-    totals.processedQueueItems++;
+    processed();
 
-    const digits = getNumberOfDigits(totals.queuedItems);
+    const current = runTotals();
+    const digits = getNumberOfDigits(current.queuedItems);
     const itemId = task.item.assetid || task.item.id;
     const itemName = task.item.name || task.item.description.name;
     const itemNameWithAmount =
         task.item.amount == 1 ? itemName : `${task.item.amount}x ${itemName}`;
-    const padLeft = `${padLeftZero(`${totals.processedQueueItems}`, digits)} / ${totals.queuedItems}`;
+    const padLeft = `${padLeftZero(`${current.processedQueueItems}`, digits)} / ${current.queuedItems}`;
 
     if (
         getSetting(SETTING_PRICE_MIN_LIST_PRICE) * 100 >=
@@ -66,9 +67,10 @@ export const sellQueue = async.queue((task: QueueTask, next) => {
             );
             markRow(`${task.item.appid}_${task.item.contextid}_${itemId}`, 'success');
 
-            totals.priceWithoutFeesOnMarket += task.sellPrice * task.item.amount;
-            totals.priceWithFeesOnMarket +=
-                market.getPriceIncludingFees(task.sellPrice) * task.item.amount;
+            listed(
+                task.sellPrice * task.item.amount,
+                market.getPriceIncludingFees(task.sellPrice) * task.item.amount,
+            );
 
             updateTotals();
             callback();
@@ -81,7 +83,7 @@ export const sellQueue = async.queue((task: QueueTask, next) => {
                 `${padLeft} - ${itemNameWithAmount} retrying listing because: ${message.charAt(0).toLowerCase()}${message.slice(1)}`,
             );
 
-            totals.processedQueueItems--;
+            unprocessed();
             sellQueue.unshift(task);
             sellQueue.pause();
 
@@ -270,7 +272,7 @@ export function sellItems(items) {
     });
 
     if (numberOfQueuedItems > 0) {
-        totals.queuedItems += numberOfQueuedItems;
+        queued(numberOfQueuedItems);
 
         renderSpinner(`Processing ${numberOfQueuedItems} items`);
     }

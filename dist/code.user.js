@@ -1179,22 +1179,27 @@
 		});
 	}
 	var marketProgress = {
-		bar: null,
 		relistTotal: 0,
 		relistDone: 0
 	};
+	var bar = null;
+	function setProgressBar(el) {
+		bar = el;
+	}
 	function increaseMarketProgressMax() {
-		let value = marketProgress.bar.max;
-		if (marketProgress.bar.value === value) {
-			marketProgress.bar.value = 0;
+		if (bar == null) return;
+		let value = bar.max;
+		if (bar.value === value) {
+			bar.value = 0;
 			value = 0;
 		}
-		marketProgress.bar.max = value + 1;
-		marketProgress.bar.removeAttribute("hidden");
+		bar.max = value + 1;
+		bar.removeAttribute("hidden");
 	}
 	function increaseMarketProgress() {
-		marketProgress.bar.value += 1;
-		if (marketProgress.bar.value === marketProgress.bar.max) marketProgress.bar.setAttribute("hidden", "true");
+		if (bar == null) return;
+		bar.value += 1;
+		if (bar.value === bar.max) bar.setAttribute("hidden", "true");
 		refreshMarketOverpricedButtons();
 	}
 	function resetMarketRelistProgress() {
@@ -1422,7 +1427,7 @@
 	}
 	function initializeMarketUI() {
 		(0, jquery.default)(".market_header_text").append("<progress id=\"see_market_progress\" value=\"1\" max=\"1\" hidden>");
-		marketProgress.bar = document.getElementById("see_market_progress");
+		setProgressBar(document.getElementById("see_market_progress"));
 		const sellListingsHeader = steamPage.sellListingsHeader();
 		sellListingsHeader.append(`<div class="market_listing_buttons">
         <a class="item_market_action_button item_market_action_button_green select_all market_listing_button">
@@ -1969,6 +1974,32 @@
 		priceWithoutFeesOnMarket: 0,
 		scrap: 0
 	};
+	function queued(n) {
+		totals.queuedItems += n;
+	}
+	function processed() {
+		totals.processedQueueItems++;
+	}
+	function unprocessed() {
+		totals.processedQueueItems--;
+	}
+	function listed(beforeFees, withFees) {
+		totals.priceWithoutFeesOnMarket += beforeFees;
+		totals.priceWithFeesOnMarket += withFees;
+	}
+	function scrapped(gems) {
+		totals.scrap += gems;
+	}
+	function endRun() {
+		totals.processedQueueItems = 0;
+		totals.queuedItems = 0;
+		totals.priceWithFeesOnMarket = 0;
+		totals.priceWithoutFeesOnMarket = 0;
+		totals.scrap = 0;
+	}
+	function runTotals() {
+		return totals;
+	}
 	function getSelectedItems() {
 		const ids = [];
 		(0, jquery.default)(".inventory_ctn").each(function() {
@@ -2049,9 +2080,10 @@
 		const itemName = item.name || item.description.name;
 		const itemId = item.assetid || item.id;
 		market.unpackBoosterPack(item, (err) => {
-			totals.processedQueueItems++;
-			const digits = getNumberOfDigits(totals.queuedItems);
-			const padLeft = `${padLeftZero(`${totals.processedQueueItems}`, digits)} / ${totals.queuedItems}`;
+			processed();
+			const current = runTotals();
+			const digits = getNumberOfDigits(current.queuedItems);
+			const padLeft = `${padLeftZero(`${current.processedQueueItems}`, digits)} / ${current.queuedItems}`;
 			if (err != null) {
 				`${itemName}`;
 				logDOM(`${padLeft} - ${itemName} not unpacked.`);
@@ -2082,7 +2114,7 @@
 				logDOM("No booster packs found in the inventory to unpack.");
 				return;
 			}
-			totals.queuedItems += numberOfQueuedItems;
+			queued(numberOfQueuedItems);
 			renderSpinner(`Processing ${numberOfQueuedItems} items`);
 		});
 	}
@@ -2106,18 +2138,19 @@
 				}
 			});
 			if (numberOfQueuedItems > 0) {
-				totals.queuedItems += numberOfQueuedItems;
+				queued(numberOfQueuedItems);
 				renderSpinner(`Processing ${numberOfQueuedItems} items`);
 			}
 		});
 	}
 	var sellQueue = async.default.queue((task, next) => {
-		totals.processedQueueItems++;
-		const digits = getNumberOfDigits(totals.queuedItems);
+		processed();
+		const current = runTotals();
+		const digits = getNumberOfDigits(current.queuedItems);
 		const itemId = task.item.assetid || task.item.id;
 		const itemName = task.item.name || task.item.description.name;
 		const itemNameWithAmount = task.item.amount == 1 ? itemName : `${task.item.amount}x ${itemName}`;
-		const padLeft = `${padLeftZero(`${totals.processedQueueItems}`, digits)} / ${totals.queuedItems}`;
+		const padLeft = `${padLeftZero(`${current.processedQueueItems}`, digits)} / ${current.queuedItems}`;
 		if (getSetting("SETTING_PRICE_MIN_LIST_PRICE") * 100 >= market.getPriceIncludingFees(task.sellPrice)) {
 			logDOM(`${padLeft} - ${itemNameWithAmount} is not listed due to ignoring price settings.`);
 			markRow(`${task.item.appid}_${task.item.contextid}_${itemId}`, "notChecked");
@@ -2131,15 +2164,14 @@
 			if (success) {
 				logDOM(`${padLeft} - ${itemNameWithAmount} listed for ${formatPrice(market.getPriceIncludingFees(task.sellPrice) * task.item.amount)}, you will receive ${formatPrice(task.sellPrice * task.item.amount)}.`);
 				markRow(`${task.item.appid}_${task.item.contextid}_${itemId}`, "success");
-				totals.priceWithoutFeesOnMarket += task.sellPrice * task.item.amount;
-				totals.priceWithFeesOnMarket += market.getPriceIncludingFees(task.sellPrice) * task.item.amount;
+				listed(task.sellPrice * task.item.amount, market.getPriceIncludingFees(task.sellPrice) * task.item.amount);
 				updateTotals();
 				callback();
 				return;
 			}
 			if (message && isRetryMessage(message)) {
 				logDOM(`${padLeft} - ${itemNameWithAmount} retrying listing because: ${message.charAt(0).toLowerCase()}${message.slice(1)}`);
-				totals.processedQueueItems--;
+				unprocessed();
 				sellQueue.unshift(task);
 				sellQueue.pause();
 				setTimeout(() => sellQueue.resume(), getRandomInt(RETRY_DELAY_LONG_MIN, RETRY_DELAY_LONG_MAX));
@@ -2250,7 +2282,7 @@
 			numberOfQueuedItems++;
 		});
 		if (numberOfQueuedItems > 0) {
-			totals.queuedItems += numberOfQueuedItems;
+			queued(numberOfQueuedItems);
 			renderSpinner(`Processing ${numberOfQueuedItems} items`);
 		}
 	}
@@ -2280,14 +2312,18 @@
 		});
 	}
 	function onQueueDrain() {
-		if (itemQueue.length() == 0 && sellQueue.length() == 0 && scrapQueue.length() == 0 && boosterQueue.length() == 0) removeSpinner();
+		if (itemQueue.length() == 0 && sellQueue.length() == 0 && scrapQueue.length() == 0 && boosterQueue.length() == 0) {
+			removeSpinner();
+			endRun();
+		}
 	}
 	function updateTotals() {
 		if ((0, jquery.default)("#loggerTotal").length == 0) (0, jquery.default)(logger).parent().append("<div id=\"loggerTotal\"></div>");
 		const totalsElement = document.getElementById("loggerTotal");
 		totalsElement.innerHTML = "";
-		if (totals.priceWithFeesOnMarket > 0) totalsElement.innerHTML += `<div><strong>Total listed for ${formatPrice(totals.priceWithFeesOnMarket)}, you will receive ${formatPrice(totals.priceWithoutFeesOnMarket)}.</strong></div>`;
-		if (totals.scrap > 0) totalsElement.innerHTML += `<div><strong>Total scrap ${totals.scrap}.</strong></div>`;
+		const current = runTotals();
+		if (current.priceWithFeesOnMarket > 0) totalsElement.innerHTML += `<div><strong>Total listed for ${formatPrice(current.priceWithFeesOnMarket)}, you will receive ${formatPrice(current.priceWithoutFeesOnMarket)}.</strong></div>`;
+		if (current.scrap > 0) totalsElement.innerHTML += `<div><strong>Total scrap ${current.scrap}.</strong></div>`;
 	}
 	function delay(ms) {
 		return new Promise((resolve) => setTimeout(resolve, ms));
@@ -2311,7 +2347,7 @@
 				numberOfQueuedItems++;
 			});
 			if (numberOfQueuedItems > 0) {
-				totals.queuedItems += numberOfQueuedItems;
+				queued(numberOfQueuedItems);
 				renderSpinner(`Processing ${numberOfQueuedItems} items`);
 			}
 		});
@@ -2321,9 +2357,10 @@
 		const itemName = item.name || item.description.name;
 		const itemId = item.assetid || item.id;
 		market.getGooValue(item, (err, goo) => {
-			totals.processedQueueItems++;
-			const digits = getNumberOfDigits(totals.queuedItems);
-			const padLeft = `${padLeftZero(`${totals.processedQueueItems}`, digits)} / ${totals.queuedItems}`;
+			processed();
+			const current = runTotals();
+			const digits = getNumberOfDigits(current.queuedItems);
+			const padLeft = `${padLeftZero(`${current.processedQueueItems}`, digits)} / ${current.queuedItems}`;
 			if (err != null) {
 				`${itemName}`;
 				logDOM(`${padLeft} - ${itemName} not turned into gems due to missing gems value.`);
@@ -2341,7 +2378,7 @@
 				`${goo.goo_value}`;
 				logDOM(`${padLeft} - ${itemName} turned into ${gooValueExpected} gems.`);
 				markRow(`${item.appid}_${item.contextid}_${itemId}`, "success");
-				totals.scrap += gooValueExpected;
+				scrapped(gooValueExpected);
 				updateTotals();
 				callback(true);
 			});
@@ -2368,7 +2405,7 @@
 				}
 			});
 			if (numberOfQueuedItems > 0) {
-				totals.queuedItems += numberOfQueuedItems;
+				queued(numberOfQueuedItems);
 				renderSpinner(`Processing ${numberOfQueuedItems} items`);
 			}
 		});
@@ -2531,7 +2568,7 @@
 			(0, jquery.default)(".quick_sell").on("click", function() {
 				let price = (0, jquery.default)(this).attr("id").replace("quick_sell", "");
 				price = market.getPriceBeforeFees(price);
-				totals.queuedItems++;
+				queued(1);
 				sellQueue.push({
 					item: selectedItem,
 					sellPrice: price
@@ -2540,7 +2577,7 @@
 			(0, jquery.default)(".quick_sell_custom").on("click", () => {
 				let price = Number((0, jquery.default)("#quick_sell_input", ownerActions).val()) * 100;
 				price = market.getPriceBeforeFees(price);
-				totals.queuedItems++;
+				queued(1);
 				sellQueue.push({
 					item: selectedItem,
 					sellPrice: price

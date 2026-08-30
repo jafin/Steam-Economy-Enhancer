@@ -6,7 +6,7 @@
 
 import $ from 'jquery';
 import { formatPrice } from '../pricing/algorithms.ts';
-import { totals } from '../totals.ts';
+import { endRun, runTotals } from '../totals.ts';
 import { removeSpinner } from '../ui/index.ts';
 import { logger } from '../ui/logger.ts';
 import { boosterQueue } from './boosters.ts';
@@ -20,6 +20,7 @@ export function onQueueDrain() {
         boosterQueue.length() == 0
     ) {
         removeSpinner();
+        endRun();
     }
 }
 
@@ -37,11 +38,13 @@ export function updateTotals() {
     const totalsElement = document.getElementById('loggerTotal')!;
     totalsElement.innerHTML = '';
 
-    if (totals.priceWithFeesOnMarket > 0) {
-        totalsElement.innerHTML += `<div><strong>Total listed for ${formatPrice(totals.priceWithFeesOnMarket)}, you will receive ${formatPrice(totals.priceWithoutFeesOnMarket)}.</strong></div>`;
+    const current = runTotals();
+
+    if (current.priceWithFeesOnMarket > 0) {
+        totalsElement.innerHTML += `<div><strong>Total listed for ${formatPrice(current.priceWithFeesOnMarket)}, you will receive ${formatPrice(current.priceWithoutFeesOnMarket)}.</strong></div>`;
     }
-    if (totals.scrap > 0) {
-        totalsElement.innerHTML += `<div><strong>Total scrap ${totals.scrap}.</strong></div>`;
+    if (current.scrap > 0) {
+        totalsElement.innerHTML += `<div><strong>Total scrap ${current.scrap}.</strong></div>`;
     }
 }
 
