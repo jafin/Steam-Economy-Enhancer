@@ -13,6 +13,10 @@
 import { beforeEach, test } from 'vitest';
 import assert from 'node:assert';
 import $ from 'jquery';
+// initializeMarketUI() ends by calling initializeMarketHistoryUI(), which uses the
+// jquery-observe plugin. src/main.ts is what registers it onto jQuery in production; this
+// test imports ui.ts directly rather than main.ts, so it has to register the plugin itself.
+import '../src/vendor/jquery-observe.js';
 import { initializeMarketUI } from '../src/market/ui.ts';
 import { addMarketListings } from '../src/market/listings.ts';
 import { marketLists } from '../src/market/rows.ts';
@@ -75,7 +79,11 @@ test('select_all on the sell-listings section resolves that section, not another
 
     const selection = selectionFor(target);
 
-    assert.notStrictEqual(selection, null, 'selectionFor found no list for the sell-listings button');
+    assert.notStrictEqual(
+        selection,
+        null,
+        'selectionFor found no list for the sell-listings button',
+    );
     assert.strictEqual(selection!.rows.length, 2);
 });
 
@@ -94,7 +102,11 @@ test('select_all on the confirmations section resolves its own list, not the sel
 
     const selection = selectionFor(target);
 
-    assert.notStrictEqual(selection, null, 'selectionFor found no list for the confirmations button');
+    assert.notStrictEqual(
+        selection,
+        null,
+        'selectionFor found no list for the confirmations button',
+    );
     assert.strictEqual(selection!.rows.length, 1);
 });
 
@@ -154,12 +166,18 @@ test('selectionFor resolves the same target whether the click landed on the labe
     assert.strictEqual(fromAnchor!.group.get(0), fromLabel!.group.get(0));
 });
 
-test('selectionFor returns null for a target with no market button ancestor', () => {
+test('selectionFor returns null when the section has no list registered yet', () => {
+    // An empty buy-orders block, for instance: initializeMarketUI() writes its buttons
+    // unconditionally, but addMarketListings() is only ever called for a section that has
+    // rows -- see fillMarketListingsQueue()'s childElementCount guard.
     document.body.innerHTML = section('header-sell-listings', true);
     initializeMarketUI();
-    registerRows($('#header-sell-listings').closest('.market_home_listing_table'), ['111']);
 
-    assert.strictEqual(selectionFor(document.body), null);
+    const target = $('#header-sell-listings')
+        .find('.select_all .item_market_action_button_contents')
+        .get(0);
+
+    assert.strictEqual(selectionFor(target), null);
 });
 
 test('marketSectionFor resolves the section for a target that is the buttons block itself', () => {
