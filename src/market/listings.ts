@@ -6,7 +6,6 @@
 
 import {
     COLOR_PRICE_NOT_CHECKED,
-    ERROR_SUCCESS,
     PAGE_MARKET,
     VERDICT_COLORS,
     VERDICT_MESSAGES,
@@ -201,19 +200,13 @@ export function marketListingsQueueWorker(listing, ignoreErrors, callback) {
     market.getPriceHistory(item, true, (errorPriceHistory, history, cachedHistory) => {
         if (errorPriceHistory) {
             logConsole(`Failed to get price history for ${game_name}`);
-
-            if (errorPriceHistory != ERROR_SUCCESS) {
-                failed += 1;
-            }
+            failed += 1;
         }
 
         market.getOrderBook(item, true, (errorOrderBook, orderbook, cachedListings) => {
             if (errorOrderBook) {
                 logConsole(`Failed to get order book for ${game_name}`);
-
-                if (errorOrderBook != ERROR_SUCCESS) {
-                    failed += 1;
-                }
+                failed += 1;
             }
 
             if (failed > 0 && !ignoreErrors) {

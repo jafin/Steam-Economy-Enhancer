@@ -1633,12 +1633,12 @@
 		market.getPriceHistory(item, true, (errorPriceHistory, history, cachedHistory) => {
 			if (errorPriceHistory) {
 				`${game_name}`;
-				if (errorPriceHistory != null) failed += 1;
+				failed += 1;
 			}
 			market.getOrderBook(item, true, (errorOrderBook, orderbook, cachedListings) => {
 				if (errorOrderBook) {
 					`${game_name}`;
-					if (errorOrderBook != null) failed += 1;
+					failed += 1;
 				}
 				if (failed > 0 && !ignoreErrors) return callback(false, cachedHistory && cachedListings);
 				const highestBuyOrderPrice = orderbook == null || orderbook.highest_buy_order == null ? "-" : formatPrice(orderbook.highest_buy_order);
@@ -1854,7 +1854,7 @@
 		market.getOrderBook(item, true, (err, orderbook, cachedListings) => {
 			if (err) {
 				`${itemName}`;
-				if (err != null) failed += 1;
+				failed += 1;
 			}
 			if (failed > 0 && !ignoreErrors) return callback(false, cachedListings);
 			const sellPrice = calculateSellPriceBeforeFees(null, orderbook, false, {
@@ -2312,12 +2312,12 @@
 		market.getPriceHistory(item, true, (err, history, cachedHistory) => {
 			if (err) {
 				`${itemName}`;
-				if (err != null) failed += 1;
+				failed += 1;
 			}
 			market.getOrderBook(item, true, (err, orderbook, cachedListings) => {
 				if (err) {
 					`${itemName}`;
-					if (err != null) failed += 1;
+					failed += 1;
 				}
 				if (failed > 0 && !ignoreErrors) return callback(false, cachedHistory && cachedListings);
 				const sellPrice = calculateSellPriceBeforeFees(history, orderbook, true, createPricingRules(item));

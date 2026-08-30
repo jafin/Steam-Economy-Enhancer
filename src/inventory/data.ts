@@ -6,7 +6,7 @@
 
 import $ from 'jquery';
 import { listingState } from '../market/listingState.ts';
-import { ERROR_SUCCESS, PAGE_TRADEOFFER } from '../constants.ts';
+import { PAGE_TRADEOFFER } from '../constants.ts';
 import { getAssetKey, readInventoryItems } from '../items/index.ts';
 import {
     NO_LISTING_PRICE_SENTINEL,
@@ -71,10 +71,7 @@ export function inventoryPriceQueueWorker(item, ignoreErrors, callback) {
     market.getOrderBook(item, true, (err, orderbook, cachedListings) => {
         if (err) {
             logConsole(`Failed to get order book for ${itemName}`);
-
-            if (err != ERROR_SUCCESS) {
-                failed += 1;
-            }
+            failed += 1;
         }
 
         if (failed > 0 && !ignoreErrors) {

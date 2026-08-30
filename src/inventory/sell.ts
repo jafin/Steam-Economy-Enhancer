@@ -290,19 +290,13 @@ export function itemQueueWorker(item, ignoreErrors, callback) {
     market.getPriceHistory(item, true, (err, history, cachedHistory) => {
         if (err) {
             logConsole(`Failed to get price history for ${itemName}`);
-
-            if (err != ERROR_SUCCESS) {
-                failed += 1;
-            }
+            failed += 1;
         }
 
         market.getOrderBook(item, true, (err, orderbook, cachedListings) => {
             if (err) {
                 logConsole(`Failed to get order book for ${itemName}`);
-
-                if (err != ERROR_SUCCESS) {
-                    failed += 1;
-                }
+                failed += 1;
             }
 
             if (failed > 0 && !ignoreErrors) {
