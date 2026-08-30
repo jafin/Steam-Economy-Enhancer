@@ -1,7 +1,12 @@
 import { test, beforeEach, afterEach, vi } from 'vitest';
 import assert from 'node:assert';
-import * as see from '../src/main.ts';
-import type { RequestError } from '../src/main.ts';
+import {
+    REQUEST_DELAY_DEFAULT,
+    REQUEST_DELAY_ERROR,
+    REQUEST_DELAY_MARKET,
+    request,
+} from '../src/net/request.ts';
+import type { RequestError } from '../src/net/request.ts';
 
 // request()'s own queueing, pending flag and breaker used to be untestable: the only seam
 // was $.ajax, a real network call. transport is the adapter that fixes that - these tests
@@ -52,16 +57,16 @@ beforeEach(() => {
     // request.stopped is a deliberate one-way door within a process (see the "kept last"
     // test in request-policy.test.js) and is not reset here. Everything else is per-call
     // state that must not leak between tests in this file.
-    see.request.pending = false;
-    see.request.queue = [];
-    see.request.errors = 0;
+    request.pending = false;
+    request.queue = [];
+    request.errors = 0;
 });
 
 test("a successful request calls back with the transport's data", () => {
     vi.useFakeTimers();
 
     let result: any;
-    see.request(
+    request(
         'https://steamcommunity.com/',
         {},
         (err: any, data: any) => {
@@ -79,7 +84,7 @@ test('a failed request calls back with an Error describing the status', () => {
     vi.useFakeTimers();
 
     let result: any;
-    see.request(
+    request(
         'https://steamcommunity.com/',
         { method: 'GET' },
         (err: any, data: any) => {
@@ -101,19 +106,19 @@ test('a request made while one is pending queues instead of sending', () => {
     vi.useFakeTimers();
     const transport = heldTransport();
 
-    see.request('https://steamcommunity.com/first', {}, () => {}, { transport });
-    see.request('https://steamcommunity.com/second', {}, () => {}, { transport });
+    request('https://steamcommunity.com/first', {}, () => {}, { transport });
+    request('https://steamcommunity.com/second', {}, () => {}, { transport });
 
     assert.strictEqual(transport.calls.length, 1, 'the second call is queued, not sent');
-    assert.strictEqual(see.request.queue.length, 1);
+    assert.strictEqual(request.queue.length, 1);
 });
 
 test("the queued request is sent only after the first one's delay has passed", () => {
     vi.useFakeTimers();
     const transport = heldTransport();
 
-    see.request('https://steamcommunity.com/first', {}, () => {}, { transport });
-    see.request('https://steamcommunity.com/second', {}, () => {}, { transport });
+    request('https://steamcommunity.com/first', {}, () => {}, { transport });
+    request('https://steamcommunity.com/second', {}, () => {}, { transport });
 
     transport.respond(0, { data: 'first' });
     vi.advanceTimersByTime(0); // the success callback's own setTimeout(..., 0)
@@ -124,7 +129,7 @@ test("the queued request is sent only after the first one's delay has passed", (
         'not sent yet - the release delay has not passed',
     );
 
-    vi.advanceTimersByTime(see.requestPolicy.REQUEST_DELAY_DEFAULT);
+    vi.advanceTimersByTime(REQUEST_DELAY_DEFAULT);
 
     assert.strictEqual(transport.calls.length, 2, 'released once the default delay elapses');
 });
@@ -133,12 +138,12 @@ test('a market request is released after the longer market delay, not the defaul
     vi.useFakeTimers();
     const transport = heldTransport();
 
-    see.request('https://steamcommunity.com/market/priceoverview', {}, () => {}, { transport });
-    see.request('https://steamcommunity.com/market/second', {}, () => {}, { transport });
+    request('https://steamcommunity.com/market/priceoverview', {}, () => {}, { transport });
+    request('https://steamcommunity.com/market/second', {}, () => {}, { transport });
 
     transport.respond(0, { data: 'first' });
     vi.advanceTimersByTime(0);
-    vi.advanceTimersByTime(see.requestPolicy.REQUEST_DELAY_DEFAULT);
+    vi.advanceTimersByTime(REQUEST_DELAY_DEFAULT);
 
     assert.strictEqual(
         transport.calls.length,
@@ -146,9 +151,7 @@ test('a market request is released after the longer market delay, not the defaul
         'the default delay alone is not enough for a market URL',
     );
 
-    vi.advanceTimersByTime(
-        see.requestPolicy.REQUEST_DELAY_MARKET - see.requestPolicy.REQUEST_DELAY_DEFAULT,
-    );
+    vi.advanceTimersByTime(REQUEST_DELAY_MARKET - REQUEST_DELAY_DEFAULT);
 
     assert.strictEqual(transport.calls.length, 2);
 });
@@ -157,7 +160,7 @@ test('request() still works with no options object, for every existing call site
     // Existing callers pass request(url, options, callback) with no 4th argument, and must
     // keep working unchanged. The default transport is $.ajax, which the test harness stubs
     // as an inert no-op - this only proves the call does not throw before reaching it.
-    assert.doesNotThrow(() => see.request('https://steamcommunity.com/', {}, () => {}));
+    assert.doesNotThrow(() => request('https://steamcommunity.com/', {}, () => {}));
 });
 
 // Kept last, like the equivalent test in request-policy.test.js: the breaker is a one-way
@@ -168,18 +171,18 @@ test('five broken responses in a row trip the breaker, through request() itself'
     const responses = Array.from({ length: 5 }, () => ({ error: true, status: 429 }));
     const transport = scriptedTransport(responses);
 
-    assert.strictEqual(see.request.stopped, false);
+    assert.strictEqual(request.stopped, false);
 
     for (let i = 0; i < 5; i++) {
-        see.request('https://steamcommunity.com/market/', {}, () => {}, { transport });
+        request('https://steamcommunity.com/market/', {}, () => {}, { transport });
         vi.advanceTimersByTime(0); // the error callback's setTimeout(..., 0)
-        vi.advanceTimersByTime(see.requestPolicy.REQUEST_DELAY_ERROR); // release the next one
+        vi.advanceTimersByTime(REQUEST_DELAY_ERROR); // release the next one
     }
 
-    assert.strictEqual(see.request.stopped, true, 'five 429s within the window trip it');
+    assert.strictEqual(request.stopped, true, 'five 429s within the window trip it');
 
     let reported: any = null;
-    see.request(
+    request(
         'https://steamcommunity.com/market/',
         {},
         (err: any) => {
