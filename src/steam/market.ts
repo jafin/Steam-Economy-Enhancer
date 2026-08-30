@@ -453,9 +453,21 @@ SteamMarket.prototype.getCurrentOrderBook = function (item, market_name, callbac
             return;
         }
 
-        // Store the order book in the session storage.
-        const storage_hash = `orderbook_${item.appid}+${market_name}`;
-        storageSession.setItem(storage_hash, orderbook);
+        // Store the order book in the session storage -- but only if it has a sell side.
+        //
+        // The cache lasts the whole browsing session, so whatever is written here is what
+        // every later page load in this tab prices against. An order book with no sell side
+        // is a real answer, and the caller below still has to price the row with it, but it
+        // is a transient one: it is what Steam sends while an item has no sell listings,
+        // including the gap between a listing being created and the histogram catching up
+        // with it. Caching it pins the session to a state that has already passed. Asking
+        // again next time costs one request; getting it wrong costs the user the difference
+        // between their maximum and whatever the buy order happens to be. The sibling guard
+        // is in calculateListingPriceBeforeFees.
+        if (orderbook.lowest_sell_order) {
+            const storage_hash = `orderbook_${item.appid}+${market_name}`;
+            storageSession.setItem(storage_hash, orderbook);
+        }
 
         callback(ERROR_SUCCESS, orderbook, false);
     });

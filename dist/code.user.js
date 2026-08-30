@@ -915,8 +915,10 @@
 				callback(2, null, false);
 				return;
 			}
-			const storage_hash = `orderbook_${item.appid}+${market_name}`;
-			storageSession.setItem(storage_hash, orderbook);
+			if (orderbook.lowest_sell_order) {
+				const storage_hash = `orderbook_${item.appid}+${market_name}`;
+				storageSession.setItem(storage_hash, orderbook);
+			}
 			callback(null, orderbook, false);
 		});
 	};

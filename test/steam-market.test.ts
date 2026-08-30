@@ -3,6 +3,7 @@ import assert from 'node:assert';
 import $ from 'jquery';
 import { market } from '../src/steam/market.ts';
 import { request } from '../src/net/request.ts';
+import { storageSession } from '../src/storage/session.ts';
 
 // What SteamMarket's methods report.
 //
@@ -311,4 +312,65 @@ test('getCurrentOrderBook reports a transport failure as (ERROR_FAILED, null, fa
     // that destructure `cached` got undefined. Both are falsy, which is why nextQueueStep
     // -- whose only uses are `!cached` and `cached ? 0 : delay` -- cannot tell them apart.
     assert.deepStrictEqual(cb.calls, [[ERROR_FAILED, null, false]]);
+});
+
+// --- the order book cache -------------------------------------------------------------
+//
+// Order books are cached for the browsing session (src/storage/session.ts), so whatever is
+// written here is what every later page load in the tab prices against. A body carrying a
+// buy side and no sell side is a real answer from Steam -- it is what an item with no sell
+// listings looks like, including the gap between a listing being created and the histogram
+// catching up with it -- but it is a transient one, and caching it pins a whole session to a
+// state that has already passed.
+
+test('getCurrentOrderBook caches an order book that has a sell side', () => {
+    const cached = vi.spyOn(storageSession, 'setItem');
+    answerWith({
+        data: {
+            data: {
+                success: true,
+                data: {
+                    amtMaxBuyOrder: 92,
+                    amtMinSellOrder: 187,
+                    rgCompactBuyOrders: [92, 1],
+                    rgCompactSellOrders: [187, 1],
+                },
+            },
+        },
+    });
+
+    const cb = recorder();
+    market.getCurrentOrderBook(anItem, 'Some Item', cb);
+    vi.advanceTimersByTime(0);
+
+    assert.strictEqual(cb.calls.length, 1);
+    assert.strictEqual(cb.calls[0][0], ERROR_SUCCESS);
+    assert.strictEqual(cb.calls[0][1].lowest_sell_order, 187);
+    assert.strictEqual(cached.mock.calls.length, 1, 'a usable order book is cached');
+
+    cached.mockRestore();
+});
+
+test('getCurrentOrderBook reports an order book with no sell side without caching it', () => {
+    const cached = vi.spyOn(storageSession, 'setItem');
+    answerWith({
+        data: {
+            data: { success: true, data: { amtMaxBuyOrder: 92, rgCompactBuyOrders: [92, 1] } },
+        },
+    });
+
+    const cb = recorder();
+    market.getCurrentOrderBook(anItem, 'Some Item', cb);
+    vi.advanceTimersByTime(0);
+
+    assert.strictEqual(cb.calls.length, 1);
+    assert.strictEqual(cb.calls[0][0], ERROR_SUCCESS, 'still a successful answer');
+    assert.strictEqual(cb.calls[0][1].highest_buy_order, 92, 'and still reported to the caller');
+    assert.strictEqual(
+        cached.mock.calls.length,
+        0,
+        'but not cached, so the next page load asks Steam again',
+    );
+
+    cached.mockRestore();
 });
