@@ -3047,86 +3047,89 @@
 		$(dataApiDomReadyHandler);
 	})(window.jQuery);
 	jquery.default.noConflict(true);
-	sellQueue.drain(onQueueDrain);
-	scrapQueue.drain(onQueueDrain);
-	boosterQueue.drain(onQueueDrain);
-	itemQueue.drain(onQueueDrain);
-	marketOverpricedQueue.drain(onMarketOverpricedQueueDrained);
-	marketListingsQueue.drain(onMarketListingsQueueDrained);
-	marketListingsItemsQueue.drain(onMarketListingsItemsDrained);
-	injectCss(`
-    .ui-selected { outline: 2px dashed #FFFFFF; }
-    #logger { color: #767676; font-size: 12px;margin-top:16px; max-height: 200px; overflow-y: auto; }
-    .trade_offer_sum { color: #767676; font-size: 12px; margin-top:8px; user-select: text; }
-    .trade_offer_buttons { margin-top: 12px; }
-    .market_commodity_orders_table { font-size:12px; font-family: "Motiva Sans", Sans-serif; font-weight: 300; }
-    .market_commodity_orders_table th { padding-left: 10px; }
-    #listings_group { display: flex; justify-content: space-between; margin-bottom: 8px; }
-    #listings_sell { text-align: right; color: #589328; font-weight:600; }
-    #listings_buy { text-align: right; color: #589328; font-weight:600; }
-    .market_listing_my_price { height: 50px; padding-right:6px; }
-    /* The priced cell as four labelled quadrants. The grid owns the whole 50px box, which
-       is what stops the old stacked layout from spilling into the next row: Steam gives
-       the cell line-height:50px, so a block appended after its inline-block value started
-       below the cell entirely, and a long price (A$ 128.00 -> A$ 104.55) wrapped and pushed
-       the last value out. A fixed 2x2 with nowrap values cannot do either.
-       .see_hidden keeps Steam's own markup in the DOM -- three positional selectors read
-       the prices back out of it -- while taking it off the screen. */
-    .see_hidden { display: none !important; }
-    /* The column gap is 2px rather than 6px to pay for the 2px left pad and then some.
-       A quadrant gets (121 - 2 - gap) / 2 of the cell, and a bold A$ 128.00 needs 56px:
-       at a 6px gap it had 55 and clipped by a pixel even before the pad existed. Short
-       values leave the columns looking generously spaced regardless; it is only at four
-       figures that the gap is doing any work. */
-    .see_price_grid { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr;
-        height: 50px; padding: 3px 0 3px 2px; box-sizing: border-box; line-height: 1.05; text-align: left; gap: 0 2px; }
-    .see_grid_cell { display: flex; flex-direction: column; justify-content: center; overflow: hidden; }
-    .see_grid_label { font-size: 8px; text-transform: uppercase; letter-spacing: 0.4px; color: rgba(255,255,255,0.55); }
-    .see_grid_value { font-size: 11px; white-space: nowrap; }
-    .see_grid_lead { color: #fff; font-weight: 600; }
-    .market_listing_edit_buttons.actual_content { width:276px; transition-property: background-color, border-color; transition-timing-function: linear; transition-duration: 0.5s;}
-    .market_listing_buttons { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 6px; padding: 5px; background: rgba(0, 0, 0, 0.4); }
-    .market_listing_label_right { float:right; font-size:12px; margin-top:1px; }
-    .market_listing_select { position: absolute; top: 16px;right: 10px; display: flex; }
-    #market_listing_relist { vertical-align: middle; position: relative; bottom: -1px; right: 2px; }
-    .pick_and_sell_button > a { vertical-align: middle; }
-    .market_relist_auto { margin-bottom: 8px;  }
-    .market_relist_auto_label { margin-right: 6px; }
-    .quick_sell { margin-right: 4px; }
+	function bootstrap() {
+		sellQueue.drain(onQueueDrain);
+		scrapQueue.drain(onQueueDrain);
+		boosterQueue.drain(onQueueDrain);
+		itemQueue.drain(onQueueDrain);
+		marketOverpricedQueue.drain(onMarketOverpricedQueueDrained);
+		marketListingsQueue.drain(onMarketListingsQueueDrained);
+		marketListingsItemsQueue.drain(onMarketListingsItemsDrained);
+		injectCss(`
+        .ui-selected { outline: 2px dashed #FFFFFF; }
+        #logger { color: #767676; font-size: 12px;margin-top:16px; max-height: 200px; overflow-y: auto; }
+        .trade_offer_sum { color: #767676; font-size: 12px; margin-top:8px; user-select: text; }
+        .trade_offer_buttons { margin-top: 12px; }
+        .market_commodity_orders_table { font-size:12px; font-family: "Motiva Sans", Sans-serif; font-weight: 300; }
+        .market_commodity_orders_table th { padding-left: 10px; }
+        #listings_group { display: flex; justify-content: space-between; margin-bottom: 8px; }
+        #listings_sell { text-align: right; color: #589328; font-weight:600; }
+        #listings_buy { text-align: right; color: #589328; font-weight:600; }
+        .market_listing_my_price { height: 50px; padding-right:6px; }
+        /* The priced cell as four labelled quadrants. The grid owns the whole 50px box, which
+           is what stops the old stacked layout from spilling into the next row: Steam gives
+           the cell line-height:50px, so a block appended after its inline-block value started
+           below the cell entirely, and a long price (A$ 128.00 -> A$ 104.55) wrapped and pushed
+           the last value out. A fixed 2x2 with nowrap values cannot do either.
+           .see_hidden keeps Steam's own markup in the DOM -- three positional selectors read
+           the prices back out of it -- while taking it off the screen. */
+        .see_hidden { display: none !important; }
+        /* The column gap is 2px rather than 6px to pay for the 2px left pad and then some.
+           A quadrant gets (121 - 2 - gap) / 2 of the cell, and a bold A$ 128.00 needs 56px:
+           at a 6px gap it had 55 and clipped by a pixel even before the pad existed. Short
+           values leave the columns looking generously spaced regardless; it is only at four
+           figures that the gap is doing any work. */
+        .see_price_grid { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr;
+            height: 50px; padding: 3px 0 3px 2px; box-sizing: border-box; line-height: 1.05; text-align: left; gap: 0 2px; }
+        .see_grid_cell { display: flex; flex-direction: column; justify-content: center; overflow: hidden; }
+        .see_grid_label { font-size: 8px; text-transform: uppercase; letter-spacing: 0.4px; color: rgba(255,255,255,0.55); }
+        .see_grid_value { font-size: 11px; white-space: nowrap; }
+        .see_grid_lead { color: #fff; font-weight: 600; }
+        .market_listing_edit_buttons.actual_content { width:276px; transition-property: background-color, border-color; transition-timing-function: linear; transition-duration: 0.5s;}
+        .market_listing_buttons { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 6px; padding: 5px; background: rgba(0, 0, 0, 0.4); }
+        .market_listing_label_right { float:right; font-size:12px; margin-top:1px; }
+        .market_listing_select { position: absolute; top: 16px;right: 10px; display: flex; }
+        #market_listing_relist { vertical-align: middle; position: relative; bottom: -1px; right: 2px; }
+        .pick_and_sell_button > a { vertical-align: middle; }
+        .market_relist_auto { margin-bottom: 8px;  }
+        .market_relist_auto_label { margin-right: 6px; }
+        .quick_sell { margin-right: 4px; }
 
-    .spinner {margin:10px auto;width:50px;height:40px;text-align:center;font-size:10px;}
-    .spinner > div {background-color:#ccc;height:100%;width:6px;display:inline-block;animation:sk-stretchdelay 1.2s infinite ease-in-out}
-    .spinner .rect2 {animation-delay:-1.1s}
-    .spinner .rect3 {animation-delay:-1s}
-    .spinner .rect4 {animation-delay:-.9s}
-    .spinner .rect5 {animation-delay:-.8s}
-    @keyframes sk-stretchdelay {
-        0%,40%,100% {transform:scaleY(0.4);}
-        20% {transform:scaleY(1.0);}
-    }
+        .spinner {margin:10px auto;width:50px;height:40px;text-align:center;font-size:10px;}
+        .spinner > div {background-color:#ccc;height:100%;width:6px;display:inline-block;animation:sk-stretchdelay 1.2s infinite ease-in-out}
+        .spinner .rect2 {animation-delay:-1.1s}
+        .spinner .rect3 {animation-delay:-1s}
+        .spinner .rect4 {animation-delay:-.9s}
+        .spinner .rect5 {animation-delay:-.8s}
+        @keyframes sk-stretchdelay {
+            0%,40%,100% {transform:scaleY(0.4);}
+            20% {transform:scaleY(1.0);}
+        }
 
-    #market_name_search { float: right; background: rgba(0, 0, 0, 0.25); color: white; border: none;height: 25px; padding-left: 6px;}
-    .price_option_price { width: 100px }
-    .inventory_item_price { top: 0px;position: absolute;right: 0;background: #3571a5;padding: 2px;color: white; font-size:11px; border: 1px solid #666666;}
+        #market_name_search { float: right; background: rgba(0, 0, 0, 0.25); color: white; border: none;height: 25px; padding-left: 6px;}
+        .price_option_price { width: 100px }
+        .inventory_item_price { top: 0px;position: absolute;right: 0;background: #3571a5;padding: 2px;color: white; font-size:11px; border: 1px solid #666666;}
 
-    .see_inventory_buttons {display:flex;flex-wrap:wrap;gap:10px;align-items:start;}
-    .see_inventory_buttons > .see_inventory_buttons, .see_inventory_buttons > #inventory_items_spinner {flex-basis: 100%;}
-    #see_market_progress { display: block; width: 50%; height: 20px; }
-    #see_market_progress[hidden] { visibility: hidden; }
-    .item_market_action_button.see_button_busy { pointer-events: none; opacity: 0.6; cursor: default; }
+        .see_inventory_buttons {display:flex;flex-wrap:wrap;gap:10px;align-items:start;}
+        .see_inventory_buttons > .see_inventory_buttons, .see_inventory_buttons > #inventory_items_spinner {flex-basis: 100%;}
+        #see_market_progress { display: block; width: 50%; height: 20px; }
+        #see_market_progress[hidden] { visibility: hidden; }
+        .item_market_action_button.see_button_busy { pointer-events: none; opacity: 0.6; cursor: default; }
 
-    #see_settings { background: #26566c; margin-right: 10px; height: 24px; line-height:24px; display:inline-block; padding: 0px 6px; }
-    #see_settings_modal select, #see_settings_modal input[type="number"] { background-color: black; color: white; border: transparent; padding: 4px 8px; }
-    #see_settings_modal input[type="number"] { width: 100px; }
-    #see_settings_modal input[type="checkbox"] { width: 16px; height: 16px; vertical-align: middle; accent-color: #000; }
+        #see_settings { background: #26566c; margin-right: 10px; height: 24px; line-height:24px; display:inline-block; padding: 0px 6px; }
+        #see_settings_modal select, #see_settings_modal input[type="number"] { background-color: black; color: white; border: transparent; padding: 4px 8px; }
+        #see_settings_modal input[type="number"] { width: 100px; }
+        #see_settings_modal input[type="checkbox"] { width: 16px; height: 16px; vertical-align: middle; accent-color: #000; }
 
-    #see_page_jump { margin-left: 15px; display: inline-block; }
-    #see_page_jump > input { width: 60px; margin-right: 8px; background-color: #1b2838; color: #fff; border: 1px solid #4582a5; padding: 2px 5px; }
-`);
-	(0, jquery.default)(document).ready(() => {
-		if (!isLoggedIn) return;
-		if (currentPage == 3) initializeInventoryUI();
-		if (currentPage == 0 || currentPage == 1) initializeMarketUI();
-		if (currentPage == 2) initializeTradeOfferUI();
-	});
+        #see_page_jump { margin-left: 15px; display: inline-block; }
+        #see_page_jump > input { width: 60px; margin-right: 8px; background-color: #1b2838; color: #fff; border: 1px solid #4582a5; padding: 2px 5px; }
+    `);
+		(0, jquery.default)(document).ready(() => {
+			if (!isLoggedIn) return;
+			if (currentPage == 3) initializeInventoryUI();
+			if (currentPage == 0 || currentPage == 1) initializeMarketUI();
+			if (currentPage == 2) initializeTradeOfferUI();
+		});
+	}
+	bootstrap();
 })(jQuery, localforage, async, luxon, List);
