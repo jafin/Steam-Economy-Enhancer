@@ -6,6 +6,9 @@
 // enqueue tail that drifted between the label a button showed and what its click actually did.
 // See .docs/tasks/TASK-03-inventory-action-pipeline.md for the drift this fixes.
 
+import { isItemQueued, markItemQueued } from '../items/index.ts';
+import { queued } from '../totals.ts';
+import { renderSpinner } from '../ui/index.ts';
 import { getInventoryItems, loadAllInventories } from './data.ts';
 import { getSelectedItems } from './selection.ts';
 
@@ -42,4 +45,37 @@ export async function selectedItemsWhere(predicate: (item) => boolean): Promise<
 
         return ids.indexOf(itemId) !== -1 && predicate(item);
     });
+}
+
+// Marks, counts, pushes and updates the run totals for the items an action is about to work
+// through -- the only place that arithmetic exists. Already-queued items are silently skipped,
+// same as every action path did before this existed. Returns how many were actually queued, so
+// a caller like unpackAllBoosterPacks can still tell "nothing new to do" from "did something".
+//
+// `spinnerLabel` is the noun the "Processing N ..." spinner reads; every current call site
+// passes 'items', matching what all five copies of this tail already rendered.
+export function enqueueInventoryItems(
+    queue: { push: (item: any) => void },
+    items: any[],
+    opts: { spinnerLabel: string },
+): number {
+    let numberOfQueuedItems = 0;
+
+    items.forEach((item) => {
+        if (isItemQueued(item)) {
+            return;
+        }
+
+        markItemQueued(item);
+        queue.push(item);
+        numberOfQueuedItems++;
+    });
+
+    if (numberOfQueuedItems > 0) {
+        queued(numberOfQueuedItems);
+
+        renderSpinner(`Processing ${numberOfQueuedItems} ${opts.spinnerLabel}`);
+    }
+
+    return numberOfQueuedItems;
 }

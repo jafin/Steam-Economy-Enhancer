@@ -12,7 +12,7 @@ import {
     RETRY_DELAY_SHORT_MAX,
     RETRY_DELAY_SHORT_MIN,
 } from '../constants.ts';
-import { getIsCrate, getIsTradingCard, isItemQueued, markItemQueued } from '../items/index.ts';
+import { getIsCrate, getIsTradingCard } from '../items/index.ts';
 import { isRetryMessage } from '../net/request.ts';
 import {
     calculateSellPriceBeforeFees,
@@ -23,11 +23,11 @@ import { QueueTask, runQueue } from '../queue/index.ts';
 import { SETTING_PRICE_MIN_LIST_PRICE, getSetting } from '../settings/index.ts';
 import { steamPage } from '../steam/instance.ts';
 import { market } from '../steam/market.ts';
-import { listed, processed, queued, runTotals, unprocessed } from '../totals.ts';
+import { listed, processed, runTotals, unprocessed } from '../totals.ts';
 import { markRow, removeSpinner, renderSpinner } from '../ui/index.ts';
 import { logConsole, logDOM } from '../ui/logger.ts';
 import { getNumberOfDigits, getRandomInt, padLeftZero } from '../util/numbers.ts';
-import { selectedItemsWhere } from './actions.ts';
+import { enqueueInventoryItems, selectedItemsWhere } from './actions.ts';
 import { getInventoryItems, loadAllInventories } from './data.ts';
 import { updateTotals } from './progress.ts';
 export const sellQueue = async.queue((task: QueueTask, next) => {
@@ -255,27 +255,10 @@ export function sellItems(items) {
         return;
     }
 
-    let numberOfQueuedItems = 0;
-
-    items.forEach((item) => {
-        // Ignored queued items.
-        if (isItemQueued(item)) {
-            return;
-        }
-
-        markItemQueued(item);
-        // item.ignoreErrors starts undefined, which reads the same as false to
-        // runQueue's retryOnFailure check - no need to initialise it explicitly on a
-        // freshly-read item the way there was when items were mutated in place.
-        itemQueue.push(item);
-        numberOfQueuedItems++;
-    });
-
-    if (numberOfQueuedItems > 0) {
-        queued(numberOfQueuedItems);
-
-        renderSpinner(`Processing ${numberOfQueuedItems} items`);
-    }
+    // item.ignoreErrors starts undefined, which reads the same as false to runQueue's
+    // retryOnFailure check - no need to initialise it explicitly on a freshly-read item the
+    // way there was when items were mutated in place.
+    enqueueInventoryItems(itemQueue, items, { spinnerLabel: 'items' });
 }
 
 // A cached answer never reached Steam, and its delay is discarded, so it says
