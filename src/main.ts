@@ -131,15 +131,17 @@ export function bootstrap(): void {
            markRowForSale in src/ui/index.ts. The band is clipped by its own 78px corner box
            rather than by overflow:hidden on the tile, so anything Steam draws outside the
            tile's bounds still shows.
-           The band is dark rather than the listed-green #407736 markRow has just painted
-           behind it: at a 96px tile a green band on a green tile is not visible at all. The
-           green is kept as the top edge, which is what ties the two together. */
+           The band is the listed-green #407736 markRow paints for the same event. A dark
+           band was tried and dropped: it reads well against the green fill, but Steam's own
+           tile is #3b3b3b and a good many item icons are dark themselves, so on everything
+           except a freshly listed tile it disappeared. What separates it from the green fill
+           underneath is the light top edge and the shadow, not a colour of its own. */
         .see_for_sale { position: absolute; top: 0; right: 0; width: 78px; height: 78px;
             overflow: hidden; pointer-events: none; z-index: 2; }
         .see_for_sale b { position: absolute; display: block; width: 120px; right: -32px; top: 15px;
             padding: 3px 0; text-align: center; transform: rotate(45deg); font-size: 8px;
             font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase; color: #fff;
-            background: rgba(0, 0, 0, 0.78); border-top: 1px solid rgba(159, 224, 122, 0.9);
+            background: rgba(64, 119, 54, 0.97); border-top: 1px solid rgba(255, 255, 255, 0.4);
             box-shadow: 0 1px 4px rgba(0, 0, 0, 0.6); }
 
         .spinner {margin:10px auto;width:50px;height:40px;text-align:center;font-size:10px;}
