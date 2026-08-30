@@ -266,7 +266,7 @@ export async function updateInventorySelection(selectedItem) {
         return;
     }
 
-    const item_info = $(`#iteminfo${steamPage.activeSelectView()}`);
+    const item_info = steamPage.itemInfoPanel();
 
     if (!item_info.length) {
         return;
@@ -322,7 +322,7 @@ export async function updateInventorySelection(selectedItem) {
 
     const marketLink = `https://steamcommunity.com/market/listings/${appid}/${encodeURIComponent(market_hash_name)}`;
     const baseLink = $(`a[href^="${marketLink}"]`, item_info);
-    const ownerActions = baseLink.parent().parent();
+    const ownerActions = steamPage.itemOwnerActions(item_info, marketLink);
 
     market.getOrderBook(item, false, (err, orderbook) => {
         if (err) {
