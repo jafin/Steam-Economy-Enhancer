@@ -423,5 +423,7 @@ export { createSteamPage, pickSellListingsHeader } from './steam/page.ts';
 
 export { aggregateTradeOfferAssets } from './tradeoffer/totals.ts';
 
+export { sumTradeOfferAssets } from './tradeoffer/ui.ts';
+
 export { getNumberOfDigits, padLeftZero, replaceNonNumbers } from './util/numbers.ts';
 //#endregion
