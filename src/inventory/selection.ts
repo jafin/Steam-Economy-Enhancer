@@ -8,32 +8,11 @@
 
 import $ from 'jquery';
 import { getIsTradingCard } from '../items/index.ts';
+import { steamPage } from '../steam/instance.ts';
 import { getInventoryItems, loadAllInventories } from './data.ts';
 // Gets the selected items in the inventory.
 export function getSelectedItems() {
-    const ids: string[] = [];
-    $('.inventory_ctn').each(function () {
-        $(this)
-            .find('.inventory_page')
-            .each(function () {
-                const inventory_page = this;
-
-                $(inventory_page)
-                    .find('.itemHolder.ui-selected:not([style*=none])')
-                    .each(function () {
-                        $(this)
-                            .find('.item')
-                            .each(function () {
-                                const matches = this.id.match(/_(-?\d+)$/);
-                                if (matches) {
-                                    ids.push(matches[1]);
-                                }
-                            });
-                    });
-            });
-    });
-
-    return ids;
+    return steamPage.selectedAssetIds();
 }
 
 // Gets the selected and marketable items in the inventory.
@@ -149,12 +128,14 @@ export function selectAllCards() {
         this.classList.remove('ui-selected');
     });
 
+    const visible = steamPage.visibleItemHolderSelector();
+
     $('.inventory_ctn').each(function () {
         $(this)
-            .find('.inventory_page:not([style*=none])')
+            .find(`.inventory_page${visible}`)
             .each(function () {
                 $(this)
-                    .find('.itemHolder:not([style*=none])')
+                    .find(`.itemHolder${visible}`)
                     .each(function () {
                         const itemHolder = this;
 
