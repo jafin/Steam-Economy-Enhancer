@@ -9,6 +9,10 @@ import { ICON } from './src/icon.ts';
 // Leaving those two at their old values would have auto-updated every user of this fork back
 // to upstream on the next check, silently erasing the fork.
 //
+// @author names both: this fork's maintainer first, then Nuklon, who wrote the script this
+// is a hard fork of. The identity that must stay distinct is @name and the update URLs, not
+// the credit line.
+//
 // @version is not set here: it is derived from the git tag in CI, falling back to
 // package.json for local builds. See vite.config.ts.
 //
@@ -23,7 +27,7 @@ export const userscript: MonkeyUserScript = {
     namespace: 'https://github.com/jafin',
     icon: ICON,
     description: 'Enhances the Steam Inventory and Steam Market.',
-    author: 'Jason Finch',
+    author: 'Jason Finch, Nuklon (original author)',
     license: 'MIT',
     match: [
         'https://steamcommunity.com/id/*/inventory*',
