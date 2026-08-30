@@ -133,7 +133,7 @@ test('itemInfoPanel finds the panel for the active select view', () => {
         ),
     );
 
-    const panel = see.createSteamPage({ iActiveSelectView: 0 }).itemInfoPanel();
+    const panel = createSteamPage({ iActiveSelectView: 0 }).itemInfoPanel();
 
     assert.strictEqual(panel.attr('id'), 'iteminfo0');
 });
@@ -146,7 +146,7 @@ test('itemInfoPanel does not find a panel for a different select view', () => {
         ),
     );
 
-    const panel = see.createSteamPage({ iActiveSelectView: 0 }).itemInfoPanel();
+    const panel = createSteamPage({ iActiveSelectView: 0 }).itemInfoPanel();
 
     assert.strictEqual(panel.length, 0);
 });
@@ -155,7 +155,7 @@ test('itemOwnerActions walks up from the market listing anchor to its owning con
     const marketLink = 'https://steamcommunity.com/market/listings/440/Mann Co. Supply Crate Key';
     render(itemInfoPanel(0, marketLink));
 
-    const page = see.createSteamPage({ iActiveSelectView: 0 });
+    const page = createSteamPage({ iActiveSelectView: 0 });
     const ownerActions = page.itemOwnerActions(page.itemInfoPanel(), marketLink);
 
     assert.strictEqual(
@@ -175,7 +175,7 @@ test('itemOwnerActions is scoped to the given panel, not the whole document', ()
         itemInfoPanel(1, marketLink),
     );
 
-    const page = see.createSteamPage({ iActiveSelectView: 1 });
+    const page = createSteamPage({ iActiveSelectView: 1 });
     const ownerActions = page.itemOwnerActions(page.itemInfoPanel(), marketLink);
 
     assert.strictEqual(ownerActions.attr('id'), undefined);
