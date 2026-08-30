@@ -1986,19 +1986,7 @@
 		scrap: 0
 	};
 	function getSelectedItems() {
-		const ids = [];
-		(0, jquery.default)(".inventory_ctn").each(function() {
-			(0, jquery.default)(this).find(".inventory_page").each(function() {
-				const inventory_page = this;
-				(0, jquery.default)(inventory_page).find(".itemHolder.ui-selected:not([style*=none])").each(function() {
-					(0, jquery.default)(this).find(".item").each(function() {
-						const matches = this.id.match(/_(-?\d+)$/);
-						if (matches) ids.push(matches[1]);
-					});
-				});
-			});
-		});
-		return ids;
+		return steamPage.selectedAssetIds();
 	}
 	function getInventorySelectedMarketableItems(callback) {
 		const ids = getSelectedItems();
@@ -2048,9 +2036,10 @@
 		(0, jquery.default)(".itemHolder.ui-selected").each(function() {
 			this.classList.remove("ui-selected");
 		});
+		const visible = steamPage.visibleItemHolderSelector();
 		(0, jquery.default)(".inventory_ctn").each(function() {
-			(0, jquery.default)(this).find(".inventory_page:not([style*=none])").each(function() {
-				(0, jquery.default)(this).find(".itemHolder:not([style*=none])").each(function() {
+			(0, jquery.default)(this).find(`.inventory_page${visible}`).each(function() {
+				(0, jquery.default)(this).find(`.itemHolder${visible}`).each(function() {
 					const itemHolder = this;
 					(0, jquery.default)(itemHolder).find(".item").each(function() {
 						const matches = this.id.match(/_(-?\d+)$/);
@@ -2403,7 +2392,7 @@
 		});
 	}
 	function initializeInventorySelection() {
-		const filter = ".itemHolder:not([style*=none])";
+		const filter = `.itemHolder${steamPage.visibleItemHolderSelector()}`;
 		const inventories = (0, jquery.default)("#inventories");
 		let anchor = null;
 		inventories.on("mousedown", filter, (event) => {

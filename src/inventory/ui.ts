@@ -98,7 +98,7 @@ export function initializeInventoryUI() {
 export function initializeInventorySelection() {
     // Steam adds 'display:none' to items while searching. These should not be selected while
     // using shift/ctrl.
-    const filter = '.itemHolder:not([style*=none])';
+    const filter = `.itemHolder${steamPage.visibleItemHolderSelector()}`;
     const inventories = $('#inventories');
 
     // Where a Shift-click measures its range from: the last item picked without Shift. Held as
