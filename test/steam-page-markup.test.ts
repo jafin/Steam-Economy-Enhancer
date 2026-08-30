@@ -63,6 +63,56 @@ test('when no section holds the sell listings table, the first header is used ra
     assert.strictEqual(header.length, 1, 'exactly one header, never an empty set');
 });
 
+// Inventory selection. selection.ts used to walk .inventory_ctn -> .inventory_page ->
+// .itemHolder.ui-selected -> .item and pull the asset id off the trailing number in the
+// id, straight out of the DOM. That walk now lives in createSteamPage's selectedAssetIds();
+// these tests pin it against the same markup shape test/inventory-selection.test.ts already
+// builds for the click/Ctrl/Shift side.
+function itemHolder(assetId: string, { selected = false, hiddenBySearch = false } = {}) {
+    const classes = ['itemHolder', selected ? 'ui-selected' : ''].filter(Boolean).join(' ');
+    const style = hiddenBySearch ? ' style="display: none;"' : '';
+    return `<div class="${classes}"${style}><div id="730_2_${assetId}" class="item"></div></div>`;
+}
+
+function inventoryPage(itemHolders: string, { hidden = false } = {}): string {
+    const style = hidden ? ' style="display: none;"' : '';
+    return `<div class="inventory_page"${style}>${itemHolders}</div>`;
+}
+
+function renderInventory(...pages: string[]): void {
+    document.body.innerHTML = `<div class="inventory_ctn">${pages.join('\n')}</div>`;
+}
+
+test('selectedAssetIds reads the ui-selected class back off the DOM', () => {
+    renderInventory(inventoryPage(itemHolder('111', { selected: true }) + itemHolder('222')));
+
+    assert.deepStrictEqual(see.createSteamPage({}).selectedAssetIds(), ['111']);
+});
+
+test('selectedAssetIds skips a selected item Steam has hidden while searching', () => {
+    renderInventory(
+        inventoryPage(
+            itemHolder('111', { selected: true }) +
+                itemHolder('222', { selected: true, hiddenBySearch: true }),
+        ),
+    );
+
+    assert.deepStrictEqual(see.createSteamPage({}).selectedAssetIds(), ['111']);
+});
+
+test('selectedAssetIds does not filter by the page itself being hidden -- only the item holder', () => {
+    // Two selected items, one of them on a page Steam has hidden (the other page of the
+    // inventory, not currently on screen). getSelectedItems() only ever checked the
+    // itemHolder's own style, never the page's, so this is what it has always returned --
+    // pinned here so a future change to it is deliberate, not silent.
+    renderInventory(
+        inventoryPage(itemHolder('111', { selected: true })),
+        inventoryPage(itemHolder('222', { selected: true }), { hidden: true }),
+    );
+
+    assert.deepStrictEqual(see.createSteamPage({}).selectedAssetIds(), ['111', '222']);
+});
+
 test('real markup and the fixture agree on which header wins', () => {
     // The point of keeping both adapters. If Steam's markup changes so that the live lookup
     // starts producing different anchored/all inputs, this is the test that notices -- the
