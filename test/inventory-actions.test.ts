@@ -13,8 +13,7 @@
 import { test } from 'vitest';
 import assert from 'node:assert';
 import { markItemQueued } from '../src/items/index.ts';
-import { hasOwnerAction } from '../src/inventory/actions.ts';
-import { getInventorySelectedGemsItems } from '../src/inventory/selection.ts';
+import { hasOwnerAction, selectedItemsWhere } from '../src/inventory/actions.ts';
 import { turnSelectedItemsIntoGems } from '../src/inventory/gems.ts';
 import { endRun, runTotals } from '../src/totals.ts';
 
@@ -92,11 +91,8 @@ test('the gems button label counts an item the actual enqueue skips because it i
     // One of the two selected items is already on a queue from an earlier action.
     markItemQueued({ appid: 730, contextid: 2, id: '501' });
 
-    let labelCount = -1;
-    getInventorySelectedGemsItems((items) => {
-        labelCount = items.length;
-    });
-    await flush();
+    const labelItems = await selectedItemsWhere((item) => hasOwnerAction(item, 'GetGooValue'));
+    const labelCount = labelItems.length;
 
     assert.strictEqual(labelCount, 2, 'sanity check: both selected items are gem-able');
 

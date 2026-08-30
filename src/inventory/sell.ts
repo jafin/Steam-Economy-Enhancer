@@ -27,9 +27,9 @@ import { listed, processed, queued, runTotals, unprocessed } from '../totals.ts'
 import { markRow, removeSpinner, renderSpinner } from '../ui/index.ts';
 import { logConsole, logDOM } from '../ui/logger.ts';
 import { getNumberOfDigits, getRandomInt, padLeftZero } from '../util/numbers.ts';
+import { selectedItemsWhere } from './actions.ts';
 import { getInventoryItems, loadAllInventories } from './data.ts';
 import { updateTotals } from './progress.ts';
-import { getInventorySelectedMarketableItems } from './selection.ts';
 export const sellQueue = async.queue((task: QueueTask, next) => {
     processed();
 
@@ -193,7 +193,7 @@ export function sellAllCrates() {
 }
 
 export function sellSelectedItems() {
-    getInventorySelectedMarketableItems((items) => {
+    selectedItemsWhere((item) => item.marketable).then((items) => {
         sellItems(items);
     });
 }
@@ -214,7 +214,7 @@ export function canSellSelectedItemsManually(items) {
 }
 
 export function sellSelectedItemsManually() {
-    getInventorySelectedMarketableItems((items) => {
+    selectedItemsWhere((item) => item.marketable).then((items) => {
         // We have to construct an URL like this
         // https://steamcommunity.com/market/multisell?appid=730&contextid=2&items[]=Falchion%20Case&qty[]=100
 

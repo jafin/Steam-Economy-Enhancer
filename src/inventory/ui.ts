@@ -16,6 +16,7 @@ import { steamPage } from '../steam/instance.ts';
 import { market } from '../steam/market.ts';
 import { queued } from '../totals.ts';
 import { logConsole, logger, setUserScrolled } from '../ui/logger.ts';
+import { hasOwnerAction, selectedItemsWhere } from './actions.ts';
 import { unpackAllBoosterPacks, unpackSelectedBoosterPacks } from './boosters.ts';
 import {
     getActiveInventory,
@@ -25,12 +26,7 @@ import {
 } from './data.ts';
 import { gemAllDuplicateItems, turnSelectedItemsIntoGems } from './gems.ts';
 import { delay } from './progress.ts';
-import {
-    getInventorySelectedBoosterPackItems,
-    getInventorySelectedGemsItems,
-    getInventorySelectedMarketableItems,
-    selectAllCards,
-} from './selection.ts';
+import { selectAllCards } from './selection.ts';
 import {
     canSellSelectedItemsManually,
     sellAllCards,
@@ -151,7 +147,7 @@ export function initializeInventorySelection() {
 
 // Updates the (selected) sell ... items button.
 export function updateSellSelectedButton() {
-    getInventorySelectedMarketableItems((items) => {
+    selectedItemsWhere((item) => item.marketable).then((items) => {
         const selectedItems = items.length;
         if (items.length == 0) {
             $('.sell_selected').hide();
@@ -175,7 +171,7 @@ export function updateSellSelectedButton() {
 
 // Updates the (selected) turn into ... gems button.
 export function updateTurnIntoGemsButton() {
-    getInventorySelectedGemsItems((items) => {
+    selectedItemsWhere((item) => hasOwnerAction(item, 'GetGooValue')).then((items) => {
         const selectedItems = items.length;
         if (items.length == 0) {
             $('.turn_into_gems').hide();
@@ -190,7 +186,7 @@ export function updateTurnIntoGemsButton() {
 
 // Updates the (selected) open ... booster packs button.
 export function updateOpenBoosterPacksButton() {
-    getInventorySelectedBoosterPackItems((items) => {
+    selectedItemsWhere((item) => hasOwnerAction(item, 'OpenBooster')).then((items) => {
         const selectedItems = items.length;
         if (items.length == 0) {
             $('.unpack_selected_booster_packs').hide();
