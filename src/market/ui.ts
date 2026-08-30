@@ -7,7 +7,7 @@ import { steamPage } from '../steam/instance.ts';
 import { replaceNonNumbers } from '../util/numbers.ts';
 import { initializeMarketHistoryUI } from './history.ts';
 import { processMarketListings } from './listings.ts';
-import { increaseMarketProgressMax, marketProgress } from './progress.ts';
+import { increaseMarketProgressMax, setProgressBar } from './progress.ts';
 import { queueOverpricedItemListing } from './relist.ts';
 import { marketRemoveQueue } from './remove.ts';
 import { getListFromContainer, getListingFromLists } from './rows.ts';
@@ -31,7 +31,7 @@ export function updateMarketSelectAllButton() {
 // Initialize the market UI.
 export function initializeMarketUI() {
     $('.market_header_text').append('<progress id="see_market_progress" value="1" max="1" hidden>');
-    marketProgress.bar = document.getElementById('see_market_progress');
+    setProgressBar(document.getElementById('see_market_progress') as HTMLProgressElement);
 
     // Sell orders.
     // Steam prepends a "listings awaiting confirmation" block whenever a confirmation is pending,
