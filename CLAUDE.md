@@ -19,7 +19,7 @@ pnpm install
 pnpm build              # src/ -> dist/code.user.js
 pnpm dev                # vite in watch mode
 
-pnpm test               # vitest, all 14 files
+pnpm test               # vitest, all 25 files
 pnpm vitest run test/pricing.test.ts          # one file
 pnpm vitest run -t 'name of the test'         # one test by name
 pnpm test:watch
@@ -96,8 +96,11 @@ named; do not blanket-annotate them `any` to satisfy the flag.
 
 ## Architecture
 
-`src/main.ts` is now only imports, the page-mode dispatch, and the injected stylesheet. The
-work lives in feature modules:
+`src/main.ts` exports one function, `bootstrap()`: the page-mode dispatch, the queue drain
+registrations and the injected stylesheet. `src/entry.ts` — the Vite entry — calls it once.
+Importing `main.ts` is inert apart from the jQuery handoff, which is what lets a test import
+it without booting a page (`test/bootstrap.test.ts` pins that). The work lives in feature
+modules:
 
 - `steam/` — `page.ts` is the adapter over Steam's globals; `instance.ts` builds it once and
   decides which page this is; `market.ts` is the Steam Market API plus the singleton.
@@ -131,16 +134,17 @@ fails while the fixture keeps passing, and that disagreement is the signal. Keep
 vitest with happy-dom. jQuery, localforage, luxon, async and list.js all run **for real**; only
 Steam's page globals and `$.ajax` are faked, in `test/fakes/`.
 
-Importing `src/main.ts` runs the page bootstrap on `$(document).ready()`, so `test/setup.ts`
-installs the Steam globals first and replaces `$.ajax` with a recorder — without it the suite
-reaches Steam over the network. Tests that need `request()` to do something inject their own
+`test/setup.ts` installs the Steam page globals and replaces `$.ajax` with a recorder before
+any test file runs, so a module that reaches for `unsafeWindow` or the network at import time
+finds a fake rather than Steam. Test files import the module they exercise directly; only
+`test/load.test.ts` imports `src/entry.ts`, which runs `bootstrap()`. Tests that need `request()` to do something inject their own
 `transport`.
 
 Assertions are `node:assert`, not vitest matchers. That was deliberate when the runner changed;
 match the surrounding style rather than converting a file piecemeal.
 
-`test/load.test.ts` is the cheapest guard against a broken import graph: it evaluates the whole
-module tree.
+`test/load.test.ts` is the cheapest guard against a broken import graph: it imports
+`src/entry.ts`, which evaluates the whole module tree and runs `bootstrap()`.
 
 ## Verifying a refactor
 
@@ -151,8 +155,10 @@ Beyond the test suite, two checks catch what unit tests here cannot:
 2. **Every substantive line of the previous commit must still exist somewhere under `src/`.**
    Moving code between files is fine; losing it is not.
 
-The 114 tests cover pricing, queues, requests, item shapes and the page seam. They do **not**
-cover the inventory and market UI, so changes there need the checks above and a careful read.
+The 220 tests cover pricing, queues, requests, settings, item shapes, the page seam, the run
+totals and market-progress lifecycles, the market row registry and button selection, the
+inventory action pipeline and the quick-sell panel. They still do **not** drive the inventory
+and market UI end to end, so changes there need the checks above and a careful read.
 
 ## Conventions
 
