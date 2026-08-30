@@ -2064,49 +2064,6 @@
 	function getSelectedItems() {
 		return steamPage.selectedAssetIds();
 	}
-	function getInventorySelectedMarketableItems(callback) {
-		const ids = getSelectedItems();
-		loadAllInventories().then(() => {
-			const items = getInventoryItems();
-			const filteredItems = [];
-			items.forEach((item) => {
-				if (!item.marketable) return;
-				const itemId = item.assetid || item.id;
-				if (ids.indexOf(itemId) !== -1) filteredItems.push(item);
-			});
-			callback(filteredItems);
-		});
-	}
-	function getInventorySelectedGemsItems(callback) {
-		const ids = getSelectedItems();
-		loadAllInventories().then(() => {
-			const items = getInventoryItems();
-			const filteredItems = [];
-			items.forEach((item) => {
-				let canTurnIntoGems = false;
-				for (const owner_action in item.owner_actions) if (item.owner_actions[owner_action].link != null && item.owner_actions[owner_action].link.includes("GetGooValue")) canTurnIntoGems = true;
-				if (!canTurnIntoGems) return;
-				const itemId = item.assetid || item.id;
-				if (ids.indexOf(itemId) !== -1) filteredItems.push(item);
-			});
-			callback(filteredItems);
-		});
-	}
-	function getInventorySelectedBoosterPackItems(callback) {
-		const ids = getSelectedItems();
-		loadAllInventories().then(() => {
-			const items = getInventoryItems();
-			const filteredItems = [];
-			items.forEach((item) => {
-				let canOpenBooster = false;
-				for (const owner_action in item.owner_actions) if (item.owner_actions[owner_action].link != null && item.owner_actions[owner_action].link.includes("OpenBooster")) canOpenBooster = true;
-				if (!canOpenBooster) return;
-				const itemId = item.assetid || item.id;
-				if (ids.indexOf(itemId) !== -1) filteredItems.push(item);
-			});
-			callback(filteredItems);
-		});
-	}
 	function selectAllCards() {
 		const cardIds = new Set(getInventoryItems().filter((item) => item.marketable && getIsTradingCard(item)).map((item) => item.assetid || item.id));
 		(0, jquery.default)(".itemHolder.ui-selected").each(function() {
@@ -2124,6 +2081,36 @@
 				});
 			});
 		});
+	}
+	function hasOwnerAction(item, fragment) {
+		if (item.owner_actions == null) return false;
+		for (const ownerAction in item.owner_actions) {
+			const link = item.owner_actions[ownerAction].link;
+			if (link != null && link.includes(fragment)) return true;
+		}
+		return false;
+	}
+	async function selectedItemsWhere(predicate) {
+		const ids = getSelectedItems();
+		await loadAllInventories();
+		return getInventoryItems().filter((item) => {
+			const itemId = item.assetid || item.id;
+			return ids.indexOf(itemId) !== -1 && predicate(item);
+		});
+	}
+	function enqueueInventoryItems(queue, items, opts) {
+		let numberOfQueuedItems = 0;
+		items.forEach((item) => {
+			if (isItemQueued(item)) return;
+			markItemQueued(item);
+			queue.push(item);
+			numberOfQueuedItems++;
+		});
+		if (numberOfQueuedItems > 0) {
+			queued(numberOfQueuedItems);
+			renderSpinner(`Processing ${numberOfQueuedItems} ${opts.spinnerLabel}`);
+		}
+		return numberOfQueuedItems;
 	}
 	var boosterQueue = runQueue(boosterQueueWorker, { successDelayMs: 250 });
 	function boosterQueueWorker(item, ignoreErrors, callback) {
@@ -2149,23 +2136,7 @@
 		renderSpinner("Loading inventory items");
 		loadAllInventories().then(() => {
 			removeSpinner();
-			const items = getInventoryItems();
-			let numberOfQueuedItems = 0;
-			items.forEach((item) => {
-				if (isItemQueued(item) || item.owner_actions == null) return;
-				let canOpenBooster = false;
-				for (const owner_action in item.owner_actions) if (item.owner_actions[owner_action].link != null && item.owner_actions[owner_action].link.includes("OpenBooster")) canOpenBooster = true;
-				if (!canOpenBooster) return;
-				markItemQueued(item);
-				boosterQueue.push(item);
-				numberOfQueuedItems++;
-			});
-			if (numberOfQueuedItems === 0) {
-				logDOM("No booster packs found in the inventory to unpack.");
-				return;
-			}
-			queued(numberOfQueuedItems);
-			renderSpinner(`Processing ${numberOfQueuedItems} items`);
+			if (enqueueInventoryItems(boosterQueue, getInventoryItems().filter((item) => hasOwnerAction(item, "OpenBooster")), { spinnerLabel: "items" }) === 0) logDOM("No booster packs found in the inventory to unpack.");
 		});
 	}
 	function unpackSelectedBoosterPacks() {
@@ -2173,24 +2144,10 @@
 		renderSpinner("Loading inventory items");
 		loadAllInventories().then(() => {
 			removeSpinner();
-			const items = getInventoryItems();
-			let numberOfQueuedItems = 0;
-			items.forEach((item) => {
-				if (isItemQueued(item) || item.owner_actions == null) return;
-				let canOpenBooster = false;
-				for (const owner_action in item.owner_actions) if (item.owner_actions[owner_action].link != null && item.owner_actions[owner_action].link.includes("OpenBooster")) canOpenBooster = true;
-				if (!canOpenBooster) return;
+			enqueueInventoryItems(boosterQueue, getInventoryItems().filter((item) => {
 				const itemId = item.assetid || item.id;
-				if (ids.indexOf(itemId) !== -1) {
-					markItemQueued(item);
-					boosterQueue.push(item);
-					numberOfQueuedItems++;
-				}
-			});
-			if (numberOfQueuedItems > 0) {
-				queued(numberOfQueuedItems);
-				renderSpinner(`Processing ${numberOfQueuedItems} items`);
-			}
+				return ids.indexOf(itemId) !== -1 && hasOwnerAction(item, "OpenBooster");
+			}), { spinnerLabel: "items" });
 		});
 	}
 	var sellQueue = async.default.queue((task, next) => {
@@ -2288,7 +2245,7 @@
 		});
 	}
 	function sellSelectedItems() {
-		getInventorySelectedMarketableItems((items) => {
+		selectedItemsWhere((item) => item.marketable).then((items) => {
 			sellItems(items);
 		});
 	}
@@ -2301,7 +2258,7 @@
 		return !hasInvalidItem;
 	}
 	function sellSelectedItemsManually() {
-		getInventorySelectedMarketableItems((items) => {
+		selectedItemsWhere((item) => item.marketable).then((items) => {
 			const appid = items[0].appid;
 			const contextid = items[0].contextid;
 			const itemsWithQty = {};
@@ -2324,17 +2281,7 @@
 			logDOM("These items cannot be added to the market...");
 			return;
 		}
-		let numberOfQueuedItems = 0;
-		items.forEach((item) => {
-			if (isItemQueued(item)) return;
-			markItemQueued(item);
-			itemQueue.push(item);
-			numberOfQueuedItems++;
-		});
-		if (numberOfQueuedItems > 0) {
-			queued(numberOfQueuedItems);
-			renderSpinner(`Processing ${numberOfQueuedItems} items`);
-		}
+		enqueueInventoryItems(itemQueue, items, { spinnerLabel: "items" });
 	}
 	var itemQueue = runQueue(itemQueueWorker, { retryOnFailure: true });
 	function itemQueueWorker(item, ignoreErrors, callback) {
@@ -2374,23 +2321,7 @@
 		loadAllInventories().then(() => {
 			removeSpinner();
 			const items = getInventoryItems();
-			let filteredItems = [];
-			let numberOfQueuedItems = 0;
-			filteredItems = items.filter((e, i) => items.map((m) => m.classid).indexOf(e.classid) !== i);
-			filteredItems.forEach((item) => {
-				if (isItemQueued(item)) return;
-				if (item.owner_actions == null) return;
-				let canTurnIntoGems = false;
-				for (const owner_action in item.owner_actions) if (item.owner_actions[owner_action].link != null && item.owner_actions[owner_action].link.includes("GetGooValue")) canTurnIntoGems = true;
-				if (!canTurnIntoGems) return;
-				markItemQueued(item);
-				scrapQueue.push(item);
-				numberOfQueuedItems++;
-			});
-			if (numberOfQueuedItems > 0) {
-				queued(numberOfQueuedItems);
-				renderSpinner(`Processing ${numberOfQueuedItems} items`);
-			}
+			enqueueInventoryItems(scrapQueue, items.filter((e, i) => items.map((m) => m.classid).indexOf(e.classid) !== i).filter((item) => hasOwnerAction(item, "GetGooValue")), { spinnerLabel: "items" });
 		});
 	}
 	var scrapQueue = runQueue(scrapQueueWorker, { successDelayMs: 250 });
@@ -2430,25 +2361,10 @@
 		renderSpinner("Loading inventory items");
 		loadAllInventories().then(() => {
 			removeSpinner();
-			const items = getInventoryItems();
-			let numberOfQueuedItems = 0;
-			items.forEach((item) => {
-				if (isItemQueued(item)) return;
-				if (item.owner_actions == null) return;
-				let canTurnIntoGems = false;
-				for (const owner_action in item.owner_actions) if (item.owner_actions[owner_action].link != null && item.owner_actions[owner_action].link.includes("GetGooValue")) canTurnIntoGems = true;
-				if (!canTurnIntoGems) return;
+			enqueueInventoryItems(scrapQueue, getInventoryItems().filter((item) => {
 				const itemId = item.assetid || item.id;
-				if (ids.indexOf(itemId) !== -1) {
-					markItemQueued(item);
-					scrapQueue.push(item);
-					numberOfQueuedItems++;
-				}
-			});
-			if (numberOfQueuedItems > 0) {
-				queued(numberOfQueuedItems);
-				renderSpinner(`Processing ${numberOfQueuedItems} items`);
-			}
+				return ids.indexOf(itemId) !== -1 && hasOwnerAction(item, "GetGooValue");
+			}), { spinnerLabel: "items" });
 		});
 	}
 	function initializeInventoryUI() {
@@ -2492,46 +2408,44 @@
 			updateButtons();
 		});
 	}
-	function updateSellSelectedButton() {
-		getInventorySelectedMarketableItems((items) => {
-			const selectedItems = items.length;
-			if (items.length == 0) {
-				(0, jquery.default)(".sell_selected").hide();
-				(0, jquery.default)(".sell_manual").hide();
-			} else {
-				(0, jquery.default)(".sell_selected").show();
-				if (canSellSelectedItemsManually(items)) {
-					(0, jquery.default)(".sell_manual").show();
-					(0, jquery.default)(".sell_manual > span").text(`Sell ${selectedItems}${selectedItems == 1 ? " Item Manual" : " Items Manual"}`);
-				} else (0, jquery.default)(".sell_manual").hide();
-				(0, jquery.default)(".sell_selected > span").text(`Sell ${selectedItems}${selectedItems == 1 ? " Item" : " Items"}`);
-			}
-		});
+	function updateSellSelectedButton(items) {
+		const selectedItems = items.length;
+		if (items.length == 0) {
+			(0, jquery.default)(".sell_selected").hide();
+			(0, jquery.default)(".sell_manual").hide();
+		} else {
+			(0, jquery.default)(".sell_selected").show();
+			if (canSellSelectedItemsManually(items)) {
+				(0, jquery.default)(".sell_manual").show();
+				(0, jquery.default)(".sell_manual > span").text(`Sell ${selectedItems}${selectedItems == 1 ? " Item Manual" : " Items Manual"}`);
+			} else (0, jquery.default)(".sell_manual").hide();
+			(0, jquery.default)(".sell_selected > span").text(`Sell ${selectedItems}${selectedItems == 1 ? " Item" : " Items"}`);
+		}
 	}
-	function updateTurnIntoGemsButton() {
-		getInventorySelectedGemsItems((items) => {
-			const selectedItems = items.length;
-			if (items.length == 0) (0, jquery.default)(".turn_into_gems").hide();
-			else {
-				(0, jquery.default)(".turn_into_gems").show();
-				(0, jquery.default)(".turn_into_gems > span").text(`Turn ${selectedItems}${selectedItems == 1 ? " Item Into Gems" : " Items Into Gems"}`);
-			}
-		});
+	function updateTurnIntoGemsButton(items) {
+		const selectedItems = items.length;
+		if (items.length == 0) (0, jquery.default)(".turn_into_gems").hide();
+		else {
+			(0, jquery.default)(".turn_into_gems").show();
+			(0, jquery.default)(".turn_into_gems > span").text(`Turn ${selectedItems}${selectedItems == 1 ? " Item Into Gems" : " Items Into Gems"}`);
+		}
 	}
-	function updateOpenBoosterPacksButton() {
-		getInventorySelectedBoosterPackItems((items) => {
-			const selectedItems = items.length;
-			if (items.length == 0) (0, jquery.default)(".unpack_selected_booster_packs").hide();
-			else {
-				(0, jquery.default)(".unpack_selected_booster_packs").show();
-				(0, jquery.default)(".unpack_selected_booster_packs > span").text(`Unpack ${selectedItems}${selectedItems == 1 ? " Booster Pack" : " Booster Packs"}`);
-			}
-		});
+	function updateOpenBoosterPacksButton(items) {
+		const selectedItems = items.length;
+		if (items.length == 0) (0, jquery.default)(".unpack_selected_booster_packs").hide();
+		else {
+			(0, jquery.default)(".unpack_selected_booster_packs").show();
+			(0, jquery.default)(".unpack_selected_booster_packs > span").text(`Unpack ${selectedItems}${selectedItems == 1 ? " Booster Pack" : " Booster Packs"}`);
+		}
 	}
 	function updateButtons() {
-		updateSellSelectedButton();
-		updateTurnIntoGemsButton();
-		updateOpenBoosterPacksButton();
+		const ids = getSelectedItems();
+		loadAllInventories().then(() => {
+			const selected = getInventoryItems().filter((item) => ids.indexOf(item.assetid || item.id) !== -1);
+			updateSellSelectedButton(selected.filter((item) => item.marketable));
+			updateTurnIntoGemsButton(selected.filter((item) => !isItemQueued(item) && hasOwnerAction(item, "GetGooValue")));
+			updateOpenBoosterPacksButton(selected.filter((item) => !isItemQueued(item) && hasOwnerAction(item, "OpenBooster")));
+		});
 	}
 	async function updateInventorySelection(selectedItem) {
 		if (getSetting("SETTING_QUICK_SELL_BUTTONS") != 1) return;

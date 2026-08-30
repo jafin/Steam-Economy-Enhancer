@@ -1,107 +1,18 @@
 // What the user has selected in the inventory.
 //
 // Steam marks selection with a CSS class, so the selection is read back out of the DOM.
-// Each of the three getters filters that selection down to the items its action can
-// actually work on -- marketable, gem-able, or a booster pack. selectAllCards writes the
-// same class from the other end, so that the "Select All Cards" button and a Ctrl-click
-// leave the page in exactly the same state.
+// selectedItemsWhere (src/inventory/actions.ts) filters that selection down to the items an
+// action can actually work on -- marketable, gem-able, or a booster pack. selectAllCards
+// writes the same class from the other end, so that the "Select All Cards" button and a
+// Ctrl-click leave the page in exactly the same state.
 
 import $ from 'jquery';
 import { getIsTradingCard } from '../items/index.ts';
 import { steamPage } from '../steam/instance.ts';
-import { getInventoryItems, loadAllInventories } from './data.ts';
+import { getInventoryItems } from './data.ts';
 // Gets the selected items in the inventory.
 export function getSelectedItems() {
     return steamPage.selectedAssetIds();
-}
-
-// Gets the selected and marketable items in the inventory.
-export function getInventorySelectedMarketableItems(callback) {
-    const ids = getSelectedItems();
-
-    loadAllInventories().then(() => {
-        const items = getInventoryItems();
-        const filteredItems: any[] = [];
-
-        items.forEach((item) => {
-            if (!item.marketable) {
-                return;
-            }
-
-            const itemId = item.assetid || item.id;
-            if (ids.indexOf(itemId) !== -1) {
-                filteredItems.push(item);
-            }
-        });
-
-        callback(filteredItems);
-    });
-}
-
-// Gets the selected and gemmable items in the inventory.
-export function getInventorySelectedGemsItems(callback) {
-    const ids = getSelectedItems();
-
-    loadAllInventories().then(() => {
-        const items = getInventoryItems();
-        const filteredItems: any[] = [];
-
-        items.forEach((item) => {
-            let canTurnIntoGems = false;
-            for (const owner_action in item.owner_actions) {
-                if (
-                    item.owner_actions[owner_action].link != null &&
-                    item.owner_actions[owner_action].link.includes('GetGooValue')
-                ) {
-                    canTurnIntoGems = true;
-                }
-            }
-
-            if (!canTurnIntoGems) {
-                return;
-            }
-
-            const itemId = item.assetid || item.id;
-            if (ids.indexOf(itemId) !== -1) {
-                filteredItems.push(item);
-            }
-        });
-
-        callback(filteredItems);
-    });
-}
-
-// Gets the selected and booster pack items in the inventory.
-export function getInventorySelectedBoosterPackItems(callback) {
-    const ids = getSelectedItems();
-
-    loadAllInventories().then(() => {
-        const items = getInventoryItems();
-        const filteredItems: any[] = [];
-
-        items.forEach((item) => {
-            let canOpenBooster = false;
-            for (const owner_action in item.owner_actions) {
-                if (
-                    item.owner_actions[owner_action].link != null &&
-                    item.owner_actions[owner_action].link.includes('OpenBooster')
-                ) {
-                    canOpenBooster = true;
-                }
-            }
-
-            if (!canOpenBooster) {
-                return;
-            }
-
-            const itemId = item.assetid || item.id;
-            if (ids.indexOf(itemId) !== -1) {
-                filteredItems.push(item);
-            }
-        });
-
-        callback(filteredItems);
-    });
 }
 
 // Selects every marketable trading card shown on the inventory page.

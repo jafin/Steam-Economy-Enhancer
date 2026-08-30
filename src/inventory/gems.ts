@@ -3,14 +3,14 @@
 // Steam calls this 'grinding into goo'. The queue asks Steam what an item is worth in gems
 // before grinding it, so a mispriced item is not destroyed for nothing.
 
+import { enqueueInventoryItems, hasOwnerAction } from './actions.ts';
 import { getInventoryItems, loadAllInventories } from './data.ts';
 import { updateTotals } from './progress.ts';
 import { getSelectedItems } from './selection.ts';
 import { ERROR_SUCCESS } from '../constants.ts';
-import { isItemQueued, markItemQueued } from '../items/index.ts';
 import { runQueue } from '../queue/index.ts';
 import { market } from '../steam/market.ts';
-import { processed, queued, runTotals, scrapped } from '../totals.ts';
+import { processed, runTotals, scrapped } from '../totals.ts';
 import { markRow, removeSpinner, renderSpinner } from '../ui/index.ts';
 import { logConsole, logDOM } from '../ui/logger.ts';
 import { getNumberOfDigits, padLeftZero } from '../util/numbers.ts';
@@ -22,46 +22,12 @@ export function gemAllDuplicateItems() {
         removeSpinner();
 
         const items = getInventoryItems();
-        let filteredItems: any[] = [];
-        let numberOfQueuedItems = 0;
-
-        filteredItems = items.filter(
+        const duplicateItems = items.filter(
             (e, i) => items.map((m) => m.classid).indexOf(e.classid) !== i,
         );
+        const filteredItems = duplicateItems.filter((item) => hasOwnerAction(item, 'GetGooValue'));
 
-        filteredItems.forEach((item) => {
-            if (isItemQueued(item)) {
-                return;
-            }
-
-            if (item.owner_actions == null) {
-                return;
-            }
-
-            let canTurnIntoGems = false;
-            for (const owner_action in item.owner_actions) {
-                if (
-                    item.owner_actions[owner_action].link != null &&
-                    item.owner_actions[owner_action].link.includes('GetGooValue')
-                ) {
-                    canTurnIntoGems = true;
-                }
-            }
-
-            if (!canTurnIntoGems) {
-                return;
-            }
-
-            markItemQueued(item);
-            scrapQueue.push(item);
-            numberOfQueuedItems++;
-        });
-
-        if (numberOfQueuedItems > 0) {
-            queued(numberOfQueuedItems);
-
-            renderSpinner(`Processing ${numberOfQueuedItems} items`);
-        }
+        enqueueInventoryItems(scrapQueue, filteredItems, { spinnerLabel: 'items' });
     });
 }
 
@@ -120,45 +86,12 @@ export function turnSelectedItemsIntoGems() {
     loadAllInventories().then(() => {
         removeSpinner();
 
-        const items = getInventoryItems();
-
-        let numberOfQueuedItems = 0;
-        items.forEach((item) => {
-            // Ignored queued items.
-            if (isItemQueued(item)) {
-                return;
-            }
-
-            if (item.owner_actions == null) {
-                return;
-            }
-
-            let canTurnIntoGems = false;
-            for (const owner_action in item.owner_actions) {
-                if (
-                    item.owner_actions[owner_action].link != null &&
-                    item.owner_actions[owner_action].link.includes('GetGooValue')
-                ) {
-                    canTurnIntoGems = true;
-                }
-            }
-
-            if (!canTurnIntoGems) {
-                return;
-            }
-
+        const items = getInventoryItems().filter((item) => {
             const itemId = item.assetid || item.id;
-            if (ids.indexOf(itemId) !== -1) {
-                markItemQueued(item);
-                scrapQueue.push(item);
-                numberOfQueuedItems++;
-            }
+
+            return ids.indexOf(itemId) !== -1 && hasOwnerAction(item, 'GetGooValue');
         });
 
-        if (numberOfQueuedItems > 0) {
-            queued(numberOfQueuedItems);
-
-            renderSpinner(`Processing ${numberOfQueuedItems} items`);
-        }
+        enqueueInventoryItems(scrapQueue, items, { spinnerLabel: 'items' });
     });
 }
