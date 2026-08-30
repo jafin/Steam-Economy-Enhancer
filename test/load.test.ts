@@ -1,6 +1,6 @@
 import { test } from 'vitest';
 import assert from 'node:assert';
-import * as see from '../src/main.ts';
+import * as see from '../src/entry.ts';
 
 test('the userscript loads under Node with the stubbed page globals', () => {
     assert.doesNotThrow(() => see);
