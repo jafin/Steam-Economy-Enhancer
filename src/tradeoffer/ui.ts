@@ -44,6 +44,15 @@ export function sumTradeOfferAssets(side) {
 
     const sortable = summary.items.map((item) => [item.text, item.count]);
 
+    // Ascending by count, then reversed -- not the same thing as sorting descending
+    // directly. Array.prototype.sort is stable, so items with equal counts come out of
+    // sort() in the order aggregateTradeOfferAssets first saw them; .reverse() then
+    // flips that. The displayed order for a count tie is therefore reverse first-seen,
+    // not first-seen -- see "equal counts display in reverse first-seen order" in
+    // test/trade-offer.test.ts. Rewriting this as the equivalent-looking one-liner
+    // `sort((a, b) => b[1] - a[1])` keeps ties in first-seen order instead, which is a
+    // real, user-visible change to what this page shows -- do it deliberately, not as
+    // a tidy-up.
     sortable
         .sort((a, b) => {
             return a[1] - b[1];
