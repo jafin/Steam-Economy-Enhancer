@@ -674,6 +674,12 @@
 		storageSession.clear();
 		setSessionStorageItem("SESSION", lastCache);
 	} else storageSession = localforage.default.createInstance({ name: `see_session_${getSessionStorageItem("SESSION")}` });
+	function clearPriceCache() {
+		return storageSession.clear().then(() => true).catch((e) => {
+			`${e}`;
+			return false;
+		});
+	}
 	function SteamMarket(appContext, inventoryUrl, walletInfo) {
 		this.appContext = appContext;
 		this.inventoryUrl = inventoryUrl;
@@ -1429,7 +1435,21 @@
             Automatically relist overpriced market listings (slow on large inventories):&nbsp;
             <input id="${SETTING_RELIST_AUTOMATICALLY}" class="market_relist_auto" type="checkbox" ${getSetting("SETTING_RELIST_AUTOMATICALLY") == 1 ? "checked" : ""}>
         </div>
+        <div style="margin-top:24px;">
+            <span class="btn_grey_white_innerfade btn_small" style="cursor: pointer;" id="see_clear_cache"><span>Clear the price cache</span></span>
+            &nbsp;Prices and order books are cached for this browsing session. Clear it to price against what Steam is saying now.
+        </div>
     </div>`);
+		const clearCacheButton = (0, jquery.default)("#see_clear_cache", price_options);
+		let cacheCleared = false;
+		clearCacheButton.on("click", () => {
+			if (cacheCleared) return;
+			(0, jquery.default)("span", clearCacheButton).text("Clearing the price cache...");
+			clearPriceCache().then((cleared) => {
+				cacheCleared = cleared;
+				(0, jquery.default)("span", clearCacheButton).text(cleared ? "Price cache cleared" : "Could not clear the price cache");
+			});
+		});
 		steamPage.showConfirmDialog("Steam Economy Enhancer", price_options).done(() => {
 			if (![
 				setSetting("SETTING_MIN_NORMAL_PRICE", (0, jquery.default)(`#SETTING_MIN_NORMAL_PRICE`, price_options).val()),

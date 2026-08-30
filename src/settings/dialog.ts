@@ -6,6 +6,7 @@
 
 import $ from 'jquery';
 import { steamPage } from '../steam/instance.ts';
+import { clearPriceCache } from '../storage/session.ts';
 import {
     SETTING_INVENTORY_PRICE_LABELS,
     SETTING_MAX_FOIL_PRICE,
@@ -95,7 +96,32 @@ export function openSettings() {
             Automatically relist overpriced market listings (slow on large inventories):&nbsp;
             <input id="${SETTING_RELIST_AUTOMATICALLY}" class="market_relist_auto" type="checkbox" ${getSetting(SETTING_RELIST_AUTOMATICALLY) == 1 ? 'checked' : ''}>
         </div>
+        <div style="margin-top:24px;">
+            <span class="btn_grey_white_innerfade btn_small" style="cursor: pointer;" id="see_clear_cache"><span>Clear the price cache</span></span>
+            &nbsp;Prices and order books are cached for this browsing session. Clear it to price against what Steam is saying now.
+        </div>
     </div>`);
+
+    // Clears the moment it is clicked rather than on OK: this is an action, not a setting,
+    // and there is no pending state for Cancel to roll back. The button's own label carries
+    // the result -- a second dialog stacked on Steam's modal would be worse than none.
+    const clearCacheButton = $('#see_clear_cache', price_options);
+    let cacheCleared = false;
+
+    clearCacheButton.on('click', () => {
+        if (cacheCleared) {
+            return;
+        }
+
+        $('span', clearCacheButton).text('Clearing the price cache...');
+
+        clearPriceCache().then((cleared) => {
+            cacheCleared = cleared;
+            $('span', clearCacheButton).text(
+                cleared ? 'Price cache cleared' : 'Could not clear the price cache',
+            );
+        });
+    });
 
     steamPage.showConfirmDialog('Steam Economy Enhancer', price_options).done(() => {
         // Every one of these returns false when the browser refused the write -- private
