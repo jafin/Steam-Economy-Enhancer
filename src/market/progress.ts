@@ -91,16 +91,6 @@ export function progressState(): { total: number; done: number } {
     return progress;
 }
 
-// Thin aliases over addWork/workDone, kept only until every call site is converted --
-// TASK-06 step 5 removes them.
-export function increaseMarketProgressMax(): void {
-    addWork(1);
-}
-
-export function increaseMarketProgress(): void {
-    workDone(1);
-}
-
 // The relist run is over, put the buttons back to showing the (now lower) overpriced count.
 export function resetMarketRelistProgress() {
     marketProgress.relistTotal = 0;
