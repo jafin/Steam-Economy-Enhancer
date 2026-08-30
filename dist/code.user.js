@@ -1276,6 +1276,17 @@
 		marketRelistQueuedListings.clear();
 		refreshMarketOverpricedButtons();
 	}
+	function onMarketOverpricedQueueDrained() {
+		if (!marketListingsQueue.idle()) {
+			refreshMarketOverpricedButtons();
+			return;
+		}
+		resetMarketRelistProgress();
+	}
+	function onMarketListingsQueueDrained() {
+		if (!marketOverpricedQueue.idle()) return;
+		resetMarketRelistProgress();
+	}
 	function sortMarketListings(elem, isPrice, isDateOrQuantity, isName) {
 		const list = getListFromContainer(elem);
 		if (list == null) return;
@@ -1735,6 +1746,22 @@
 			callback(true);
 		});
 	}
+	function onMarketListingsItemsDrained() {
+		const myMarketListings = (0, jquery.default)("#tabContentsMyActiveMarketListingsRows");
+		myMarketListings.checkboxes("range", true);
+		const seen = {};
+		(0, jquery.default)(".market_listing_row", myMarketListings).each(function() {
+			const item_id = String((0, jquery.default)(this).attr("id"));
+			if (seen[item_id]) (0, jquery.default)(this).remove();
+			else seen[item_id] = true;
+			if ((0, jquery.default)(".item_market_action_button", this).attr("href").toLowerCase().includes("CancelMarketListingConfirmation".toLowerCase())) (0, jquery.default)(this).remove();
+			if ((0, jquery.default)(".item_market_action_button", this).attr("href").toLowerCase().includes("CancelMarketBuyOrder".toLowerCase())) (0, jquery.default)(this).remove();
+		});
+		addMarketCheckboxes();
+		removeSpinner();
+		myMarketListings.show();
+		fillMarketListingsQueue();
+	}
 	function fillMarketListingsQueue() {
 		(0, jquery.default)(".market_home_listing_table").each(function(e) {
 			if ((0, jquery.default)(".my_market_header", (0, jquery.default)(this)).length == 0) return;
@@ -1946,6 +1973,21 @@
 		if (item.type != null && item.type.length > 0) text += ` (${item.type})`;
 		return text;
 	}
+	jquery.default.fn.delayedEach = function(timeout, callback, continuous) {
+		const $els = this;
+		const iterator = function(index) {
+			if (index >= $els.length) {
+				if (!continuous) return;
+				index = 0;
+			}
+			const cur = $els[index];
+			callback.call(cur, index, cur);
+			setTimeout(() => {
+				iterator(++index);
+			}, timeout);
+		};
+		iterator(0);
+	};
 	function getTradeOfferInventoryItems() {
 		return readInventoryItems(getActiveInventory(), "rgChildInventories", "rgInventory");
 	}
@@ -3005,45 +3047,13 @@
 		$(dataApiDomReadyHandler);
 	})(window.jQuery);
 	jquery.default.noConflict(true);
-	sellQueue.drain(() => {
-		onQueueDrain();
-	});
-	scrapQueue.drain(() => {
-		onQueueDrain();
-	});
-	boosterQueue.drain(() => {
-		onQueueDrain();
-	});
-	itemQueue.drain(() => {
-		onQueueDrain();
-	});
-	marketOverpricedQueue.drain(() => {
-		if (!marketListingsQueue.idle()) {
-			refreshMarketOverpricedButtons();
-			return;
-		}
-		resetMarketRelistProgress();
-	});
-	marketListingsQueue.drain(() => {
-		if (!marketOverpricedQueue.idle()) return;
-		resetMarketRelistProgress();
-	});
-	marketListingsItemsQueue.drain(() => {
-		const myMarketListings = (0, jquery.default)("#tabContentsMyActiveMarketListingsRows");
-		myMarketListings.checkboxes("range", true);
-		const seen = {};
-		(0, jquery.default)(".market_listing_row", myMarketListings).each(function() {
-			const item_id = String((0, jquery.default)(this).attr("id"));
-			if (seen[item_id]) (0, jquery.default)(this).remove();
-			else seen[item_id] = true;
-			if ((0, jquery.default)(".item_market_action_button", this).attr("href").toLowerCase().includes("CancelMarketListingConfirmation".toLowerCase())) (0, jquery.default)(this).remove();
-			if ((0, jquery.default)(".item_market_action_button", this).attr("href").toLowerCase().includes("CancelMarketBuyOrder".toLowerCase())) (0, jquery.default)(this).remove();
-		});
-		addMarketCheckboxes();
-		removeSpinner();
-		myMarketListings.show();
-		fillMarketListingsQueue();
-	});
+	sellQueue.drain(onQueueDrain);
+	scrapQueue.drain(onQueueDrain);
+	boosterQueue.drain(onQueueDrain);
+	itemQueue.drain(onQueueDrain);
+	marketOverpricedQueue.drain(onMarketOverpricedQueueDrained);
+	marketListingsQueue.drain(onMarketListingsQueueDrained);
+	marketListingsItemsQueue.drain(onMarketListingsItemsDrained);
 	injectCss(`
     .ui-selected { outline: 2px dashed #FFFFFF; }
     #logger { color: #767676; font-size: 12px;margin-top:16px; max-height: 200px; overflow-y: auto; }
@@ -3119,19 +3129,4 @@
 		if (currentPage == 0 || currentPage == 1) initializeMarketUI();
 		if (currentPage == 2) initializeTradeOfferUI();
 	});
-	jquery.default.fn.delayedEach = function(timeout, callback, continuous) {
-		const $els = this;
-		const iterator = function(index) {
-			if (index >= $els.length) {
-				if (!continuous) return;
-				index = 0;
-			}
-			const cur = $els[index];
-			callback.call(cur, index, cur);
-			setTimeout(() => {
-				iterator(++index);
-			}, timeout);
-		};
-		iterator(0);
-	};
 })(jQuery, localforage, async, luxon, List);
