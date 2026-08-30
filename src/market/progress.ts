@@ -4,6 +4,7 @@
 // progress bar. The counters are reset only once nothing is queueing relists any more, not
 // per queue -- see resetMarketRelistProgress.
 
+import { SETTING_RELIST_AUTOMATICALLY, getSetting } from '../settings/index.ts';
 import { marketListingsQueue } from './listings.ts';
 import {
     marketOverpricedQueue,
@@ -109,8 +110,16 @@ export function resetMarketRelistProgress() {
 // overpriced listings, so it drains every time it happens to catch up with the pass.
 // Clearing the progress there restarts the count from zero halfway through the run,
 // so the queue that finishes last is the one that clears it.
+//
+// Only *automatic* relisting, though. The pricing pass queues a relist from one place
+// (market/listings.ts), and only when SETTING_RELIST_AUTOMATICALLY is on. With it off the
+// pass is not a source of relists, so waiting for it means a user who clicks "Relist
+// overpriced" during a scan watches the button sit at N/N and disabled for the rest of the
+// pass -- minutes, on a few hundred listings -- for a run that ended when the queue drained.
 export function onMarketOverpricedQueueDrained(): void {
-    if (!marketListingsQueue.idle()) {
+    const passFeedsRelists = getSetting(SETTING_RELIST_AUTOMATICALLY) == 1;
+
+    if (passFeedsRelists && !marketListingsQueue.idle()) {
         refreshMarketOverpricedButtons();
 
         return;

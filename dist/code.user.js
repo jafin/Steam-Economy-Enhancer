@@ -1290,7 +1290,7 @@
 		refreshMarketOverpricedButtons();
 	}
 	function onMarketOverpricedQueueDrained() {
-		if (!marketListingsQueue.idle()) {
+		if (getSetting("SETTING_RELIST_AUTOMATICALLY") == 1 && !marketListingsQueue.idle()) {
 			refreshMarketOverpricedButtons();
 			return;
 		}
