@@ -37,7 +37,7 @@ import {
     getPriceValueAsInt,
 } from './assets.ts';
 import { getListingPriceDelta, getListingVerdict, listingState } from './listingState.ts';
-import { addWork, increaseMarketProgress, increaseMarketProgressMax } from './progress.ts';
+import { addWork, workDone } from './progress.ts';
 import { queueOverpricedItemListing, refreshMarketOverpricedButtons } from './relist.ts';
 import { getListingFromLists, marketLists } from './rows.ts';
 import { sortMarketListings } from './sort.ts';
@@ -109,7 +109,7 @@ function clearPriceCellGrid(listingUI) {
 export const marketListingsQueue = runQueue(marketListingsQueueWorker, {
     retryOnFailure: true,
     retryPlacement: 'front',
-    onTaskDone: () => increaseMarketProgress(),
+    onTaskDone: () => workDone(),
 });
 
 export function marketListingsQueueWorker(listing, ignoreErrors, callback) {
@@ -334,7 +334,7 @@ export function marketListingsQueueWorker(listing, ignoreErrors, callback) {
 // real failure does anywhere else, instead of waiting the same short jittered gap it would
 // have waited on success.
 export const marketListingsItemsQueue = runQueue(marketListingsItemsQueueWorker, {
-    onTaskDone: () => increaseMarketProgress(),
+    onTaskDone: () => workDone(),
 });
 
 export function marketListingsItemsQueueWorker(task, ignoreErrors, callback) {
@@ -568,7 +568,7 @@ export function processMarketListings() {
 
         while (currentCount < totalCount) {
             marketListingsItemsQueue.push({ start: currentCount });
-            increaseMarketProgressMax();
+            addWork(1);
             currentCount += 100;
         }
     } else {
@@ -617,7 +617,7 @@ export function processMarketListings() {
                 contextid: assetInfo.contextid,
                 assetid: assetInfo.assetid,
             });
-            increaseMarketProgressMax();
+            addWork(1);
         });
     }
 }

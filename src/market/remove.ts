@@ -8,7 +8,7 @@ import { runQueue } from '../queue/index.ts';
 import { market } from '../steam/market.ts';
 import { logConsole } from '../ui/logger.ts';
 import { getRandomInt } from '../util/numbers.ts';
-import { increaseMarketProgress } from './progress.ts';
+import { workDone } from './progress.ts';
 import { refreshMarketOverpricedButtons } from './relist.ts';
 import { getListingFromLists, marketLists, removeListingFromLists } from './rows.ts';
 import $ from 'jquery';
@@ -16,7 +16,7 @@ export const marketRemoveQueue = runQueue(marketRemoveQueueWorker, {
     retryOnFailure: true,
     retryPlacement: 'front',
     successDelayMs: () => getRandomInt(50, 100),
-    onTaskDone: () => increaseMarketProgress(),
+    onTaskDone: () => workDone(),
 });
 
 // The task carries the listing id rather than being it. runQueue marks a task for its one

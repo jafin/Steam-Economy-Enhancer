@@ -7,7 +7,7 @@ import { steamPage } from '../steam/instance.ts';
 import { replaceNonNumbers } from '../util/numbers.ts';
 import { initializeMarketHistoryUI } from './history.ts';
 import { processMarketListings } from './listings.ts';
-import { increaseMarketProgressMax, setProgressBar } from './progress.ts';
+import { addWork, setProgressBar } from './progress.ts';
 import { queueOverpricedItemListing } from './relist.ts';
 import { marketRemoveQueue } from './remove.ts';
 import { getListFromContainer, getListingFromLists } from './rows.ts';
@@ -204,7 +204,7 @@ export function initializeMarketUI() {
                 listingUI.addClass('removing');
 
                 marketRemoveQueue.push({ listingid });
-                increaseMarketProgressMax();
+                addWork(1);
             }
         }
     });
