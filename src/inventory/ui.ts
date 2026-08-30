@@ -217,6 +217,50 @@ export function updateButtons() {
     });
 }
 
+// The order book rows and the quick-sell price ladder, as a value rather than a page
+// side-effect -- so the ladder rule below, including the exact boundary it turns on, can be
+// tested without a DOM, a market call or updateInventorySelection's own timing.
+export function quickSellPanel(orderbook, formatPrice) {
+    const sellRows = (orderbook.sell_order_graph || [])
+        .slice(0, 10)
+        .map(
+            ([price, qty]) =>
+                `<tr><td align="right">${formatPrice(Math.round(price * 100))}</td><td align="right">${qty}</td></tr>`,
+        )
+        .join('');
+
+    const buyRows = (orderbook.buy_order_graph || [])
+        .slice(0, 10)
+        .map(
+            ([price, qty]) =>
+                `<tr><td align="right">${formatPrice(Math.round(price * 100))}</td><td align="right">${qty}</td></tr>`,
+        )
+        .join('');
+
+    let prices: number[] = [];
+
+    if (orderbook != null && orderbook.highest_buy_order != null) {
+        prices.push(parseInt(orderbook.highest_buy_order));
+    }
+
+    if (orderbook != null && orderbook.lowest_sell_order != null) {
+        // Transaction volume must be separable into three or more parts (no matter if equal): valve+publisher+seller.
+        if (parseInt(orderbook.lowest_sell_order) > 3) {
+            prices.push(parseInt(orderbook.lowest_sell_order) - 1);
+        }
+        prices.push(parseInt(orderbook.lowest_sell_order));
+    }
+
+    prices = prices.filter((v, i) => prices.indexOf(v) === i).sort((a, b) => a - b);
+
+    return {
+        sellRows,
+        buyRows,
+        prices,
+        defaultPrice: orderbook.lowest_sell_order || 0,
+    };
+}
+
 export async function updateInventorySelection(selectedItem) {
     if (getSetting(SETTING_QUICK_SELL_BUTTONS) != 1) {
         return;
