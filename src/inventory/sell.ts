@@ -137,7 +137,6 @@ export function sellAllDuplicateItems() {
 
         const items = getInventoryItems();
         const marketableItems: any[] = [];
-        let filteredItems: any[] = [];
 
         items.forEach((item) => {
             if (!item.marketable) {
@@ -147,7 +146,7 @@ export function sellAllDuplicateItems() {
             marketableItems.push(item);
         });
 
-        filteredItems = marketableItems.filter(
+        const filteredItems = marketableItems.filter(
             (e, i) => marketableItems.map((m) => m.classid).indexOf(e.classid) !== i,
         );
 

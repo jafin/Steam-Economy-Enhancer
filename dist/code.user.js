@@ -552,8 +552,8 @@
 		return getPriceInformation(getIsTradingCard(item), getIsFoilTradingCard(item));
 	}
 	function getPriceInformation(isTradingCard, isFoilTradingCard) {
-		let maxPrice = 0;
-		let minPrice = 0;
+		let maxPrice;
+		let minPrice;
 		if (!isTradingCard) {
 			maxPrice = getSetting(SETTING_MAX_MISC_PRICE);
 			minPrice = getSetting(SETTING_MIN_MISC_PRICE);
@@ -636,7 +636,7 @@
 		const shouldUseAverage = rules.algorithm === 1;
 		const shouldUseBuyOrder = rules.algorithm === 3;
 		const shouldUseHistory = rules.algorithm === 4;
-		let calculatedPrice = 0;
+		let calculatedPrice;
 		if (shouldUseBuyOrder) calculatedPrice = buyPrice;
 		else if ((historyPrice < listingPrice || !shouldUseAverage) && !shouldUseHistory) calculatedPrice = listingPrice;
 		else calculatedPrice = historyPrice;
@@ -1869,7 +1869,7 @@
 		addMarketCheckboxes();
 		if (currentPage == 0) {
 			let currentCount = 0;
-			let totalCount = 0;
+			let totalCount;
 			const myListingsTotalCount = steamPage.myListingsTotalCount();
 			if (myListingsTotalCount != null) totalCount = myListingsTotalCount;
 			else totalCount = parseInt((0, jquery.default)("#my_market_selllistings_number").text());
@@ -2266,13 +2266,11 @@
 			removeSpinner();
 			const items = getInventoryItems();
 			const marketableItems = [];
-			let filteredItems = [];
 			items.forEach((item) => {
 				if (!item.marketable) return;
 				marketableItems.push(item);
 			});
-			filteredItems = marketableItems.filter((e, i) => marketableItems.map((m) => m.classid).indexOf(e.classid) !== i);
-			sellItems(filteredItems);
+			sellItems(marketableItems.filter((e, i) => marketableItems.map((m) => m.classid).indexOf(e.classid) !== i));
 		});
 	}
 	function sellAllCards() {

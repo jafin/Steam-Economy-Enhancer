@@ -572,7 +572,7 @@ export function processMarketListings() {
     if (currentPage == PAGE_MARKET) {
         // Load the market listings.
         let currentCount = 0;
-        let totalCount = 0;
+        let totalCount: number;
 
         const myListingsTotalCount = steamPage.myListingsTotalCount();
         if (myListingsTotalCount != null) {

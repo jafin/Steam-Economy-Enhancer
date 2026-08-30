@@ -79,8 +79,8 @@ function getPriceInformationFromItem(item) {
 }
 
 function getPriceInformation(isTradingCard, isFoilTradingCard) {
-    let maxPrice = 0;
-    let minPrice = 0;
+    let maxPrice: number;
+    let minPrice: number;
 
     if (!isTradingCard) {
         maxPrice = getSetting(SETTING_MAX_MISC_PRICE);
@@ -252,7 +252,7 @@ export function calculateSellPriceBeforeFees(
 
     // If the highest average price is lower than the first listing, return the offset + that listing.
     // Otherwise, use the highest average price instead.
-    let calculatedPrice = 0;
+    let calculatedPrice: number;
     if (shouldUseBuyOrder) {
         calculatedPrice = buyPrice;
     } else if ((historyPrice < listingPrice || !shouldUseAverage) && !shouldUseHistory) {
