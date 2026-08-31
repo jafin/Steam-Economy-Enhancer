@@ -2,6 +2,7 @@ import { test } from 'vitest';
 import assert from 'node:assert';
 import {
     flattenItem,
+    getItemName,
     isItemQueued,
     markItemQueued,
     readInventoryItems,
@@ -164,4 +165,35 @@ test('isItemQueued does not confuse two different items', () => {
 
     assert.strictEqual(isItemQueued(itemA), true);
     assert.strictEqual(isItemQueued(itemB), false);
+});
+
+// getItemName -- the `item.name || item.description.name` idiom this codebase writes in six
+// places, with the description dereference that used to throw when neither carried a name.
+// Distinct from getMarketHashName: this answers what to show a user, not what to ask Steam.
+test('getItemName prefers the top-level name', () => {
+    assert.strictEqual(
+        getItemName({ name: 'Sackboy', description: { name: 'Something Else' } }),
+        'Sackboy',
+    );
+});
+
+test('getItemName falls back to the description name', () => {
+    assert.strictEqual(getItemName({ description: { name: 'Sackboy' } }), 'Sackboy');
+});
+
+test('getItemName falls back to the description name when the top-level name is empty', () => {
+    assert.strictEqual(getItemName({ name: '', description: { name: 'Sackboy' } }), 'Sackboy');
+});
+
+test('getItemName is an empty string when the item carries no name at all', () => {
+    assert.strictEqual(getItemName({ description: {} }), '');
+});
+
+// The dereference that threw: no description property at all.
+test('getItemName is an empty string when the item has no description', () => {
+    assert.strictEqual(getItemName({}), '');
+});
+
+test('getItemName is an empty string for a null item', () => {
+    assert.strictEqual(getItemName(null), '');
 });

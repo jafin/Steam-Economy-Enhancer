@@ -98,6 +98,22 @@ export function getMarketHashName(item) {
     return null;
 }
 
+// The item's display name, for logging and for the name-shaped checks the inventory makes.
+//
+// `item.name || item.description.name` is the idiom this codebase already writes in six
+// places, because an inventory item carries its name at the top level on some pages and only
+// on its description on others. Written out inline it dereferences `description` without
+// checking it, so an item with neither threw -- in updateInventorySelection that took the
+// whole quick-sell panel with it, silently. Distinct from getMarketHashName above, which
+// answers what to *ask Steam* for and prefers the description; this answers what to *show*.
+export function getItemName(item): string {
+    if (item == null) {
+        return '';
+    }
+
+    return item.name || item.description?.name || '';
+}
+
 export function getIsCrate(item) {
     if (item == null) {
         return false;

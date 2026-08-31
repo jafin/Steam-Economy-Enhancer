@@ -5,7 +5,7 @@
 
 import $ from 'jquery';
 import { openSettings } from '../settings/dialog.ts';
-import { flattenItem, getMarketHashName, isItemQueued } from '../items/index.ts';
+import { flattenItem, getItemName, getMarketHashName, isItemQueued } from '../items/index.ts';
 import { formatPrice } from '../pricing/algorithms.ts';
 import {
     SETTING_INVENTORY_PRICE_LABELS,
@@ -301,7 +301,13 @@ export async function updateInventorySelection(selectedItem) {
         },
     };
 
-    const isBoosterPack = selectedItem.name.toLowerCase().endsWith('booster pack');
+    // Read through getItemName, not `selectedItem.name` directly. An item whose name lives
+    // only on its description -- which the very next use of the name, eleven lines below,
+    // already allowed for -- threw here, and the quick-sell panel then never rendered with
+    // nothing said.
+    const itemName = getItemName(selectedItem);
+
+    const isBoosterPack = itemName.toLowerCase().endsWith('booster pack');
     if (isBoosterPack) {
         const tradingCardsUrl = `/market/search?q=&category_753_Game%5B%5D=tag_app_${selectedItem.market_fee_app}&category_753_item_class%5B%5D=tag_item_class_2&appid=753`;
         const communityHeader = $('h1', item_info).next().find('span').eq(0);
@@ -326,9 +332,7 @@ export async function updateInventorySelection(selectedItem) {
 
     market.getOrderBook(item, false, (err, orderbook) => {
         if (err) {
-            logConsole(
-                `Failed to get order book for ${selectedItem.name || selectedItem.description.name}`,
-            );
+            logConsole(`Failed to get order book for ${itemName}`);
             return;
         }
 

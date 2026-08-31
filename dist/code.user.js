@@ -138,6 +138,10 @@
 		if (item.name != null) return item.name;
 		return null;
 	}
+	function getItemName(item) {
+		if (item == null) return "";
+		return item.name || item.description?.name || "";
+	}
 	function getIsCrate(item) {
 		if (item == null) return false;
 		const tags = item.tags != null ? item.tags : item.description != null && item.description.tags != null ? item.description.tags : null;
@@ -2584,7 +2588,8 @@
 			appid: parseInt(appid),
 			description: { market_hash_name }
 		};
-		if (selectedItem.name.toLowerCase().endsWith("booster pack")) {
+		const itemName = getItemName(selectedItem);
+		if (itemName.toLowerCase().endsWith("booster pack")) {
 			const tradingCardsUrl = `/market/search?q=&category_753_Game%5B%5D=tag_app_${selectedItem.market_fee_app}&category_753_item_class%5B%5D=tag_item_class_2&appid=753`;
 			const communityHeader = (0, jquery.default)("h1", item_info).next().find("span").eq(0);
 			communityHeader.replaceWith(`<a href="${tradingCardsUrl}"><span>${communityHeader.text()}</span></a>`);
@@ -2596,7 +2601,7 @@
 		const ownerActions = steamPage.itemOwnerActions(item_info, marketLink);
 		market.getOrderBook(item, false, (err, orderbook) => {
 			if (err) {
-				`${selectedItem.name || selectedItem.description.name}`;
+				`${itemName}`;
 				return;
 			}
 			if (isItemQueued(selectedItem)) return;
