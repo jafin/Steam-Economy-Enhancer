@@ -1790,10 +1790,13 @@
 		const seen = {};
 		(0, jquery.default)(".market_listing_row", myMarketListings).each(function() {
 			const item_id = String((0, jquery.default)(this).attr("id"));
-			if (seen[item_id]) (0, jquery.default)(this).remove();
-			else seen[item_id] = true;
-			if ((0, jquery.default)(".item_market_action_button", this).attr("href").toLowerCase().includes("CancelMarketListingConfirmation".toLowerCase())) (0, jquery.default)(this).remove();
-			if ((0, jquery.default)(".item_market_action_button", this).attr("href").toLowerCase().includes("CancelMarketBuyOrder".toLowerCase())) (0, jquery.default)(this).remove();
+			if (seen[item_id]) {
+				(0, jquery.default)(this).remove();
+				return;
+			}
+			seen[item_id] = true;
+			const href = ((0, jquery.default)(".item_market_action_button", this).attr("href") ?? "").toLowerCase();
+			if (href.includes("cancelmarketlistingconfirmation") || href.includes("cancelmarketbuyorder")) (0, jquery.default)(this).remove();
 		});
 		addMarketCheckboxes();
 		removeSpinner();
@@ -1809,7 +1812,7 @@
 				(0, jquery.default)(".market_listing_row", (0, jquery.default)(this)).appendTo((0, jquery.default)(`#market-listing-container-${e}`));
 			} else (0, jquery.default)(this).children().last().addClass("market_listing_see");
 			const marketListing = (0, jquery.default)(".market_listing_see", this).last();
-			if (marketListing[0].childElementCount > 0) {
+			if (marketListing[0]?.childElementCount > 0) {
 				addMarketListings(marketListing);
 				sortMarketListings((0, jquery.default)(this), false, false, true);
 			}

@@ -361,26 +361,26 @@ export function onMarketListingsItemsDrained(): void {
         const item_id = String($(this).attr('id'));
         if (seen[item_id]) {
             $(this).remove();
-        } else {
-            seen[item_id] = true;
-        }
 
-        // Remove listings awaiting confirmations, they are already listed separately.
-        if (
-            $('.item_market_action_button', this)
-                .attr('href')!
-                .toLowerCase()
-                .includes('CancelMarketListingConfirmation'.toLowerCase())
-        ) {
-            $(this).remove();
+            // Return rather than falling through: the two checks below would otherwise keep
+            // running against a node that has just been removed from the page.
+            return;
         }
+        seen[item_id] = true;
 
-        // Remove buy order listings, they are already listed separately.
+        // A row with no market action button has no href. `.attr('href')!` asserted one was
+        // always there, so a row Steam renders differently threw mid-.each() and abandoned
+        // every remaining row -- leaving the duplicate and confirmation rows this loop exists
+        // to remove sitting on the page. That is the PR #334 failure class the steamPage seam
+        // was built to stop. Read it once, default it to empty, and a missing href simply
+        // matches nothing.
+        const href = ($('.item_market_action_button', this).attr('href') ?? '').toLowerCase();
+
+        // Remove listings awaiting confirmations and buy orders; both are already listed
+        // separately.
         if (
-            $('.item_market_action_button', this)
-                .attr('href')!
-                .toLowerCase()
-                .includes('CancelMarketBuyOrder'.toLowerCase())
+            href.includes('cancelmarketlistingconfirmation') ||
+            href.includes('cancelmarketbuyorder')
         ) {
             $(this).remove();
         }
@@ -417,7 +417,10 @@ export function fillMarketListingsQueue() {
         }
 
         const marketListing = $('.market_listing_see', this).last();
-        if (marketListing[0].childElementCount > 0) {
+
+        // Optional chaining, matching the sibling call in processMarketHistoryListings: an
+        // empty selection has no [0], and an unguarded index throws out of this .each().
+        if (marketListing[0]?.childElementCount > 0) {
             addMarketListings(marketListing);
             sortMarketListings($(this), false, false, true);
         }
