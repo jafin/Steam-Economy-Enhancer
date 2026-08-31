@@ -5,6 +5,7 @@
 
 import { logConsole } from '../ui/logger.ts';
 import { getPriceValueAsInt } from './assets.ts';
+import { replaceNonNumbers } from '../util/numbers.ts';
 import { getListFromContainer } from './rows.ts';
 import $ from 'jquery';
 import * as luxon from 'luxon';
@@ -94,12 +95,46 @@ export function sortMarketListings(elem, isPrice, isDateOrQuantity, isName) {
     } else if (isDateOrQuantity) {
         const currentMonth = luxon.DateTime.local().month;
 
+        // Steam renders a listing's date as 'd MMM' with no year, so a month later than the
+        // current one must belong to last year. Pulled out of the comparator so the parse and
+        // the rollback happen once per operand rather than being written twice inline.
+        const listedDate = (row): luxon.DateTime => {
+            const parsed = luxon.DateTime.fromFormat(
+                row.values().market_listing_listed_date.trim(),
+                'd MMM',
+            );
+
+            if (parsed.isValid && parsed.month > currentMonth) {
+                return parsed.plus({ years: -1 });
+            }
+
+            return parsed;
+        };
+
         if (isBuyOrder) {
             list.sort('market_listing_buyorder_qty', {
                 order: asc ? 'asc' : 'desc',
                 sortFunction: function (a, b) {
-                    const quantityA = a.elm.querySelector('.market_listing_buyorder_qty').innerText;
-                    const quantityB = b.elm.querySelector('.market_listing_buyorder_qty').innerText;
+                    // Parsed rather than subtracted as strings. `'12' - '5'` coerces and
+                    // happens to work; `'1,234' - '5'` is NaN, and a NaN comparator makes the
+                    // whole sort implementation-defined. replaceNonNumbers is the house idiom
+                    // for exactly this.
+                    const quantityA = parseInt(
+                        replaceNonNumbers(
+                            a.elm.querySelector('.market_listing_buyorder_qty').innerText,
+                        ),
+                        10,
+                    );
+                    const quantityB = parseInt(
+                        replaceNonNumbers(
+                            b.elm.querySelector('.market_listing_buyorder_qty').innerText,
+                        ),
+                        10,
+                    );
+
+                    if (isNaN(quantityA) || isNaN(quantityB)) {
+                        return 0;
+                    }
 
                     return quantityA - quantityB;
                 },
@@ -108,33 +143,24 @@ export function sortMarketListings(elem, isPrice, isDateOrQuantity, isName) {
             list.sort('market_listing_listed_date', {
                 order: asc ? 'asc' : 'desc',
                 sortFunction: function (a, b) {
-                    let firstDate = luxon.DateTime.fromString(
-                        a.values().market_listing_listed_date.trim(),
-                        'd MMM',
-                    );
-                    let secondDate = luxon.DateTime.fromString(
-                        b.values().market_listing_listed_date.trim(),
-                        'd MMM',
-                    );
+                    const first = listedDate(a);
+                    const second = listedDate(b);
 
-                    if (firstDate == null || secondDate == null) {
+                    // `if (firstDate == null)` never fired: DateTime.fromFormat returns an
+                    // *invalid* DateTime on a parse failure, never null, so an unparseable
+                    // date used to propagate as NaN through the comparison instead. isValid
+                    // is the check that was meant.
+                    if (!first.isValid || !second.isValid) {
                         return 0;
                     }
 
-                    if (firstDate.month > currentMonth) {
-                        firstDate = firstDate.plus({ years: -1 });
-                    }
-                    if (secondDate.month > currentMonth) {
-                        secondDate = secondDate.plus({ years: -1 });
-                    }
-
-                    if (firstDate > secondDate) {
-                        return 1;
-                    }
-                    if (firstDate === secondDate) {
-                        return 0;
-                    }
-                    return -1;
+                    // Subtraction rather than three comparisons. The old form tested
+                    // `firstDate === secondDate`, which compares DateTime *references* and is
+                    // therefore never true -- so two equal dates returned -1 in both
+                    // directions, and Array.prototype.sort with an inconsistent comparator has
+                    // implementation-defined output: two listings from the same day could come
+                    // out in any order.
+                    return first.valueOf() - second.valueOf();
                 },
             });
         }

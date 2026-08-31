@@ -1343,23 +1343,27 @@
 		});
 		else if (isDateOrQuantity) {
 			const currentMonth = luxon.DateTime.local().month;
+			const listedDate = (row) => {
+				const parsed = luxon.DateTime.fromFormat(row.values().market_listing_listed_date.trim(), "d MMM");
+				if (parsed.isValid && parsed.month > currentMonth) return parsed.plus({ years: -1 });
+				return parsed;
+			};
 			if (isBuyOrder) list.sort("market_listing_buyorder_qty", {
 				order: asc ? "asc" : "desc",
 				sortFunction: function(a, b) {
-					return a.elm.querySelector(".market_listing_buyorder_qty").innerText - b.elm.querySelector(".market_listing_buyorder_qty").innerText;
+					const quantityA = parseInt(replaceNonNumbers(a.elm.querySelector(".market_listing_buyorder_qty").innerText), 10);
+					const quantityB = parseInt(replaceNonNumbers(b.elm.querySelector(".market_listing_buyorder_qty").innerText), 10);
+					if (isNaN(quantityA) || isNaN(quantityB)) return 0;
+					return quantityA - quantityB;
 				}
 			});
 			else list.sort("market_listing_listed_date", {
 				order: asc ? "asc" : "desc",
 				sortFunction: function(a, b) {
-					let firstDate = luxon.DateTime.fromString(a.values().market_listing_listed_date.trim(), "d MMM");
-					let secondDate = luxon.DateTime.fromString(b.values().market_listing_listed_date.trim(), "d MMM");
-					if (firstDate == null || secondDate == null) return 0;
-					if (firstDate.month > currentMonth) firstDate = firstDate.plus({ years: -1 });
-					if (secondDate.month > currentMonth) secondDate = secondDate.plus({ years: -1 });
-					if (firstDate > secondDate) return 1;
-					if (firstDate === secondDate) return 0;
-					return -1;
+					const first = listedDate(a);
+					const second = listedDate(b);
+					if (!first.isValid || !second.isValid) return 0;
+					return first.valueOf() - second.valueOf();
 				}
 			});
 		} else if (isPrice) list.sort("market_listing_price", {
