@@ -139,32 +139,36 @@ export function duplicatesByClassId(items: any[]): any[] {
     });
 }
 
+// Tags live on the item itself on the inventory page and on its description on the market
+// page, so every tag check has to look in both. Written out three times before this.
+function tagsOf(item): any[] | null {
+    if (item.tags != null) {
+        return item.tags;
+    }
+
+    if (item.description != null && item.description.tags != null) {
+        return item.description.tags;
+    }
+
+    return null;
+}
+
+// Whether any tag matches -- replaces the let/forEach/if dance getIsCrate, getIsTradingCard
+// and getIsFoilTradingCard each wrote out. The original compared with `==`; these values are
+// strings from Steam's JSON, so `===` is equivalent, and test/inventory-items.test.ts's
+// fixtures are what says so.
+function hasTag(item, category: string, internalName: string): boolean {
+    return (tagsOf(item) ?? []).some(
+        (tag) => tag.category === category && tag.internal_name === internalName,
+    );
+}
+
 export function getIsCrate(item) {
     if (item == null) {
         return false;
     }
     // This is available on the inventory page.
-    const tags =
-        item.tags != null
-            ? item.tags
-            : item.description != null && item.description.tags != null
-              ? item.description.tags
-              : null;
-    if (tags != null) {
-        let isTaggedAsCrate = false;
-        tags.forEach((arrayItem) => {
-            if (arrayItem.category == 'Type') {
-                if (arrayItem.internal_name == 'Supply Crate') {
-                    isTaggedAsCrate = true;
-                }
-            }
-        });
-        if (isTaggedAsCrate) {
-            return true;
-        }
-    }
-
-    return false;
+    return hasTag(item, 'Type', 'Supply Crate');
 }
 
 export function getIsTradingCard(item) {
@@ -172,26 +176,9 @@ export function getIsTradingCard(item) {
         return false;
     }
 
-    // This is available on the inventory page.
-    const tags =
-        item.tags != null
-            ? item.tags
-            : item.description != null && item.description.tags != null
-              ? item.description.tags
-              : null;
-    if (tags != null) {
-        let isTaggedAsTradingCard = false;
-        tags.forEach((arrayItem) => {
-            if (arrayItem.category == 'item_class') {
-                if (arrayItem.internal_name == 'item_class_2') {
-                    // trading card.
-                    isTaggedAsTradingCard = true;
-                }
-            }
-        });
-        if (isTaggedAsTradingCard) {
-            return true;
-        }
+    // This is available on the inventory page. item_class_2 is a trading card.
+    if (hasTag(item, 'item_class', 'item_class_2')) {
+        return true;
     }
 
     // This is available on the market page.
@@ -222,24 +209,9 @@ export function getIsFoilTradingCard(item) {
         return false;
     }
 
-    // This is available on the inventory page.
-    const tags =
-        item.tags != null
-            ? item.tags
-            : item.description != null && item.description.tags != null
-              ? item.description.tags
-              : null;
-    if (tags != null) {
-        let isTaggedAsFoilTradingCard = false;
-        tags.forEach((arrayItem) => {
-            if (arrayItem.category == 'cardborder' && arrayItem.internal_name == 'cardborder_1') {
-                // foil border.
-                isTaggedAsFoilTradingCard = true;
-            }
-        });
-        if (isTaggedAsFoilTradingCard) {
-            return true;
-        }
+    // This is available on the inventory page. cardborder_1 is the foil border.
+    if (hasTag(item, 'cardborder', 'cardborder_1')) {
+        return true;
     }
 
     // This is available on the market page.

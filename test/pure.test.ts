@@ -243,3 +243,51 @@ test('getIsCrate returns a boolean on every path', () => {
         true,
     );
 });
+
+// --- tags on the item, or on its description ----------------------------------------------
+//
+// getIsCrate, getIsTradingCard and getIsFoilTradingCard each wrote out the same nested
+// ternary to find the tags, because they live on the item itself on the inventory page and on
+// its description on the market page. That is one helper now, so the both-locations rule is
+// pinned once here rather than assumed three times.
+
+test('a crate is recognised by tags on the item and by tags on its description', () => {
+    const tags = [{ category: 'Type', internal_name: 'Supply Crate' }];
+
+    assert.strictEqual(getIsCrate({ tags }), true, 'inventory page shape');
+    assert.strictEqual(getIsCrate({ description: { tags } }), true, 'market page shape');
+});
+
+test('a trading card is recognised by tags on the item and by tags on its description', () => {
+    const tags = [{ category: 'item_class', internal_name: 'item_class_2' }];
+
+    assert.strictEqual(getIsTradingCard({ tags }), true);
+    assert.strictEqual(getIsTradingCard({ description: { tags } }), true);
+});
+
+test('a foil card is recognised by tags on the item and by tags on its description', () => {
+    const tags = [
+        { category: 'item_class', internal_name: 'item_class_2' },
+        { category: 'cardborder', internal_name: 'cardborder_1' },
+    ];
+
+    assert.strictEqual(getIsFoilTradingCard({ tags }), true);
+    assert.strictEqual(getIsFoilTradingCard({ description: { tags } }), true);
+});
+
+// The item's own tags win: an empty array on the item is still an answer, and must not fall
+// through to the description. That is what the original nested ternary's `!= null` test did.
+test('an empty tags array on the item does not fall through to the description', () => {
+    const item = {
+        tags: [],
+        description: { tags: [{ category: 'Type', internal_name: 'Supply Crate' }] },
+    };
+
+    assert.strictEqual(getIsCrate(item), false);
+});
+
+test('the tag predicates are false for an item with no tags in either place', () => {
+    assert.strictEqual(getIsCrate({ description: {} }), false);
+    assert.strictEqual(getIsTradingCard({ description: {} }), false);
+    assert.strictEqual(getIsFoilTradingCard({ description: {} }), false);
+});

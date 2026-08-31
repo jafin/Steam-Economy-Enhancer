@@ -150,32 +150,21 @@
 			return false;
 		});
 	}
+	function tagsOf(item) {
+		if (item.tags != null) return item.tags;
+		if (item.description != null && item.description.tags != null) return item.description.tags;
+		return null;
+	}
+	function hasTag(item, category, internalName) {
+		return (tagsOf(item) ?? []).some((tag) => tag.category === category && tag.internal_name === internalName);
+	}
 	function getIsCrate(item) {
 		if (item == null) return false;
-		const tags = item.tags != null ? item.tags : item.description != null && item.description.tags != null ? item.description.tags : null;
-		if (tags != null) {
-			let isTaggedAsCrate = false;
-			tags.forEach((arrayItem) => {
-				if (arrayItem.category == "Type") {
-					if (arrayItem.internal_name == "Supply Crate") isTaggedAsCrate = true;
-				}
-			});
-			if (isTaggedAsCrate) return true;
-		}
-		return false;
+		return hasTag(item, "Type", "Supply Crate");
 	}
 	function getIsTradingCard(item) {
 		if (item == null) return false;
-		const tags = item.tags != null ? item.tags : item.description != null && item.description.tags != null ? item.description.tags : null;
-		if (tags != null) {
-			let isTaggedAsTradingCard = false;
-			tags.forEach((arrayItem) => {
-				if (arrayItem.category == "item_class") {
-					if (arrayItem.internal_name == "item_class_2") isTaggedAsTradingCard = true;
-				}
-			});
-			if (isTaggedAsTradingCard) return true;
-		}
+		if (hasTag(item, "item_class", "item_class_2")) return true;
 		if (item.owner_actions != null) for (let i = 0; i < item.owner_actions.length; i++) {
 			if (item.owner_actions[i].link == null) continue;
 			if (item.owner_actions[i].link.toString().toLowerCase().includes("gamecards")) return true;
@@ -185,14 +174,7 @@
 	}
 	function getIsFoilTradingCard(item) {
 		if (!getIsTradingCard(item)) return false;
-		const tags = item.tags != null ? item.tags : item.description != null && item.description.tags != null ? item.description.tags : null;
-		if (tags != null) {
-			let isTaggedAsFoilTradingCard = false;
-			tags.forEach((arrayItem) => {
-				if (arrayItem.category == "cardborder" && arrayItem.internal_name == "cardborder_1") isTaggedAsFoilTradingCard = true;
-			});
-			if (isTaggedAsFoilTradingCard) return true;
-		}
+		if (hasTag(item, "cardborder", "cardborder_1")) return true;
 		if (item.owner_actions != null) for (let i = 0; i < item.owner_actions.length; i++) {
 			if (item.owner_actions[i].link == null) continue;
 			if (item.owner_actions[i].link.toString().toLowerCase().includes("gamecards") && item.owner_actions[i].link.toString().toLowerCase().includes("border")) return true;
