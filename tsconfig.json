@@ -14,6 +14,9 @@
         // tell a deliberate boundary annotation from one that simply has not been done.
         // Turn it on a module at a time as those shapes get named.
         "noImplicitAny": false,
+        // Would have caught the missing else in sortMarketListings on its own -- see the
+        // guard added to src/market/sort.ts.
+        "noImplicitReturns": true,
         "esModuleInterop": true,
         "skipLibCheck": true,
         "forceConsistentCasingInFileNames": true,
