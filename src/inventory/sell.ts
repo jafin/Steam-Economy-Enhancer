@@ -25,11 +25,11 @@ import { SETTING_PRICE_MIN_LIST_PRICE, getSetting } from '../settings/index.ts';
 import { steamPage } from '../steam/instance.ts';
 import { market } from '../steam/market.ts';
 import { listed, processed, runTotals, unprocessed } from '../totals.ts';
-import { markRow, markRowForSale, removeSpinner, renderSpinner } from '../ui/index.ts';
+import { markRow, markRowForSale } from '../ui/index.ts';
 import { logConsole, logDOM } from '../ui/logger.ts';
 import { getNumberOfDigits, getRandomInt, padLeftZero } from '../util/numbers.ts';
-import { enqueueInventoryItems, selectedItemsWhere } from './actions.ts';
-import { getInventoryItems, loadAllInventories } from './data.ts';
+import { enqueueInventoryItems, selectedItemsWhere, withInventory } from './actions.ts';
+import { getInventoryItems } from './data.ts';
 import { updateTotals } from './progress.ts';
 export const sellQueue = async.queue((task: QueueTask, next) => {
     processed();
@@ -109,11 +109,7 @@ export const sellQueue = async.queue((task: QueueTask, next) => {
 }, 1);
 
 export function sellAllItems() {
-    renderSpinner('Loading inventory items');
-
-    loadAllInventories().then(() => {
-        removeSpinner();
-
+    withInventory(() => {
         const items = getInventoryItems();
         const filteredItems: any[] = [];
 
@@ -130,11 +126,7 @@ export function sellAllItems() {
 }
 
 export function sellAllDuplicateItems() {
-    renderSpinner('Loading inventory items');
-
-    loadAllInventories().then(() => {
-        removeSpinner();
-
+    withInventory(() => {
         const items = getInventoryItems();
         const marketableItems: any[] = [];
 
@@ -153,11 +145,7 @@ export function sellAllDuplicateItems() {
 }
 
 export function sellAllCards() {
-    renderSpinner('Loading inventory items');
-
-    loadAllInventories().then(() => {
-        removeSpinner();
-
+    withInventory(() => {
         const items = getInventoryItems();
         const filteredItems: any[] = [];
 
@@ -174,11 +162,7 @@ export function sellAllCards() {
 }
 
 export function sellAllCrates() {
-    renderSpinner('Loading inventory items');
-
-    loadAllInventories().then(() => {
-        removeSpinner();
-
+    withInventory(() => {
         const items = getInventoryItems();
         const filteredItems: any[] = [];
         items.forEach((item) => {

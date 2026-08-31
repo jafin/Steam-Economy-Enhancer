@@ -8,7 +8,8 @@
 
 import { isItemQueued, markItemQueued } from '../items/index.ts';
 import { queued } from '../totals.ts';
-import { renderSpinner } from '../ui/index.ts';
+import { removeSpinner, renderSpinner } from '../ui/index.ts';
+import { logConsole, logDOM } from '../ui/logger.ts';
 import { getInventoryItems, loadAllInventories } from './data.ts';
 import { getSelectedItems } from './selection.ts';
 
@@ -30,6 +31,35 @@ export function hasOwnerAction(item, fragment: string): boolean {
     }
 
     return false;
+}
+
+// Load the inventory, then act on it -- with both ends of the spinner closed.
+//
+// Eight actions wrote this out by hand, and every one of them called removeSpinner only on
+// the success path. A refused or hanging inventory load therefore left the user watching a
+// spinner that never stopped, an unhandled rejection in the console, and nothing at all on
+// the page -- the exact failure mode net/request.ts's breaker was written to avoid: "Going
+// quiet without saying so is not: announce it."
+//
+// The rejection handler is `.then`'s second argument rather than a trailing `.catch`,
+// deliberately. A trailing .catch would also catch anything `action` itself threw and report
+// it to the user as a failed inventory load, which it is not. This way the handler sees load
+// failures only; an error inside `action` behaves exactly as it does today, and the spinner
+// is already down by then either way.
+export function withInventory(action: () => void, label = 'Loading inventory items'): void {
+    renderSpinner(label);
+
+    loadAllInventories().then(
+        () => {
+            removeSpinner();
+            action();
+        },
+        (e) => {
+            removeSpinner();
+            logDOM('Could not load the inventory. Reload the page and try again.');
+            logConsole(`loadAllInventories failed, ${e}.`);
+        },
+    );
 }
 
 // The selected items matching `predicate`. One loadAllInventories() for the caller, where the

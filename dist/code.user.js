@@ -2198,6 +2198,17 @@
 		}
 		return false;
 	}
+	function withInventory(action, label = "Loading inventory items") {
+		renderSpinner(label);
+		loadAllInventories().then(() => {
+			removeSpinner();
+			action();
+		}, (e) => {
+			removeSpinner();
+			logDOM("Could not load the inventory. Reload the page and try again.");
+			`${e}`;
+		});
+	}
 	async function selectedItemsWhere(predicate) {
 		const ids = getSelectedItems();
 		await loadAllInventories();
@@ -2241,17 +2252,13 @@
 		});
 	}
 	function unpackAllBoosterPacks() {
-		renderSpinner("Loading inventory items");
-		loadAllInventories().then(() => {
-			removeSpinner();
+		withInventory(() => {
 			if (enqueueInventoryItems(boosterQueue, getInventoryItems().filter((item) => hasOwnerAction(item, "OpenBooster")), { spinnerLabel: "items" }) === 0) logDOM("No booster packs found in the inventory to unpack.");
 		});
 	}
 	function unpackSelectedBoosterPacks() {
 		const ids = getSelectedItems();
-		renderSpinner("Loading inventory items");
-		loadAllInventories().then(() => {
-			removeSpinner();
+		withInventory(() => {
 			enqueueInventoryItems(boosterQueue, getInventoryItems().filter((item) => {
 				const itemId = item.assetid || item.id;
 				return ids.indexOf(itemId) !== -1 && hasOwnerAction(item, "OpenBooster");
@@ -2301,9 +2308,7 @@
 		});
 	}, 1);
 	function sellAllItems() {
-		renderSpinner("Loading inventory items");
-		loadAllInventories().then(() => {
-			removeSpinner();
+		withInventory(() => {
 			const items = getInventoryItems();
 			const filteredItems = [];
 			items.forEach((item) => {
@@ -2314,9 +2319,7 @@
 		});
 	}
 	function sellAllDuplicateItems() {
-		renderSpinner("Loading inventory items");
-		loadAllInventories().then(() => {
-			removeSpinner();
+		withInventory(() => {
 			const items = getInventoryItems();
 			const marketableItems = [];
 			items.forEach((item) => {
@@ -2327,9 +2330,7 @@
 		});
 	}
 	function sellAllCards() {
-		renderSpinner("Loading inventory items");
-		loadAllInventories().then(() => {
-			removeSpinner();
+		withInventory(() => {
 			const items = getInventoryItems();
 			const filteredItems = [];
 			items.forEach((item) => {
@@ -2340,9 +2341,7 @@
 		});
 	}
 	function sellAllCrates() {
-		renderSpinner("Loading inventory items");
-		loadAllInventories().then(() => {
-			removeSpinner();
+		withInventory(() => {
 			const items = getInventoryItems();
 			const filteredItems = [];
 			items.forEach((item) => {
@@ -2432,9 +2431,7 @@
 		return new Promise((resolve) => setTimeout(resolve, ms));
 	}
 	function gemAllDuplicateItems() {
-		renderSpinner("Loading inventory items");
-		loadAllInventories().then(() => {
-			removeSpinner();
+		withInventory(() => {
 			enqueueInventoryItems(scrapQueue, duplicatesByClassId(getInventoryItems()).filter((item) => hasOwnerAction(item, "GetGooValue")), { spinnerLabel: "items" });
 		});
 	}
@@ -2472,9 +2469,7 @@
 	}
 	function turnSelectedItemsIntoGems() {
 		const ids = getSelectedItems();
-		renderSpinner("Loading inventory items");
-		loadAllInventories().then(() => {
-			removeSpinner();
+		withInventory(() => {
 			enqueueInventoryItems(scrapQueue, getInventoryItems().filter((item) => {
 				const itemId = item.assetid || item.id;
 				return ids.indexOf(itemId) !== -1 && hasOwnerAction(item, "GetGooValue");
@@ -2562,7 +2557,7 @@
 			updateSellSelectedButton(selected.filter((item) => item.marketable));
 			updateTurnIntoGemsButton(selected.filter((item) => !isItemQueued(item) && hasOwnerAction(item, "GetGooValue")));
 			updateOpenBoosterPacksButton(selected.filter((item) => !isItemQueued(item) && hasOwnerAction(item, "OpenBooster")));
-		});
+		}, (e) => (`${e}`, void 0));
 	}
 	function quickSellPanel(orderbook, formatPrice) {
 		const sellRows = (orderbook.sell_order_graph || []).slice(0, 10).map(([price, qty]) => `<tr><td align="right">${formatPrice(Math.round(price * 100))}</td><td align="right">${qty}</td></tr>`).join("");
@@ -2739,7 +2734,7 @@
 					updateInventoryPrices();
 				});
 			}
-		});
+		}, (e) => (`${e}`, void 0));
 	}
 	(function(d) {
 		d.Observe = {};

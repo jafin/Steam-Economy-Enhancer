@@ -14,7 +14,8 @@ import { test } from 'vitest';
 import assert from 'node:assert';
 import $ from 'jquery';
 import { markItemQueued } from '../src/items/index.ts';
-import { hasOwnerAction } from '../src/inventory/actions.ts';
+import { hasOwnerAction, withInventory } from '../src/inventory/actions.ts';
+import { logger } from '../src/ui/logger.ts';
 import { turnSelectedItemsIntoGems } from '../src/inventory/gems.ts';
 import { updateButtons } from '../src/inventory/ui.ts';
 import { endRun, runTotals } from '../src/totals.ts';
@@ -120,3 +121,75 @@ test('the gems button label and the actual enqueue count agree, even when an ite
         'the button label and the number of items the action actually enqueues must agree',
     );
 });
+
+// --- withInventory: both ends of the spinner closed ---------------------------------------
+//
+// Every inventory action is load-then-act, and all eight of them called removeSpinner only
+// on the success path. A refused or hanging inventory load therefore left the user watching
+// a spinner that never stopped, an unhandled rejection in the console, and nothing on the
+// page -- the failure mode net/request.ts's breaker exists to avoid.
+//
+// The spinner container depends on which page this is; under test that is the market page,
+// so `.my_market_header` is what getSpinnerContext() resolves to.
+function buildSpinnerHost() {
+    document.body.innerHTML = '<div class="my_market_header"></div>';
+}
+
+function spinnerCount(): number {
+    return $('#market_listings_spinner').length;
+}
+
+// loadAllInventories() is `async`, so a synchronous throw inside it surfaces as a rejection.
+function makeInventoryLoadFail() {
+    (globalThis as any).unsafeWindow.g_ActiveInventory.LoadCompleteInventory = () => {
+        throw new Error('Steam said no');
+    };
+}
+
+function restoreInventoryLoad() {
+    (globalThis as any).unsafeWindow.g_ActiveInventory.LoadCompleteInventory = () => ({
+        done: (callback: () => void) => callback(),
+    });
+}
+
+test('withInventory runs the action and takes the spinner down on success', async () => {
+    buildSpinnerHost();
+    restoreInventoryLoad();
+    logger.innerHTML = '';
+
+    let ran = 0;
+    withInventory(() => ran++);
+
+    assert.strictEqual(spinnerCount(), 1, 'the spinner is up while the inventory loads');
+
+    await flush();
+
+    assert.strictEqual(ran, 1);
+    assert.strictEqual(spinnerCount(), 0, 'and down again afterwards');
+    assert.strictEqual(logger.textContent, '', 'nothing is logged on the happy path');
+});
+
+test('withInventory takes the spinner down and says so when the load is refused', async () => {
+    buildSpinnerHost();
+    makeInventoryLoadFail();
+    logger.innerHTML = '';
+
+    let ran = 0;
+    withInventory(() => ran++);
+
+    assert.strictEqual(spinnerCount(), 1);
+
+    await flush();
+
+    assert.strictEqual(ran, 0, 'the action must not run against an inventory that never loaded');
+    assert.strictEqual(spinnerCount(), 0, 'the spinner comes down on the failure path too');
+    assert.match(logger.textContent ?? '', /Could not load the inventory/);
+
+    restoreInventoryLoad();
+});
+
+// Note there is deliberately no test for an action that throws. The rejection handler is
+// .then's second argument rather than a trailing .catch, so it sees load failures only and an
+// error thrown by the action escapes as it always has -- asserting on that would mean
+// planting an unhandled rejection in the suite to observe it. The point of the two-argument
+// form is that such an error is never misreported to the user as a failed inventory load.

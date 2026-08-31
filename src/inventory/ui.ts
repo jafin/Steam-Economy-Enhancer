@@ -220,19 +220,29 @@ export function updateOpenBoosterPacksButton(items: any[]) {
 export function updateButtons() {
     const ids = getSelectedItems();
 
-    loadAllInventories().then(() => {
-        const selected = getInventoryItems().filter(
-            (item) => ids.indexOf(item.assetid || item.id) !== -1,
-        );
+    // Not withInventory: this runs on every selection change and shows no spinner, so there
+    // is nothing to take down and a log line per click would be noise. It still needs a
+    // rejection handler -- without one a refused load was an unhandled rejection.
+    loadAllInventories().then(
+        () => {
+            const selected = getInventoryItems().filter(
+                (item) => ids.indexOf(item.assetid || item.id) !== -1,
+            );
 
-        updateSellSelectedButton(selected.filter((item) => item.marketable));
-        updateTurnIntoGemsButton(
-            selected.filter((item) => !isItemQueued(item) && hasOwnerAction(item, 'GetGooValue')),
-        );
-        updateOpenBoosterPacksButton(
-            selected.filter((item) => !isItemQueued(item) && hasOwnerAction(item, 'OpenBooster')),
-        );
-    });
+            updateSellSelectedButton(selected.filter((item) => item.marketable));
+            updateTurnIntoGemsButton(
+                selected.filter(
+                    (item) => !isItemQueued(item) && hasOwnerAction(item, 'GetGooValue'),
+                ),
+            );
+            updateOpenBoosterPacksButton(
+                selected.filter(
+                    (item) => !isItemQueued(item) && hasOwnerAction(item, 'OpenBooster'),
+                ),
+            );
+        },
+        (e) => logConsole(`Could not update the inventory buttons, ${e}.`),
+    );
 }
 
 // The order book rows and the quick-sell price ladder, as a value rather than a page
@@ -522,39 +532,44 @@ export function updateInventoryUI(isOwnInventory) {
         window.location.reload();
     });
 
-    loadAllInventories().then(() => {
-        const updateInventoryPrices = function () {
-            if (getSetting(SETTING_INVENTORY_PRICE_LABELS) == 1) {
-                setInventoryPrices(getInventoryItems());
+    // A rejection handler for the same reason as updateButtons above: no spinner is showing,
+    // so there is nothing to take down, but a refused load was an unhandled rejection.
+    loadAllInventories().then(
+        () => {
+            const updateInventoryPrices = function () {
+                if (getSetting(SETTING_INVENTORY_PRICE_LABELS) == 1) {
+                    setInventoryPrices(getInventoryItems());
+                }
+            };
+
+            // Load after the inventory is loaded.
+            updateInventoryPrices();
+
+            // Registered once for the page, not once per updateInventoryUI. jquery-observe keeps
+            // one MutationObserver per element with a list of handler patterns, so every
+            // re-registration was another live handler on the same observer: after four game-tab
+            // switches a single inventory page change fired updateInventoryPrices five times.
+            // Measured in a live browser on 31 Aug 2026, wrapping all five and forcing one
+            // childList mutation -- all five fired. Growth is linear and unbounded in a session.
+            //
+            // Registering once is safe because #pagecontrol_cur survives a tab switch: the same
+            // node, still in the document, after four switches, verified in that same session.
+            // If Steam ever did re-create it this would leave a dead observer, which is why that
+            // was checked rather than assumed.
+            //
+            // The flag records an actual attachment, not merely an attempt: .observe() on an
+            // empty selection is a no-op, so setting it unconditionally would permanently skip
+            // the observer if this ran before Steam had rendered #pagecontrol_cur.
+            const pageControl = $('#pagecontrol_cur');
+
+            if (!inventoryPricesObserverAttached && pageControl.length > 0) {
+                inventoryPricesObserverAttached = true;
+
+                pageControl.observe('childlist', () => {
+                    updateInventoryPrices();
+                });
             }
-        };
-
-        // Load after the inventory is loaded.
-        updateInventoryPrices();
-
-        // Registered once for the page, not once per updateInventoryUI. jquery-observe keeps
-        // one MutationObserver per element with a list of handler patterns, so every
-        // re-registration was another live handler on the same observer: after four game-tab
-        // switches a single inventory page change fired updateInventoryPrices five times.
-        // Measured in a live browser on 31 Aug 2026, wrapping all five and forcing one
-        // childList mutation -- all five fired. Growth is linear and unbounded in a session.
-        //
-        // Registering once is safe because #pagecontrol_cur survives a tab switch: the same
-        // node, still in the document, after four switches, verified in that same session.
-        // If Steam ever did re-create it this would leave a dead observer, which is why that
-        // was checked rather than assumed.
-        //
-        // The flag records an actual attachment, not merely an attempt: .observe() on an
-        // empty selection is a no-op, so setting it unconditionally would permanently skip
-        // the observer if this ran before Steam had rendered #pagecontrol_cur.
-        const pageControl = $('#pagecontrol_cur');
-
-        if (!inventoryPricesObserverAttached && pageControl.length > 0) {
-            inventoryPricesObserverAttached = true;
-
-            pageControl.observe('childlist', () => {
-                updateInventoryPrices();
-            });
-        }
-    });
+        },
+        (e) => logConsole(`Could not load the inventory to price it, ${e}.`),
+    );
 }

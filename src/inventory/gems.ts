@@ -3,8 +3,8 @@
 // Steam calls this 'grinding into goo'. The queue asks Steam what an item is worth in gems
 // before grinding it, so a mispriced item is not destroyed for nothing.
 
-import { enqueueInventoryItems, hasOwnerAction } from './actions.ts';
-import { getInventoryItems, loadAllInventories } from './data.ts';
+import { enqueueInventoryItems, hasOwnerAction, withInventory } from './actions.ts';
+import { getInventoryItems } from './data.ts';
 import { updateTotals } from './progress.ts';
 import { getSelectedItems } from './selection.ts';
 import { duplicatesByClassId } from '../items/index.ts';
@@ -12,16 +12,12 @@ import { ERROR_SUCCESS } from '../constants.ts';
 import { runQueue } from '../queue/index.ts';
 import { market } from '../steam/market.ts';
 import { processed, runTotals, scrapped } from '../totals.ts';
-import { markRow, removeSpinner, renderSpinner } from '../ui/index.ts';
+import { markRow } from '../ui/index.ts';
 import { logConsole, logDOM } from '../ui/logger.ts';
 import { getNumberOfDigits, padLeftZero } from '../util/numbers.ts';
 
 export function gemAllDuplicateItems() {
-    renderSpinner('Loading inventory items');
-
-    loadAllInventories().then(() => {
-        removeSpinner();
-
+    withInventory(() => {
         const items = getInventoryItems();
         const duplicateItems = duplicatesByClassId(items);
         const filteredItems = duplicateItems.filter((item) => hasOwnerAction(item, 'GetGooValue'));
@@ -80,11 +76,7 @@ export function scrapQueueWorker(item, ignoreErrors, callback) {
 export function turnSelectedItemsIntoGems() {
     const ids = getSelectedItems();
 
-    renderSpinner('Loading inventory items');
-
-    loadAllInventories().then(() => {
-        removeSpinner();
-
+    withInventory(() => {
         const items = getInventoryItems().filter((item) => {
             const itemId = item.assetid || item.id;
 
