@@ -72,7 +72,7 @@ test("onInventorySelectItem calls Steam's own handler, then the given one, and c
     const win = {
         CInventory: {
             prototype: {
-                SelectItem(event: any, elItem: any, rgItem: any) {
+                SelectItem(_event: any, _elItem: any, rgItem: any) {
                     calls.push(['original', rgItem]);
                 },
             },

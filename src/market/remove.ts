@@ -22,7 +22,7 @@ export const marketRemoveQueue = runQueue(marketRemoveQueueWorker, {
 // The task carries the listing id rather than being it. runQueue marks a task for its one
 // forced retry by setting a property on it, and a bare string cannot carry one -- assigning
 // to a primitive throws in a module, which is always strict.
-export function marketRemoveQueueWorker(task, ignoreErrors, callback) {
+export function marketRemoveQueueWorker(task, _ignoreErrors, callback) {
     const listingid = task.listingid;
     const listing = getListingFromLists(listingid);
     if (listing == null) {

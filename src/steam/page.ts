@@ -110,7 +110,7 @@ export function createSteamPage(win: any) {
 
             const original = win.CInventory.prototype.SelectItem;
 
-            win.CInventory.prototype.SelectItem = function (event, elItem, rgItem) {
+            win.CInventory.prototype.SelectItem = function (_event, _elItem, rgItem) {
                 // Steam owns this signature, so the patch forwards precisely what Steam
                 // passed rather than a list this file has guessed at.
                 // eslint-disable-next-line prefer-rest-params

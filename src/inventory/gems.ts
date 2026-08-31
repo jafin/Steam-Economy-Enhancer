@@ -28,7 +28,7 @@ export function gemAllDuplicateItems() {
 
 export const scrapQueue = runQueue(scrapQueueWorker, { successDelayMs: 250 });
 
-export function scrapQueueWorker(item, ignoreErrors, callback) {
+export function scrapQueueWorker(item, _ignoreErrors, callback) {
     const itemName = item.name || item.description.name;
     const itemId = item.assetid || item.id;
 

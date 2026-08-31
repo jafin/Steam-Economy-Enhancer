@@ -117,7 +117,7 @@ test('equal counts display in reverse first-seen order', () => {
         4: { name: 'Beta' },
     };
 
-    win.UserYou.findAsset = (appid: unknown, contextid: unknown, assetid: string) =>
+    win.UserYou.findAsset = (_appid: unknown, _contextid: unknown, assetid: string) =>
         itemsById[assetid] || null;
 
     const summaryText = sumTradeOfferAssets('me');
@@ -148,7 +148,7 @@ test('an item name carrying markup is escaped in the rendered summary', () => {
         1: { name: '<img src=x onerror=1>' },
     };
 
-    win.UserYou.findAsset = (appid: unknown, contextid: unknown, assetid: string) =>
+    win.UserYou.findAsset = (_appid: unknown, _contextid: unknown, assetid: string) =>
         itemsById[assetid] || null;
 
     const summaryText = sumTradeOfferAssets('me');

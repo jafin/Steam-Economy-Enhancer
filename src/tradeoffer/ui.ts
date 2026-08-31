@@ -172,7 +172,7 @@ export function initializeTradeOfferUI() {
         $('.select_all').on('click', '*', () => {
             $('.inventory_ctn:visible > .inventory_page:visible > .itemHolder:visible').delayedEach(
                 250,
-                (i, it) => {
+                (_i, it) => {
                     const item = it.rgItem;
                     if (item.is_stackable) {
                         return;

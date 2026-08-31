@@ -416,7 +416,7 @@
 			onInventorySelectItem(handler) {
 				if (typeof win.CInventory === "undefined") return () => {};
 				const original = win.CInventory.prototype.SelectItem;
-				win.CInventory.prototype.SelectItem = function(event, elItem, rgItem) {
+				win.CInventory.prototype.SelectItem = function(_event, _elItem, rgItem) {
 					original.apply(this, arguments);
 					handler(rgItem);
 				};
@@ -1185,7 +1185,7 @@
 			workDone();
 		}
 	});
-	function marketOverpricedQueueWorker(item, ignoreErrors, callback) {
+	function marketOverpricedQueueWorker(item, _ignoreErrors, callback) {
 		let listingUI = getListingFromLists(item.listing);
 		if (listingUI == null) {
 			`${item.listing}`;
@@ -1521,7 +1521,7 @@
 		successDelayMs: () => getRandomInt(50, 100),
 		onTaskDone: () => workDone()
 	});
-	function marketRemoveQueueWorker(task, ignoreErrors, callback) {
+	function marketRemoveQueueWorker(task, _ignoreErrors, callback) {
 		const listingid = task.listingid;
 		const listing = getListingFromLists(listingid);
 		if (listing == null) {
@@ -1782,7 +1782,7 @@
 		});
 	}
 	var marketListingsItemsQueue = runQueue(marketListingsItemsQueueWorker, { onTaskDone: () => workDone() });
-	function marketListingsItemsQueueWorker(task, ignoreErrors, callback) {
+	function marketListingsItemsQueueWorker(task, _ignoreErrors, callback) {
 		request(`${window.location.origin}/market/mylistings`, {
 			method: "GET",
 			data: {
@@ -2123,7 +2123,7 @@
           </a>
       </div>`);
 			(0, jquery.default)(".select_all").on("click", "*", () => {
-				(0, jquery.default)(".inventory_ctn:visible > .inventory_page:visible > .itemHolder:visible").delayedEach(250, (i, it) => {
+				(0, jquery.default)(".inventory_ctn:visible > .inventory_page:visible > .itemHolder:visible").delayedEach(250, (_i, it) => {
 					const item = it.rgItem;
 					if (item.is_stackable) return;
 					if (!item.tradable) return;
@@ -2232,7 +2232,7 @@
 		return numberOfQueuedItems;
 	}
 	var boosterQueue = runQueue(boosterQueueWorker, { successDelayMs: 250 });
-	function boosterQueueWorker(item, ignoreErrors, callback) {
+	function boosterQueueWorker(item, _ignoreErrors, callback) {
 		const itemName = item.name || item.description.name;
 		const itemId = item.assetid || item.id;
 		market.unpackBoosterPack(item, (err) => {
@@ -2436,7 +2436,7 @@
 		});
 	}
 	var scrapQueue = runQueue(scrapQueueWorker, { successDelayMs: 250 });
-	function scrapQueueWorker(item, ignoreErrors, callback) {
+	function scrapQueueWorker(item, _ignoreErrors, callback) {
 		const itemName = item.name || item.description.name;
 		const itemId = item.assetid || item.id;
 		market.getGooValue(item, (err, goo) => {

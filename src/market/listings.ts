@@ -321,7 +321,7 @@ export const marketListingsItemsQueue = runQueue(marketListingsItemsQueueWorker,
     onTaskDone: () => workDone(),
 });
 
-export function marketListingsItemsQueueWorker(task, ignoreErrors, callback) {
+export function marketListingsItemsQueueWorker(task, _ignoreErrors, callback) {
     const url = `${window.location.origin}/market/mylistings`;
 
     const options = {

@@ -15,7 +15,7 @@ import { getInventoryItems } from './data.ts';
 import { getSelectedItems } from './selection.ts';
 export const boosterQueue = runQueue(boosterQueueWorker, { successDelayMs: 250 });
 
-export function boosterQueueWorker(item, ignoreErrors, callback) {
+export function boosterQueueWorker(item, _ignoreErrors, callback) {
     const itemName = item.name || item.description.name;
     const itemId = item.assetid || item.id;
 

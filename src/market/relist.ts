@@ -62,7 +62,7 @@ export const marketOverpricedQueue = runQueue(marketOverpricedQueueWorker, {
     },
 });
 
-export function marketOverpricedQueueWorker(item, ignoreErrors, callback) {
+export function marketOverpricedQueueWorker(item, _ignoreErrors, callback) {
     let listingUI = getListingFromLists(item.listing);
     if (listingUI == null) {
         logConsole(`Listing ${item.listing} not found in the lists, skipping.`);
