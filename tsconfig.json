@@ -18,6 +18,7 @@
         // guard added to src/market/sort.ts.
         "noImplicitReturns": true,
         "noFallthroughCasesInSwitch": true,
+        "noUnusedLocals": true,
         "esModuleInterop": true,
         "skipLibCheck": true,
         "forceConsistentCasingInFileNames": true,
