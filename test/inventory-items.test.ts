@@ -1,6 +1,7 @@
 import { test } from 'vitest';
 import assert from 'node:assert';
 import {
+    duplicatesByClassId,
     flattenItem,
     getItemName,
     isItemQueued,
@@ -196,4 +197,76 @@ test('getItemName is an empty string when the item has no description', () => {
 
 test('getItemName is an empty string for a null item', () => {
     assert.strictEqual(getItemName(null), '');
+});
+
+// duplicatesByClassId -- what "duplicates" means to the sell and gem actions.
+//
+// This decides which items get sold, so identity with the previous implementation matters
+// more than the speed does. `previousImplementation` below is that form verbatim; every
+// assertion here is checked against both.
+function previousImplementation(items: any[]): any[] {
+    return items.filter((e, i) => items.map((m) => m.classid).indexOf(e.classid) !== i);
+}
+
+function bothAgree(items: any[]) {
+    const now = duplicatesByClassId(items);
+
+    assert.deepStrictEqual(
+        now,
+        previousImplementation(items),
+        'the single-pass form must select exactly the items the O(n^2) form did',
+    );
+
+    return now;
+}
+
+test('duplicatesByClassId excludes the first occurrence and keeps every later one', () => {
+    const a1 = { classid: 'a', id: '1' };
+    const a2 = { classid: 'a', id: '2' };
+    const a3 = { classid: 'a', id: '3' };
+    const b1 = { classid: 'b', id: '4' };
+
+    assert.deepStrictEqual(bothAgree([a1, a2, a3, b1]), [a2, a3]);
+});
+
+test('duplicatesByClassId returns nothing when every classid is unique', () => {
+    assert.deepStrictEqual(bothAgree([{ classid: 'a' }, { classid: 'b' }, { classid: 'c' }]), []);
+});
+
+test('duplicatesByClassId preserves the order it was given', () => {
+    const items = [
+        { classid: 'a', id: '1' },
+        { classid: 'b', id: '2' },
+        { classid: 'a', id: '3' },
+        { classid: 'b', id: '4' },
+        { classid: 'a', id: '5' },
+    ];
+
+    assert.deepStrictEqual(
+        bothAgree(items).map((item) => item.id),
+        ['3', '4', '5'],
+    );
+});
+
+// An absent classid is `undefined`, and a Set groups those together exactly as indexOf did.
+test('duplicatesByClassId groups items with no classid together', () => {
+    const first = { id: '1' };
+    const second = { id: '2' };
+
+    assert.deepStrictEqual(bothAgree([first, second]), [second]);
+});
+
+test('duplicatesByClassId is empty for an empty inventory', () => {
+    assert.deepStrictEqual(bothAgree([]), []);
+});
+
+// The reason for the change: the previous form built a full-length array of classids per
+// element. This is the size at which that stopped being free -- 213ms against 1ms when
+// measured, and Steam inventories go well past it.
+test('duplicatesByClassId agrees with the previous implementation on a large inventory', () => {
+    const items = Array.from({ length: 5000 }, (_, i) => ({ classid: `c${i % 700}`, id: `${i}` }));
+
+    const now = bothAgree(items);
+
+    assert.strictEqual(now.length, 5000 - 700);
 });

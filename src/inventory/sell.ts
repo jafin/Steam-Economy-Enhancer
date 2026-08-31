@@ -12,7 +12,7 @@ import {
     RETRY_DELAY_SHORT_MAX,
     RETRY_DELAY_SHORT_MIN,
 } from '../constants.ts';
-import { getIsCrate, getIsTradingCard } from '../items/index.ts';
+import { duplicatesByClassId, getIsCrate, getIsTradingCard } from '../items/index.ts';
 import { isRetryMessage } from '../net/request.ts';
 import {
     calculateSellPriceBeforeFees,
@@ -146,9 +146,7 @@ export function sellAllDuplicateItems() {
             marketableItems.push(item);
         });
 
-        const filteredItems = marketableItems.filter(
-            (e, i) => marketableItems.map((m) => m.classid).indexOf(e.classid) !== i,
-        );
+        const filteredItems = duplicatesByClassId(marketableItems);
 
         sellItems(filteredItems);
     });

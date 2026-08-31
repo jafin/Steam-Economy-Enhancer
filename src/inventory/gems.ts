@@ -7,6 +7,7 @@ import { enqueueInventoryItems, hasOwnerAction } from './actions.ts';
 import { getInventoryItems, loadAllInventories } from './data.ts';
 import { updateTotals } from './progress.ts';
 import { getSelectedItems } from './selection.ts';
+import { duplicatesByClassId } from '../items/index.ts';
 import { ERROR_SUCCESS } from '../constants.ts';
 import { runQueue } from '../queue/index.ts';
 import { market } from '../steam/market.ts';
@@ -22,9 +23,7 @@ export function gemAllDuplicateItems() {
         removeSpinner();
 
         const items = getInventoryItems();
-        const duplicateItems = items.filter(
-            (e, i) => items.map((m) => m.classid).indexOf(e.classid) !== i,
-        );
+        const duplicateItems = duplicatesByClassId(items);
         const filteredItems = duplicateItems.filter((item) => hasOwnerAction(item, 'GetGooValue'));
 
         enqueueInventoryItems(scrapQueue, filteredItems, { spinnerLabel: 'items' });

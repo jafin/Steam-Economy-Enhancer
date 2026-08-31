@@ -142,6 +142,14 @@
 		if (item == null) return "";
 		return item.name || item.description?.name || "";
 	}
+	function duplicatesByClassId(items) {
+		const seen = new Set();
+		return items.filter((item) => {
+			if (seen.has(item.classid)) return true;
+			seen.add(item.classid);
+			return false;
+		});
+	}
 	function getIsCrate(item) {
 		if (item == null) return false;
 		const tags = item.tags != null ? item.tags : item.description != null && item.description.tags != null ? item.description.tags : null;
@@ -2315,7 +2323,7 @@
 				if (!item.marketable) return;
 				marketableItems.push(item);
 			});
-			sellItems(marketableItems.filter((e, i) => marketableItems.map((m) => m.classid).indexOf(e.classid) !== i));
+			sellItems(duplicatesByClassId(marketableItems));
 		});
 	}
 	function sellAllCards() {
@@ -2427,8 +2435,7 @@
 		renderSpinner("Loading inventory items");
 		loadAllInventories().then(() => {
 			removeSpinner();
-			const items = getInventoryItems();
-			enqueueInventoryItems(scrapQueue, items.filter((e, i) => items.map((m) => m.classid).indexOf(e.classid) !== i).filter((item) => hasOwnerAction(item, "GetGooValue")), { spinnerLabel: "items" });
+			enqueueInventoryItems(scrapQueue, duplicatesByClassId(getInventoryItems()).filter((item) => hasOwnerAction(item, "GetGooValue")), { spinnerLabel: "items" });
 		});
 	}
 	var scrapQueue = runQueue(scrapQueueWorker, { successDelayMs: 250 });
