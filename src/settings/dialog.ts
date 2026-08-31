@@ -125,7 +125,7 @@ export function openSettings() {
 
     steamPage.showConfirmDialog('Steam Economy Enhancer', price_options).done(() => {
         // Every one of these returns false when the browser refused the write -- private
-        // mode, disabled site data, quota. All fourteen run regardless, so one refusal
+        // mode, disabled site data, quota. All of them run regardless, so one refusal
         // does not leave the rest of the form half-saved; but if any did, reloading would
         // throw away the settings the user just entered in favour of whatever is on disk.
         const allSettingsSaved = [

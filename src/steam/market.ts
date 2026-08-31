@@ -104,9 +104,6 @@ export function buildOrderBook(data) {
     };
 }
 
-// Sell an item with a price in cents.
-// Price is before fees.
-
 // The one SteamMarket instance for the page.
 //
 // It lives beside the constructor rather than in the entry file because several prototype
@@ -119,6 +116,8 @@ export const market = new SteamMarket(
     isLoggedIn ? steamPage.walletInfo() : undefined,
 );
 
+// Sell an item with a price in cents.
+// Price is before fees.
 SteamMarket.prototype.sellItem = function (item, price, callback /*err, data*/) {
     const url = `${window.location.origin}/market/sellitem/`;
 

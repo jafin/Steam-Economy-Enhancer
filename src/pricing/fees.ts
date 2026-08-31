@@ -8,17 +8,6 @@ import type { PricingRules } from './rules.ts';
 // 'Steam Market / Inventory helpers' region -- the fee maths sat under a region named
 // after something else entirely. It belongs with pricing.
 
-// Calculate the price before fees (seller price) from the buyer price.
-//
-/**
- * What the fee maths returns.
- *
- * Every field is optional because the two wallet-less short circuits return partial
- * objects: CalculateFeeAmount answers { fees: 0 } and
- * CalculateAmountToSendForDesiredReceivedAmount answers { amount }. Both are reached only
- * when the wallet has no fee schedule at all, which is why the callers below can assert
- * the field they read -- they are behind the same guard.
- */
 /**
  * What CalculateAmountToSendForDesiredReceivedAmount returns.
  *
@@ -30,6 +19,15 @@ export interface AmountToSend extends FeeAmount {
     amount: number;
 }
 
+/**
+ * What the fee maths returns.
+ *
+ * Every field is optional because the two wallet-less short circuits return partial
+ * objects: CalculateFeeAmount answers { fees: 0 } and
+ * CalculateAmountToSendForDesiredReceivedAmount answers { amount }. Both are reached only
+ * when the wallet has no fee schedule at all, which is why the callers below can assert
+ * the field they read -- they are behind the same guard.
+ */
 export interface FeeAmount {
     fees?: number;
     steam_fee?: number;
@@ -68,6 +66,8 @@ function publisherFeeFor(item: any, rules: PricingRules): number {
     return publisherFee;
 }
 
+// Calculate the price before fees (seller price) from the buyer price.
+//
 // Pure: the fee schedule and rounding rule come from `rules` rather than from the
 // `market` singleton or the module-level `useRound`. SteamMarket.prototype.getPriceBeforeFees
 // is a thin adapter over this for the call sites that use the market instance directly.
