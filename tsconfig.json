@@ -17,6 +17,7 @@
         // Would have caught the missing else in sortMarketListings on its own -- see the
         // guard added to src/market/sort.ts.
         "noImplicitReturns": true,
+        "noFallthroughCasesInSwitch": true,
         "esModuleInterop": true,
         "skipLibCheck": true,
         "forceConsistentCasingInFileNames": true,
