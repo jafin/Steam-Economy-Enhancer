@@ -1,7 +1,7 @@
 import { test } from 'vitest';
 import assert from 'node:assert';
 import $ from 'jquery';
-import { ROW_STATUS_COLORS } from '../src/constants.ts';
+import { ROW_STATUS_COLORS, type RowStatus } from '../src/constants.ts';
 import { markRow } from '../src/ui/index.ts';
 
 // markRow replaces nine identical `$('#'+appid+'_'+contextid+'_'+itemId).css('background',
@@ -24,7 +24,9 @@ test('the four statuses resolve to four different colours', () => {
 });
 
 test('markRow does not throw for any of the statuses the queues use', () => {
-    for (const status of Object.keys(ROW_STATUS_COLORS)) {
+    // Object.keys widens to string[]; the keys of ROW_STATUS_COLORS are exactly RowStatus,
+    // which is what the type now says, so the assertion states that rather than losing it.
+    for (const status of Object.keys(ROW_STATUS_COLORS) as RowStatus[]) {
         assert.doesNotThrow(() => markRow('730_2_12345', status));
     }
 });

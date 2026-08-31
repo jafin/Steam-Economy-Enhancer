@@ -4,7 +4,12 @@
 // and be read back out of the DOM. Keeping it as a value means the decision can be tested
 // without a page.
 
-import { VERDICT_FAIR, VERDICT_OVERPRICED, VERDICT_UNDERPRICED } from '../constants.ts';
+import {
+    VERDICT_FAIR,
+    VERDICT_OVERPRICED,
+    VERDICT_UNDERPRICED,
+    type Verdict,
+} from '../constants.ts';
 
 //#region Listing state
 // What the script worked out about a listing, kept as a value.
@@ -33,7 +38,7 @@ export function createListingState() {
 
 // What the script thinks of the price a listing is asking, as a value rather than as a
 // colour and a class name. `bestPrice` and `listedPrice` are both prices including fees.
-export function getListingVerdict(bestPrice, listedPrice) {
+export function getListingVerdict(bestPrice, listedPrice): Verdict {
     if (bestPrice < listedPrice) {
         return VERDICT_OVERPRICED;
     }

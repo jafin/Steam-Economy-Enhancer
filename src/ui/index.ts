@@ -5,14 +5,14 @@
 
 import $ from 'jquery';
 
-import { PAGE_INVENTORY, PAGE_MARKET, ROW_STATUS_COLORS } from '../constants.ts';
+import { PAGE_INVENTORY, PAGE_MARKET, ROW_STATUS_COLORS, type RowStatus } from '../constants.ts';
 import { currentPage } from '../steam/instance.ts';
 
 // Colours an inventory row by asset key - the same `appid_contextid_assetid` id every
 // inventory item element carries (see getAssetKey, below). Replaces nine identical
 // `$('#'+appid+'_'+contextid+'_'+itemId).css('background', COLOR_X)` sites that only
 // ever differed in which COLOR_* they painted.
-export function markRow(assetKey, status) {
+export function markRow(assetKey, status: RowStatus) {
     $(`#${assetKey}`).css('background', ROW_STATUS_COLORS[status]);
 }
 

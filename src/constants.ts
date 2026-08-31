@@ -24,17 +24,29 @@ export const VERDICT_OVERPRICED = 'overpriced';
 export const VERDICT_UNDERPRICED = 'underpriced';
 export const VERDICT_FAIR = 'fair';
 
+/**
+ * The three things the script can conclude about a listing's price.
+ *
+ * Named as a type so that the two lookups below are total over it and a caller cannot index
+ * them with a string they have not proved. Inferred as `{ [k: string]: string }`, which is
+ * what they were, `VERDICT_COLORS[verdict]` accepted any string at all and returned
+ * `undefined` for a typo -- painting nothing, silently, at runtime.
+ */
+export type Verdict = typeof VERDICT_OVERPRICED | typeof VERDICT_UNDERPRICED | typeof VERDICT_FAIR;
+
+// `satisfies` rather than a type annotation: the check that every Verdict has an entry
+// happens either way, but this keeps the literal value types for anything that wants them.
 export const VERDICT_COLORS = {
     [VERDICT_OVERPRICED]: COLOR_PRICE_EXPENSIVE,
     [VERDICT_UNDERPRICED]: COLOR_PRICE_CHEAP,
     [VERDICT_FAIR]: COLOR_PRICE_FAIR,
-};
+} as const satisfies Record<Verdict, string>;
 
 export const VERDICT_MESSAGES = {
     [VERDICT_OVERPRICED]: 'Sell price is too high.',
     [VERDICT_UNDERPRICED]: 'Sell price is too low.',
     [VERDICT_FAIR]: 'Sell price is fair.',
-};
+} as const satisfies Record<Verdict, string>;
 
 // What a queue is doing with one inventory row, as a value rather than a colour picked
 // at each of nine call sites: excluded from checking, waiting on a network call,
@@ -44,7 +56,11 @@ export const ROW_STATUS_COLORS = {
     pending: COLOR_PENDING,
     success: COLOR_SUCCESS,
     error: COLOR_ERROR,
-};
+} as const;
+
+// Derived from the lookup rather than declared beside it, so the two cannot drift.
+// markRow(assetKey, 'sucess') used to compile and paint nothing.
+export type RowStatus = keyof typeof ROW_STATUS_COLORS;
 
 export const ERROR_SUCCESS = null;
 export const ERROR_FAILED = 1;
