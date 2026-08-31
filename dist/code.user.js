@@ -2296,50 +2296,11 @@
 			callback();
 		});
 	}, 1);
-	function sellAllItems() {
-		withInventory(() => {
-			const items = getInventoryItems();
-			const filteredItems = [];
-			items.forEach((item) => {
-				if (!item.marketable) return;
-				filteredItems.push(item);
-			});
-			sellItems(filteredItems);
-		});
-	}
-	function sellAllDuplicateItems() {
-		withInventory(() => {
-			const items = getInventoryItems();
-			const marketableItems = [];
-			items.forEach((item) => {
-				if (!item.marketable) return;
-				marketableItems.push(item);
-			});
-			sellItems(duplicatesByClassId(marketableItems));
-		});
-	}
-	function sellAllCards() {
-		withInventory(() => {
-			const items = getInventoryItems();
-			const filteredItems = [];
-			items.forEach((item) => {
-				if (!getIsTradingCard(item) || !item.marketable) return;
-				filteredItems.push(item);
-			});
-			sellItems(filteredItems);
-		});
-	}
-	function sellAllCrates() {
-		withInventory(() => {
-			const items = getInventoryItems();
-			const filteredItems = [];
-			items.forEach((item) => {
-				if (!getIsCrate(item) || !item.marketable) return;
-				filteredItems.push(item);
-			});
-			sellItems(filteredItems);
-		});
-	}
+	var sellWhere = (predicate) => withInventory(() => sellItems(getInventoryItems().filter(predicate)));
+	var sellAllItems = () => sellWhere((item) => item.marketable);
+	var sellAllCards = () => sellWhere((item) => item.marketable && getIsTradingCard(item));
+	var sellAllCrates = () => sellWhere((item) => item.marketable && getIsCrate(item));
+	var sellAllDuplicateItems = () => withInventory(() => sellItems(duplicatesByClassId(getInventoryItems().filter((item) => item.marketable))));
 	function sellSelectedItems() {
 		selectedItemsWhere((item) => item.marketable).then((items) => {
 			sellItems(items);

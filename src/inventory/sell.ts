@@ -108,73 +108,25 @@ export const sellQueue = async.queue((task: QueueTask, next) => {
     });
 }, 1);
 
-export function sellAllItems() {
-    withInventory(() => {
-        const items = getInventoryItems();
-        const filteredItems: any[] = [];
+// The four "sell all X" buttons, which were the same eighteen lines four times over,
+// differing only in a predicate -- each with its own forEach-and-push where filter says the
+// same thing. withInventory (inventory/actions.ts) is the load-and-spinner half;
+// duplicatesByClassId (items/index.ts) is the only other thing that differed.
+const sellWhere = (predicate: (item) => boolean) =>
+    withInventory(() => sellItems(getInventoryItems().filter(predicate)));
 
-        items.forEach((item) => {
-            if (!item.marketable) {
-                return;
-            }
+export const sellAllItems = () => sellWhere((item) => item.marketable);
+export const sellAllCards = () => sellWhere((item) => item.marketable && getIsTradingCard(item));
+export const sellAllCrates = () => sellWhere((item) => item.marketable && getIsCrate(item));
 
-            filteredItems.push(item);
-        });
-
-        sellItems(filteredItems);
-    });
-}
-
-export function sellAllDuplicateItems() {
-    withInventory(() => {
-        const items = getInventoryItems();
-        const marketableItems: any[] = [];
-
-        items.forEach((item) => {
-            if (!item.marketable) {
-                return;
-            }
-
-            marketableItems.push(item);
-        });
-
-        const filteredItems = duplicatesByClassId(marketableItems);
-
-        sellItems(filteredItems);
-    });
-}
-
-export function sellAllCards() {
-    withInventory(() => {
-        const items = getInventoryItems();
-        const filteredItems: any[] = [];
-
-        items.forEach((item) => {
-            if (!getIsTradingCard(item) || !item.marketable) {
-                return;
-            }
-
-            filteredItems.push(item);
-        });
-
-        sellItems(filteredItems);
-    });
-}
-
-export function sellAllCrates() {
-    withInventory(() => {
-        const items = getInventoryItems();
-        const filteredItems: any[] = [];
-        items.forEach((item) => {
-            if (!getIsCrate(item) || !item.marketable) {
-                return;
-            }
-            filteredItems.push(item);
-        });
-
-        sellItems(filteredItems);
-    });
-}
+// Marketable first, then duplicates *within that set* -- not duplicates first and marketable
+// after. The two select different items: an unmarketable copy would otherwise be the "first"
+// occurrence that duplicatesByClassId excludes, leaving a marketable copy in the sell list
+// that the original left out. This is the order the original had; keep it.
+export const sellAllDuplicateItems = () =>
+    withInventory(() =>
+        sellItems(duplicatesByClassId(getInventoryItems().filter((item) => item.marketable))),
+    );
 
 export function sellSelectedItems() {
     selectedItemsWhere((item) => item.marketable).then((items) => {
