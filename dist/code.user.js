@@ -2682,8 +2682,10 @@
 		const sellButtons = (0, jquery.default)(`<div id="inventory_sell_buttons" class="see_inventory_buttons">${buttonsHtml}</div>`);
 		const reloadButton = (0, jquery.default)("<a id=\"inventory_reload_button\" class=\"btn_darkblue_white_innerfade btn_medium_wide reload_inventory\" style=\"margin-right:12px\"><span>Reload Inventory</span></a>");
 		const logo = (0, jquery.default)("#inventory_logos")[0];
-		logo.style.height = "auto";
-		logo.style.maxHeight = "unset";
+		if (logo) {
+			logo.style.height = "auto";
+			logo.style.maxHeight = "unset";
+		}
 		(0, jquery.default)("#inventory_applogo").hide();
 		(0, jquery.default)("#inventory_applogo").after(logger);
 		(0, jquery.default)("#logger").on("scroll", () => {

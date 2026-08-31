@@ -455,9 +455,15 @@ export function updateInventoryUI(isOwnInventory) {
         '<a id="inventory_reload_button" class="btn_darkblue_white_innerfade btn_medium_wide reload_inventory" style="margin-right:12px"><span>Reload Inventory</span></a>',
     );
 
+    // Guarded rather than indexed blind. This runs early in updateInventoryUI, so a Steam
+    // page without #inventory_logos threw before any of the buttons below were appended --
+    // the whole script's inventory UI silently absent because one cosmetic height tweak
+    // could not find its element.
     const logo = $('#inventory_logos')[0];
-    logo.style.height = 'auto';
-    logo.style.maxHeight = 'unset';
+    if (logo) {
+        logo.style.height = 'auto';
+        logo.style.maxHeight = 'unset';
+    }
 
     $('#inventory_applogo').hide(); // Hide the Steam/game logo, we don't need to see it twice.
     $('#inventory_applogo').after(logger);
