@@ -390,3 +390,116 @@ test('getCurrentOrderBook reports an order book with no sell side without cachin
 
     cached.mockRestore();
 });
+
+// --- a cache write that fails ------------------------------------------------------------
+//
+// localforage rejects when the browser refuses site data or the quota is exceeded. These two
+// writes happen inside an ajax callback with nothing above them to catch that, so an
+// uncaught rejection was both an unhandled rejection in the console and the caching silently
+// stopping with no explanation.
+//
+// Failing to cache is not failing to price: the callback must still fire, with the same
+// values, which is what the first two pin. Nothing here awaits the write -- turning it into
+// an await would make a refused cache delay every price.
+//
+// Those two pass on the uncaught version as well, because the callback always fired; what was
+// missing was the handler. So `trackedSetItem` pins the handler itself: it returns a thenable
+// that records whether anything attached to it, which is false exactly when the rejection
+// would escape.
+
+function trackedSetItem() {
+    const state = { handled: false };
+    const spy = vi.spyOn(storageSessionInstance(), 'setItem').mockReturnValue({
+        catch(onRejected: (e: unknown) => unknown) {
+            state.handled = true;
+
+            return Promise.resolve(onRejected(new Error('site data is disabled')));
+        },
+    } as any);
+
+    return { state, restore: () => spy.mockRestore() };
+}
+
+test('the price-history cache write has a rejection handler attached', () => {
+    const tracked = trackedSetItem();
+    answerWith({ data: { success: true, prices: [['1 Jan 2026 01: +0', 1.5, '3']] } });
+
+    market.getCurrentPriceHistory(730, 'Some Item', recorder());
+    vi.advanceTimersByTime(0);
+
+    assert.strictEqual(
+        tracked.state.handled,
+        true,
+        'an uncaught localforage rejection escapes an ajax callback with nothing above it',
+    );
+
+    tracked.restore();
+});
+
+test('the order-book cache write has a rejection handler attached', () => {
+    const tracked = trackedSetItem();
+    answerWith({
+        data: {
+            data: {
+                success: true,
+                data: {
+                    amtMaxBuyOrder: 92,
+                    amtMinSellOrder: 187,
+                    rgCompactBuyOrders: [92, 1],
+                    rgCompactSellOrders: [187, 1],
+                },
+            },
+        },
+    });
+
+    market.getCurrentOrderBook(anItem, 'Some Item', recorder());
+    vi.advanceTimersByTime(0);
+
+    assert.strictEqual(tracked.state.handled, true);
+
+    tracked.restore();
+});
+
+test('a rejecting price-history cache write still reports the prices', () => {
+    const failing = vi
+        .spyOn(storageSessionInstance(), 'setItem')
+        .mockRejectedValue(new Error('site data is disabled'));
+    answerWith({ data: { success: true, prices: [['1 Jan 2026 01: +0', 1.5, '3']] } });
+
+    const cb = recorder();
+    market.getCurrentPriceHistory(730, 'Some Item', cb);
+    vi.advanceTimersByTime(0);
+
+    assert.deepStrictEqual(cb.calls, [[ERROR_SUCCESS, [['1 Jan 2026 01: +0', 150, 3]], false]]);
+
+    failing.mockRestore();
+});
+
+test('a rejecting order-book cache write still reports the order book', () => {
+    const failing = vi
+        .spyOn(storageSessionInstance(), 'setItem')
+        .mockRejectedValue(new Error('site data is disabled'));
+    answerWith({
+        data: {
+            data: {
+                success: true,
+                data: {
+                    amtMaxBuyOrder: 92,
+                    amtMinSellOrder: 187,
+                    rgCompactBuyOrders: [92, 1],
+                    rgCompactSellOrders: [187, 1],
+                },
+            },
+        },
+    });
+
+    const cb = recorder();
+    market.getCurrentOrderBook(anItem, 'Some Item', cb);
+    vi.advanceTimersByTime(0);
+
+    assert.strictEqual(cb.calls.length, 1);
+    assert.strictEqual(cb.calls[0][0], ERROR_SUCCESS);
+    assert.strictEqual(cb.calls[0][1].lowest_sell_order, 187);
+
+    failing.mockRestore();
+});

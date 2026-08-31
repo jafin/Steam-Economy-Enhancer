@@ -32,6 +32,7 @@ import { request } from '../net/request.ts';
 import { readCookie } from '../util/cookie.ts';
 import { priceBeforeFees, priceIncludingFees } from '../pricing/fees.ts';
 import { getSetting, SETTING_PRICE_ALGORITHM } from '../settings/index.ts';
+import { logConsole } from '../ui/logger.ts';
 import { storageSessionInstance } from '../storage/session.ts';
 import { useRound } from './currency.ts';
 import { getInventoryUrl, isLoggedIn, steamPage } from './instance.ts';
@@ -396,8 +397,20 @@ SteamMarket.prototype.getCurrentPriceHistory = function (appid, market_name, cal
         }
 
         // Store the price history in the session storage.
+        //
+        // Caught, not awaited. localforage rejects when the browser refuses site data or the
+        // quota is exceeded, and this runs inside an ajax callback with nothing above it to
+        // catch that -- an unhandled rejection, and the caching silently stopping with no
+        // explanation. clearPriceCache in storage/session.ts already models this shape.
+        //
+        // Failing to cache is not failing to price, so the callback below still runs
+        // unchanged. That is why this is not an await.
         const storage_hash = `pricehistory_${appid}+${market_name}`;
-        storageSessionInstance().setItem(storage_hash, data.prices);
+        storageSessionInstance()
+            .setItem(storage_hash, data.prices)
+            .catch((e) =>
+                logConsole(`Failed to cache the price history for ${market_name}, ${e}.`),
+            );
 
         callback(ERROR_SUCCESS, data.prices, false);
     });
@@ -473,8 +486,14 @@ SteamMarket.prototype.getCurrentOrderBook = function (item, market_name, callbac
         // between their maximum and whatever the buy order happens to be. The sibling guard
         // is in calculateListingPriceBeforeFees.
         if (orderbook.lowest_sell_order) {
+            // Caught rather than left floating, for the same reason as the price history
+            // above, and likewise not awaited: failing to cache is not failing to price.
             const storage_hash = `orderbook_${item.appid}+${market_name}`;
-            storageSessionInstance().setItem(storage_hash, orderbook);
+            storageSessionInstance()
+                .setItem(storage_hash, orderbook)
+                .catch((e) =>
+                    logConsole(`Failed to cache the order book for ${market_name}, ${e}.`),
+                );
         }
 
         callback(ERROR_SUCCESS, orderbook, false);

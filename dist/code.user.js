@@ -900,7 +900,7 @@
 				data.prices[i][2] = parseInt(data.prices[i][2]);
 			}
 			const storage_hash = `pricehistory_${appid}+${market_name}`;
-			storageSessionInstance().setItem(storage_hash, data.prices);
+			storageSessionInstance().setItem(storage_hash, data.prices).catch((e) => (`${market_name}${e}`, void 0));
 			callback(null, data.prices, false);
 		});
 	};
@@ -945,7 +945,7 @@
 			}
 			if (orderbook.lowest_sell_order) {
 				const storage_hash = `orderbook_${item.appid}+${market_name}`;
-				storageSessionInstance().setItem(storage_hash, orderbook);
+				storageSessionInstance().setItem(storage_hash, orderbook).catch((e) => (`${market_name}${e}`, void 0));
 			}
 			callback(null, orderbook, false);
 		});
