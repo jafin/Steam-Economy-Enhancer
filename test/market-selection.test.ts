@@ -207,3 +207,20 @@ test('tableHeaderSectionFor resolves the section for a click inside the table he
 
     assert.strictEqual(tableHeaderSectionFor(headerSpan.get(0)).get(0), table.get(0));
 });
+
+test('tableHeaderSectionFor resolves the section for a click on a span nested inside a header span', () => {
+    // The sort is bound with a delegated .on('click', 'span', ...), so a span inside a
+    // header span fires the handler a second time with the inner span as `this`. The
+    // two-hop walk this replaces landed on .market_listing_table_header for that click,
+    // every column flag came back false, and sortMarketListings threw on undefined.
+    document.body.innerHTML = section('header-sell-listings', true);
+    initializeMarketUI();
+    registerRows($('#header-sell-listings').closest('.market_home_listing_table'), ['111']);
+
+    const table = $('#header-sell-listings').closest('.market_home_listing_table');
+    const header = $('<div class="market_listing_table_header"></div>').appendTo(table);
+    const outerSpan = $('<span>Price</span>').appendTo(header);
+    const innerSpan = $('<span>▲</span>').appendTo(outerSpan);
+
+    assert.strictEqual(tableHeaderSectionFor(innerSpan.get(0)).get(0), table.get(0));
+});

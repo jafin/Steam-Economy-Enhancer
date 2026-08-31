@@ -40,9 +40,21 @@ export function selectionFor(target: any): { list: any; rows: any[]; group: any 
  * The .market_home_listing_table section whose column was clicked, for the sort/search
  * table header. This resolves a different thing than a button does -- which column was
  * clicked, not which listings are selected -- and a header click has no
- * .market_listing_buttons ancestor to anchor on, so it does not fit selectionFor and gets
- * its own two-hop walk instead.
+ * .market_listing_buttons ancestor to anchor on, so it does not fit selectionFor.
+ *
+ * Anchored on the section rather than counted in parent hops. The two-hop walk this
+ * replaces was correct only for a span that is a direct child of
+ * .market_listing_table_header: market/ui.ts binds the sort with a delegated
+ * .on('click', 'span', ...), so a span nested inside a header span fired the handler a
+ * second time with the walk landing on the header instead, every column flag came back
+ * false, and sortMarketListings threw. .closest() resolves the same section for the
+ * direct-child case and the right one for the nested case, which is why this is the root
+ * fix and the guard in sort.ts is the belt.
+ *
+ * Note this anchors on Steam's own .market_home_listing_table, unlike marketSectionFor
+ * above, which anchors on .market_listing_buttons -- markup this script writes and never
+ * nests. The header is Steam's, so there is no such anchor of ours to use here.
  */
 export function tableHeaderSectionFor(target: any) {
-    return $(target).parent().parent();
+    return $(target).closest('.market_home_listing_table');
 }

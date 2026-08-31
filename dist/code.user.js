@@ -1151,7 +1151,7 @@
 		};
 	}
 	function tableHeaderSectionFor(target) {
-		return (0, jquery.default)(target).parent().parent();
+		return (0, jquery.default)(target).closest(".market_home_listing_table");
 	}
 	var marketRelistQueuedListings = new Set();
 	var marketOverpricedButtonsQueued = false;
