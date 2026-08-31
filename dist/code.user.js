@@ -2480,6 +2480,9 @@
 		(0, jquery.default)(".games_list_tabs").on("click", "*", () => {
 			updateInventoryUI(isOwnInventory);
 		});
+		(0, jquery.default)(logger).on("scroll", () => {
+			setUserScrolled(!((0, jquery.default)(logger).prop("scrollHeight") - (0, jquery.default)(logger).prop("clientHeight") <= (0, jquery.default)(logger).prop("scrollTop") + 1));
+		});
 		if (!isOwnInventory) return;
 		initializeInventorySelection();
 		steamPage.onInventorySelectItem((rgItem) => {
@@ -2657,6 +2660,7 @@
 			});
 		});
 	}
+	var inventoryPricesObserverAttached = false;
 	function updateInventoryUI(isOwnInventory) {
 		(0, jquery.default)("#inventory_sell_buttons").remove();
 		(0, jquery.default)("#see_settings_modal").remove();
@@ -2693,9 +2697,6 @@
 		}
 		(0, jquery.default)("#inventory_applogo").hide();
 		(0, jquery.default)("#inventory_applogo").after(logger);
-		(0, jquery.default)("#logger").on("scroll", () => {
-			setUserScrolled(!((0, jquery.default)("#logger").prop("scrollHeight") - (0, jquery.default)("#logger").prop("clientHeight") <= (0, jquery.default)("#logger").prop("scrollTop") + 1));
-		});
 		if (isOwnInventory) {
 			(0, jquery.default)("#inventory_applogo").after(sellButtons);
 			(0, jquery.default)(".sell_all").on("click", "*", () => {
@@ -2724,9 +2725,13 @@
 				if (getSetting("SETTING_INVENTORY_PRICE_LABELS") == 1) setInventoryPrices(getInventoryItems());
 			};
 			updateInventoryPrices();
-			(0, jquery.default)("#pagecontrol_cur").observe("childlist", () => {
-				updateInventoryPrices();
-			});
+			const pageControl = (0, jquery.default)("#pagecontrol_cur");
+			if (!inventoryPricesObserverAttached && pageControl.length > 0) {
+				inventoryPricesObserverAttached = true;
+				pageControl.observe("childlist", () => {
+					updateInventoryPrices();
+				});
+			}
 		});
 	}
 	(function(d) {

@@ -46,6 +46,24 @@ export function initializeInventoryUI() {
         updateInventoryUI(isOwnInventory);
     });
 
+    // Bound here rather than in updateInventoryUI, which re-runs on every game-tab click.
+    // Bound once per page, it was accumulating one live handler per switch: after four
+    // switches every scroll of the log ran five handlers, each doing three .prop() reads
+    // that force layout. Measured in a live browser on 31 Aug 2026 -- 1 handler at load,
+    // 5 after four switches.
+    //
+    // Bound on the `logger` node itself, not the '#logger' selector. updateInventoryUI
+    // re-inserts that same node after #inventory_applogo on every tab switch, and jQuery
+    // event handlers move with a node rather than being lost, so one binding here survives
+    // every re-attachment. This sits above the isOwnInventory guard below because the log
+    // is written on other users' inventories too.
+    $(logger).on('scroll', () => {
+        const hasUserScrolledToBottom =
+            $(logger).prop('scrollHeight') - $(logger).prop('clientHeight') <=
+            $(logger).prop('scrollTop') + 1;
+        setUserScrolled(!hasUserScrolledToBottom);
+    });
+
     // Ignore selection on other user's inventories.
     if (!isOwnInventory) {
         return;
@@ -411,6 +429,10 @@ export async function updateInventorySelection(selectedItem) {
     });
 }
 
+// Whether the #pagecontrol_cur observer below has been registered. Page-lifetime state, not
+// per-tab state -- see the comment at the registration for what it costs to get this wrong.
+let inventoryPricesObserverAttached = false;
+
 // Update the inventory UI.
 export function updateInventoryUI(isOwnInventory) {
     // Remove previous containers (e.g., when a user changes inventory).
@@ -472,13 +494,6 @@ export function updateInventoryUI(isOwnInventory) {
     $('#inventory_applogo').hide(); // Hide the Steam/game logo, we don't need to see it twice.
     $('#inventory_applogo').after(logger);
 
-    $('#logger').on('scroll', () => {
-        const hasUserScrolledToBottom =
-            $('#logger').prop('scrollHeight') - $('#logger').prop('clientHeight') <=
-            $('#logger').prop('scrollTop') + 1;
-        setUserScrolled(!hasUserScrolledToBottom);
-    });
-
     // Only add buttons on the user's inventory.
     if (isOwnInventory) {
         $('#inventory_applogo').after(sellButtons);
@@ -517,8 +532,29 @@ export function updateInventoryUI(isOwnInventory) {
         // Load after the inventory is loaded.
         updateInventoryPrices();
 
-        $('#pagecontrol_cur').observe('childlist', () => {
-            updateInventoryPrices();
-        });
+        // Registered once for the page, not once per updateInventoryUI. jquery-observe keeps
+        // one MutationObserver per element with a list of handler patterns, so every
+        // re-registration was another live handler on the same observer: after four game-tab
+        // switches a single inventory page change fired updateInventoryPrices five times.
+        // Measured in a live browser on 31 Aug 2026, wrapping all five and forcing one
+        // childList mutation -- all five fired. Growth is linear and unbounded in a session.
+        //
+        // Registering once is safe because #pagecontrol_cur survives a tab switch: the same
+        // node, still in the document, after four switches, verified in that same session.
+        // If Steam ever did re-create it this would leave a dead observer, which is why that
+        // was checked rather than assumed.
+        //
+        // The flag records an actual attachment, not merely an attempt: .observe() on an
+        // empty selection is a no-op, so setting it unconditionally would permanently skip
+        // the observer if this ran before Steam had rendered #pagecontrol_cur.
+        const pageControl = $('#pagecontrol_cur');
+
+        if (!inventoryPricesObserverAttached && pageControl.length > 0) {
+            inventoryPricesObserverAttached = true;
+
+            pageControl.observe('childlist', () => {
+                updateInventoryPrices();
+            });
+        }
     });
 }
