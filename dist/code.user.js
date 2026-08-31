@@ -978,8 +978,7 @@
 		return (Math.log10((x ^ x >> 31) - (x >> 31)) | 0) + 1;
 	}
 	function padLeftZero(str, max) {
-		str = str.toString();
-		return str.length < max ? padLeftZero(`0${str}`, max) : str;
+		return String(str).padStart(max, "0");
 	}
 	function replaceNonNumbers(str) {
 		return str.replace(/\D/g, "");
@@ -2185,10 +2184,7 @@
 	}
 	function hasOwnerAction(item, fragment) {
 		if (item.owner_actions == null) return false;
-		for (const ownerAction in item.owner_actions) {
-			const link = item.owner_actions[ownerAction].link;
-			if (link != null && link.includes(fragment)) return true;
-		}
+		for (const action of item.owner_actions) if (action?.link != null && action.link.includes(fragment)) return true;
 		return false;
 	}
 	function withInventory(action, label = "Loading inventory items") {

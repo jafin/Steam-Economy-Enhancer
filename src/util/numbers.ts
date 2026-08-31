@@ -12,9 +12,11 @@ export function getNumberOfDigits(x) {
     return (Math.log10((x ^ (x >> 31)) - (x >> 31)) | 0) + 1;
 }
 
+// Pads to a minimum width; never truncates. The recursion this replaces prepended one '0'
+// per call and compared length after coercing, which is exactly padStart's contract for a
+// non-negative `max` -- and for a negative one both leave the string alone.
 export function padLeftZero(str, max): string {
-    str = str.toString();
-    return str.length < max ? padLeftZero(`0${str}`, max) : str;
+    return String(str).padStart(max, '0');
 }
 
 export function replaceNonNumbers(str) {

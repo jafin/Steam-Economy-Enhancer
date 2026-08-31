@@ -291,3 +291,17 @@ test('the tag predicates are false for an item with no tags in either place', ()
     assert.strictEqual(getIsTradingCard({ description: {} }), false);
     assert.strictEqual(getIsFoilTradingCard({ description: {} }), false);
 });
+
+// padLeftZero was a recursion that prepended one '0' per call; it is String.padStart now.
+// The task flagged a negative `max` as the case where the two might part company, since the
+// recursion compared length *after* coercion -- they do not: `length < -1` is false and
+// padStart pads to a minimum, so both leave the string alone.
+test('padLeftZero leaves a string alone for a zero or negative width', () => {
+    assert.strictEqual(padLeftZero(5, 0), '5');
+    assert.strictEqual(padLeftZero(5, -1), '5');
+});
+
+test('padLeftZero coerces a non-string before padding', () => {
+    assert.strictEqual(padLeftZero(12, 4), '0012');
+    assert.strictEqual(padLeftZero('', 3), '000');
+});

@@ -22,10 +22,11 @@ export function hasOwnerAction(item, fragment: string): boolean {
         return false;
     }
 
-    for (const ownerAction in item.owner_actions) {
-        const link = item.owner_actions[ownerAction].link;
-
-        if (link != null && link.includes(fragment)) {
+    // for...of, not for...in. owner_actions is an array, and for...in walks inherited
+    // enumerable properties and yields string keys -- steam/market.ts iterates the same array
+    // with for...of, and the two disagreed on idiom for the same data.
+    for (const action of item.owner_actions) {
+        if (action?.link != null && action.link.includes(fragment)) {
             return true;
         }
     }

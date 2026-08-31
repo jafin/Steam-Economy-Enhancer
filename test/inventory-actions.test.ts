@@ -193,3 +193,23 @@ test('withInventory takes the spinner down and says so when the load is refused'
 // error thrown by the action escapes as it always has -- asserting on that would mean
 // planting an unhandled rejection in the suite to observe it. The point of the two-argument
 // form is that such an error is never misreported to the user as a failed inventory load.
+
+// hasOwnerAction walks owner_actions with for...of now, matching steam/market.ts, where it
+// used for...in -- which walks inherited enumerable properties and yields string keys.
+test('hasOwnerAction is unaffected by properties added to Array.prototype', () => {
+    // for...in would have visited this and thrown reading `.link` off a string key.
+    (Array.prototype as any).aStrayGlobal = 'from some other script';
+
+    try {
+        const item = { owner_actions: [{ link: 'https://.../ajaxgetgoovalue/?GetGooValue' }] };
+
+        assert.strictEqual(hasOwnerAction(item, 'GetGooValue'), true);
+        assert.strictEqual(hasOwnerAction({ owner_actions: [] }, 'GetGooValue'), false);
+    } finally {
+        delete (Array.prototype as any).aStrayGlobal;
+    }
+});
+
+test('hasOwnerAction tolerates a null entry in owner_actions', () => {
+    assert.strictEqual(hasOwnerAction({ owner_actions: [null] } as any, 'GetGooValue'), false);
+});
