@@ -17,7 +17,7 @@ import { itemQueueWorker, sellQueue } from '../src/inventory/sell.ts';
 import { inventoryPriceQueueWorker } from '../src/inventory/data.ts';
 import { marketListingsQueueWorker } from '../src/market/listings.ts';
 import { marketLists } from '../src/market/rows.ts';
-import { storageSession } from '../src/storage/session.ts';
+import { storageSessionInstance } from '../src/storage/session.ts';
 
 // A routed stand-in for $.ajax, keyed by URL substring rather than call order -- the
 // preamble fires the history and order book requests as two independent request() calls,
@@ -80,7 +80,7 @@ beforeEach(async () => {
     request.queue = [];
     request.errors = 0;
 
-    await storageSession.clear();
+    await storageSessionInstance().clear();
 });
 
 afterEach(() => {

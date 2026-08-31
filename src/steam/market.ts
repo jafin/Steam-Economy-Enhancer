@@ -32,7 +32,7 @@ import { request } from '../net/request.ts';
 import { readCookie } from '../util/cookie.ts';
 import { priceBeforeFees, priceIncludingFees } from '../pricing/fees.ts';
 import { getSetting, SETTING_PRICE_ALGORITHM } from '../settings/index.ts';
-import { storageSession } from '../storage/session.ts';
+import { storageSessionInstance } from '../storage/session.ts';
 import { useRound } from './currency.ts';
 import { getInventoryUrl, isLoggedIn, steamPage } from './instance.ts';
 
@@ -213,7 +213,7 @@ SteamMarket.prototype.getPriceHistory = function (item, cache, callback) {
         if (cache) {
             const storage_hash = `pricehistory_${appid}+${market_name}`;
 
-            storageSession
+            storageSessionInstance()
                 .getItem(storage_hash)
                 .then((value) => {
                     if (value != null) {
@@ -397,7 +397,7 @@ SteamMarket.prototype.getCurrentPriceHistory = function (appid, market_name, cal
 
         // Store the price history in the session storage.
         const storage_hash = `pricehistory_${appid}+${market_name}`;
-        storageSession.setItem(storage_hash, data.prices);
+        storageSessionInstance().setItem(storage_hash, data.prices);
 
         callback(ERROR_SUCCESS, data.prices, false);
     });
@@ -416,7 +416,7 @@ SteamMarket.prototype.getOrderBook = function (item, cache, callback) {
 
         if (cache) {
             const storage_hash = `orderbook_${appid}+${market_name}`;
-            storageSession
+            storageSessionInstance()
                 .getItem(storage_hash)
                 .then((value) => {
                     if (value != null) {
@@ -474,7 +474,7 @@ SteamMarket.prototype.getCurrentOrderBook = function (item, market_name, callbac
         // is in calculateListingPriceBeforeFees.
         if (orderbook.lowest_sell_order) {
             const storage_hash = `orderbook_${item.appid}+${market_name}`;
-            storageSession.setItem(storage_hash, orderbook);
+            storageSessionInstance().setItem(storage_hash, orderbook);
         }
 
         callback(ERROR_SUCCESS, orderbook, false);

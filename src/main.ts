@@ -36,6 +36,7 @@ import $ from 'jquery';
 
 import { PAGE_INVENTORY, PAGE_MARKET, PAGE_MARKET_LISTING, PAGE_TRADEOFFER } from './constants.ts';
 import { currentPage, isLoggedIn } from './steam/instance.ts';
+import { storageSessionInstance } from './storage/session.ts';
 import { injectCss } from './ui/index.ts';
 
 // Vendored jQuery plugins, previously @require'd from raw.githubusercontent.com. Both
@@ -53,6 +54,16 @@ $.noConflict(true);
  * exports -- never touches the DOM, the network or Steam's page.
  */
 export function bootstrap(): void {
+    // Builds the session cache and, when this is a new browsing session, rotates onto the
+    // next of the five databases and empties it.
+    //
+    // storage/session.ts used to do this at module evaluation, which is why importing it was
+    // not inert. It is lazy now, and this call is what keeps the timing: the rotation happens
+    // once per page load, as it always has, rather than at first use. Left purely lazy, a page
+    // that never priced anything would never rotate and SETTING_LAST_CACHE would stop
+    // advancing.
+    storageSessionInstance();
+
     //#region Inventory
     // --- Page-scoped code, hoisted to module scope ------------------------------------------
     //

@@ -3,7 +3,7 @@ import assert from 'node:assert';
 import $ from 'jquery';
 import { market } from '../src/steam/market.ts';
 import { request } from '../src/net/request.ts';
-import { storageSession } from '../src/storage/session.ts';
+import { storageSessionInstance } from '../src/storage/session.ts';
 
 // What SteamMarket's methods report.
 //
@@ -340,7 +340,7 @@ test('getCurrentOrderBook reports a transport failure as (ERROR_FAILED, null, fa
 // state that has already passed.
 
 test('getCurrentOrderBook caches an order book that has a sell side', () => {
-    const cached = vi.spyOn(storageSession, 'setItem');
+    const cached = vi.spyOn(storageSessionInstance(), 'setItem');
     answerWith({
         data: {
             data: {
@@ -368,7 +368,7 @@ test('getCurrentOrderBook caches an order book that has a sell side', () => {
 });
 
 test('getCurrentOrderBook reports an order book with no sell side without caching it', () => {
-    const cached = vi.spyOn(storageSession, 'setItem');
+    const cached = vi.spyOn(storageSessionInstance(), 'setItem');
     answerWith({
         data: {
             data: { success: true, data: { amtMaxBuyOrder: 92, rgCompactBuyOrders: [92, 1] } },

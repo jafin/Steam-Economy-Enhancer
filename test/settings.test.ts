@@ -49,15 +49,18 @@ test('SETTING_LAST_CACHE now adds instead of concatenating', () => {
     assert.strictEqual(getSetting(SETTING_LAST_CACHE), 2);
 });
 
-// storage/session.ts reads and writes SETTING_LAST_CACHE at module-evaluation time, so a
-// fresh "session" is simulated by resetting the module registry and clearing sessionStorage
-// (localStorage, which is what actually carries the counter, is left alone -- it is what
-// survives between real browsing sessions).
-async function newSessionDatabaseName() {
+// storage/session.ts reads and writes SETTING_LAST_CACHE the first time the session cache is
+// asked for, and memoises the instance per module instance -- so a fresh "session" is
+// simulated by resetting the module registry and clearing sessionStorage (localStorage, which
+// is what actually carries the counter, is left alone -- it is what survives between real
+// browsing sessions).
+async function newSessionDatabaseName(): Promise<string> {
     sessionStorage.clear();
     vi.resetModules();
-    const { storageSession } = await import('../src/storage/session.ts');
-    return storageSession.config().name;
+    const { storageSessionInstance } = await import('../src/storage/session.ts');
+
+    // LocalForageOptions.name is optional; this instance is always created with one.
+    return String(storageSessionInstance().config().name);
 }
 
 test('three consecutive sessions pick three different cache databases', async () => {

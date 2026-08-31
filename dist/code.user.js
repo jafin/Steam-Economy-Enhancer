@@ -678,18 +678,26 @@
 		return null;
 	}
 	localforage.default.createInstance({ name: "see_persistent" });
-	var storageSession;
-	var noCache = new URL(window.location.href).searchParams.get("no-cache") != null;
-	if (getSessionStorageItem("SESSION") == null || noCache) {
-		let lastCache = getSetting(SETTING_LAST_CACHE);
-		if (lastCache >= 5) lastCache = 0;
-		setSetting(SETTING_LAST_CACHE, lastCache + 1);
-		storageSession = localforage.default.createInstance({ name: `see_session_${lastCache}` });
-		storageSession.clear();
-		setSessionStorageItem("SESSION", lastCache);
-	} else storageSession = localforage.default.createInstance({ name: `see_session_${getSessionStorageItem("SESSION")}` });
+	var session;
+	function createRollingSession() {
+		const noCache = new URL(window.location.href).searchParams.get("no-cache") != null;
+		if (getSessionStorageItem("SESSION") == null || noCache) {
+			let lastCache = getSetting(SETTING_LAST_CACHE);
+			if (lastCache >= 5) lastCache = 0;
+			setSetting(SETTING_LAST_CACHE, lastCache + 1);
+			const rotated = localforage.default.createInstance({ name: `see_session_${lastCache}` });
+			rotated.clear();
+			setSessionStorageItem("SESSION", lastCache);
+			return rotated;
+		}
+		return localforage.default.createInstance({ name: `see_session_${getSessionStorageItem("SESSION")}` });
+	}
+	function storageSessionInstance() {
+		if (session === void 0) session = createRollingSession();
+		return session;
+	}
 	function clearPriceCache() {
-		return storageSession.clear().then(() => true).catch((e) => {
+		return storageSessionInstance().clear().then(() => true).catch((e) => {
 			`${e}`;
 			return false;
 		});
@@ -785,7 +793,7 @@
 			const appid = item.appid;
 			if (cache) {
 				const storage_hash = `pricehistory_${appid}+${market_name}`;
-				storageSession.getItem(storage_hash).then((value) => {
+				storageSessionInstance().getItem(storage_hash).then((value) => {
 					if (value != null) callback(null, value, true);
 					else market.getCurrentPriceHistory(appid, market_name, callback);
 				}).catch(() => {
@@ -892,7 +900,7 @@
 				data.prices[i][2] = parseInt(data.prices[i][2]);
 			}
 			const storage_hash = `pricehistory_${appid}+${market_name}`;
-			storageSession.setItem(storage_hash, data.prices);
+			storageSessionInstance().setItem(storage_hash, data.prices);
 			callback(null, data.prices, false);
 		});
 	};
@@ -906,7 +914,7 @@
 			const appid = item.appid;
 			if (cache) {
 				const storage_hash = `orderbook_${appid}+${market_name}`;
-				storageSession.getItem(storage_hash).then((value) => {
+				storageSessionInstance().getItem(storage_hash).then((value) => {
 					if (value != null) callback(null, value, true);
 					else market.getCurrentOrderBook(item, market_name, callback);
 				}).catch(() => {
@@ -937,7 +945,7 @@
 			}
 			if (orderbook.lowest_sell_order) {
 				const storage_hash = `orderbook_${item.appid}+${market_name}`;
-				storageSession.setItem(storage_hash, orderbook);
+				storageSessionInstance().setItem(storage_hash, orderbook);
 			}
 			callback(null, orderbook, false);
 		});
@@ -3127,6 +3135,7 @@
 	})(window.jQuery);
 	jquery.default.noConflict(true);
 	function bootstrap() {
+		storageSessionInstance();
 		sellQueue.drain(onQueueDrain);
 		scrapQueue.drain(onQueueDrain);
 		boosterQueue.drain(onQueueDrain);
