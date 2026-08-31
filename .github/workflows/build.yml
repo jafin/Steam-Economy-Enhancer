@@ -3,10 +3,12 @@ name: Build
 permissions:
     contents: write
 
+# main, not master. master tracks upstream and stays vanilla JavaScript; this TypeScript line
+# lives on main, so triggering on master meant the pipeline never ran against the code it was
+# written for -- and the release job, gated on a tag that was never cut, never ran at all.
 on:
     push:
-        branches: [master]
-        tags: ['v*']
+        branches: [main]
     pull_request:
 
 jobs:
@@ -16,7 +18,8 @@ jobs:
         steps:
             - uses: actions/checkout@v4
               with:
-                  # Full history so `git describe` can find the most recent tag.
+                  # Full history and tags: the version is derived from the last tag and every
+                  # commit message since it, so a shallow clone would compute the wrong number.
                   fetch-depth: 0
 
             - uses: pnpm/action-setup@v4
@@ -36,39 +39,21 @@ jobs:
 
             - run: pnpm test
 
-            # Derives the userscript @version from the git tag, so it tracks releases:
-            # v7.4.0 -> 7.4.0, and commits past a tag -> 7.4.0-beta.N. Falls back to the version
-            # in package.json, which is what a local `pnpm build` uses.
-            - name: Set version from git
-              run: |
-                  desc=$(git describe --tags --match 'v*' 2>/dev/null || echo "")
-                  if [[ "$desc" =~ ^v([^-]+)$ ]]; then
-                    echo "APP_VERSION=${BASH_REMATCH[1]}" >> "$GITHUB_ENV"
-                  elif [[ "$desc" =~ ^v([^-]+)-([0-9]+)- ]]; then
-                    echo "APP_VERSION=${BASH_REMATCH[1]}-beta.${BASH_REMATCH[2]}" >> "$GITHUB_ENV"
-                  fi
+            # Reads the last tag and the conventional-commit messages since it. `version` is
+            # what this build stamps, `release` says whether those commits warrant cutting a
+            # release, and `tag` is the tag to cut if so. See scripts/version.ts.
+            #
+            # On a release run the build stamps the clean number rather than the -dev.N one,
+            # which is why the version is decided here, before the build, rather than after.
+            - name: Derive the version
+              id: version
+              run: node --experimental-strip-types scripts/print-version.ts >> "$GITHUB_OUTPUT"
 
             - run: pnpm build
+              env:
+                  APP_VERSION: ${{ steps.version.outputs.version }}
 
-            # dist/code.user.js is committed, because the raw GitHub URL is how people install
-            # this. That only works if what is committed matches the source, so a stale artifact
-            # fails the build rather than shipping quietly.
-            #
-            # The version is excluded from the comparison: CI derives it from the git tag, so it
-            # legitimately differs from whatever a local build stamped in.
-            - name: Check the committed artifact matches a fresh build
-              run: |
-                  if ! git diff --quiet -- dist/code.user.js; then
-                    if [ -z "$(git diff -U0 -- dist/code.user.js | grep -E '^[+-]' | grep -vE '^(\+\+\+|---)' | grep -v '@version')" ]; then
-                      echo "Only @version differs, which CI sets from the tag. OK."
-                    else
-                      echo "::error::dist/code.user.js is out of date. Run 'pnpm build' and commit the result."
-                      git diff -- dist/code.user.js
-                      exit 1
-                    fi
-                  fi
-
-            # The metadata block is generated now, so this is where eslint-plugin-userscripts
+            # The metadata block is generated, so this is where eslint-plugin-userscripts
             # earns its place: it checks the header where the header actually exists.
             - run: pnpm lint:dist
 
@@ -77,9 +62,17 @@ jobs:
                   name: userscript
                   path: dist/code.user.js
 
-            - name: Create GitHub Release
-              if: startsWith(github.ref, 'refs/tags/v')
+            # Releases are cut from main only, and only when the commits since the last tag
+            # contain something worth releasing -- a feat, a fix, a perf or a breaking change.
+            # A run of refactors and docs builds and lints, but ships nothing.
+            #
+            # The tag is created by the release itself rather than pushed separately, so the
+            # tag and the asset can never disagree about what was released.
+            - name: Release
+              if: github.ref == 'refs/heads/main' && steps.version.outputs.release == 'true'
               uses: softprops/action-gh-release@v2
               with:
+                  tag_name: ${{ steps.version.outputs.tag }}
+                  target_commitish: ${{ github.sha }}
                   files: dist/code.user.js
                   generate_release_notes: true
