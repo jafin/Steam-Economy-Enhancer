@@ -38,11 +38,11 @@ This can be defined in Steam Economy Enhancer's settings, which you can find at 
 
 ### Download
 
-[Install Steam Economy Enhancer](https://raw.githubusercontent.com/jafin/Steam-Economy-Enhancer/master/dist/code.user.js)
+[Install Steam Economy Enhancer](https://github.com/jafin/Steam-Economy-Enhancer/releases/latest/download/code.user.js)
 
 _[Violentmonkey](https://violentmonkey.github.io/) is required to install._
 
-Tagged releases are also published on the
+That link always resolves to the newest release. Every release, with its notes, is on the
 [releases page](https://github.com/jafin/Steam-Economy-Enhancer/releases).
 
 ### Building from source
@@ -54,9 +54,14 @@ pnpm install
 pnpm build      # writes dist/code.user.js
 ```
 
-`dist/code.user.js` is committed, because the raw GitHub URL above is how people install the
-script. CI rebuilds it and fails if what is committed no longer matches the source, so run
-`pnpm build` and commit the result alongside any change to `src/`.
+`dist/` is not committed. The built script is published as a GitHub Release asset, which is
+what the install link above points at, so there is no artifact to keep in step with the source.
+
+The version is not hand-maintained either. Each build derives it from the last `v*` tag and the
+conventional-commit messages since it: `feat:` raises the minor, `fix:` and `perf:` the patch,
+and a `!` or a `BREAKING CHANGE:` footer the major. Pushing to `main` cuts the release when
+those commits warrant one; a run of nothing but `refactor:` and `docs:` builds and ships
+nothing. See `scripts/version.ts`.
 
 Other useful commands:
 

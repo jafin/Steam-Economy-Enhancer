@@ -19,7 +19,7 @@ pnpm install
 pnpm build              # src/ -> dist/code.user.js
 pnpm dev                # vite in watch mode
 
-pnpm test               # vitest, all 25 files
+pnpm test               # vitest, all 34 files
 pnpm vitest run test/pricing.test.ts          # one file
 pnpm vitest run -t 'name of the test'         # one test by name
 pnpm test:watch
@@ -31,8 +31,8 @@ pnpm format             # prettier (tabWidth 4)
 pnpm format:check
 ```
 
-CI runs typecheck, lint, format:check, test, build, the artifact-freshness check, then
-lint:dist. All of them pass locally; keep it that way.
+CI runs typecheck, lint, format:check, test, build, then lint:dist. All of them pass
+locally; keep it that way.
 
 ## The build, and why imports look the way they do
 
@@ -60,9 +60,18 @@ UI's stylesheet was never `@require`d either.
 Two small unmaintained jQuery plugins are vendored under `src/vendor/` instead of `@require`d.
 Do not edit those files; see `src/vendor/README.md`.
 
-**`dist/code.user.js` is committed.** The raw GitHub URL is how people install the script, so
-the artifact and the source must agree. Run `pnpm build` and commit the result with any change
-to `src/`. CI fails on drift.
+**`dist/` is not committed.** The built script is published as a GitHub Release asset, and
+`@downloadURL`/`@updateURL` point at `releases/latest/download/code.user.js`. There is no
+artifact in the tree to keep in step with the source, so a change to `src/` needs no rebuild
+commit.
+
+**The version is derived, not written down.** `scripts/version.ts` reads the last `v*` tag and
+the conventional-commit messages since it: `feat:` raises the minor, `fix:`/`perf:` the patch,
+a `!` or a `BREAKING CHANGE:` footer the major. A build past the tag stamps the version it is
+heading towards — `7.5.0-dev.3`, never `7.4.0-dev.3`, because semver sorts a pre-release below
+its release and an engine would never offer the latter as an update. Pushing to `main` cuts the
+release when the commits warrant one. This is why the commit-message discipline below is
+load-bearing rather than cosmetic.
 
 ## Traps specific to this codebase
 
@@ -150,12 +159,13 @@ match the surrounding style rather than converting a file piecemeal.
 
 Beyond the test suite, two checks catch what unit tests here cannot:
 
-1. **Every function declared in `src/` must have a definition in `dist/code.user.js`** — a call
-   site alone does not count. This is what catches the Annex B class of breakage.
+1. **Every function declared in `src/` must have a definition in the built `dist/code.user.js`**
+   — a call site alone does not count. Run `pnpm build` first; the file is generated, not
+   committed. This is what catches the Annex B class of breakage.
 2. **Every substantive line of the previous commit must still exist somewhere under `src/`.**
    Moving code between files is fine; losing it is not.
 
-The 220 tests cover pricing, queues, requests, settings, item shapes, the page seam, the run
+The 324 tests cover pricing, queues, requests, settings, item shapes, the page seam, the run
 totals and market-progress lifecycles, the market row registry and button selection, the
 inventory action pipeline and the quick-sell panel. They still do **not** drive the inventory
 and market UI end to end, so changes there need the checks above and a careful read.
