@@ -10,6 +10,7 @@ import { listingState } from '../market/listingState.ts';
 import { formatPrice } from '../pricing/algorithms.ts';
 import { SETTING_TRADEOFFER_PRICE_LABELS, getSetting } from '../settings/index.ts';
 import { steamPage } from '../steam/instance.ts';
+import { escapeHtml } from '../util/escape.ts';
 import { aggregateTradeOfferAssets } from './totals.ts';
 import $ from 'jquery';
 
@@ -85,7 +86,9 @@ export function sumTradeOfferAssets(side) {
     let totalText = `<strong>Number of unique items: ${sortable.length}, worth ${formatPrice(summary.totalPrice)}<br/><br/></strong>`;
     let totalNumOfItems = 0;
     for (let i = 0; i < sortable.length; i++) {
-        totalText += `${sortable[i][1]}x ${sortable[i][0]}<br/>`;
+        // The count is a number and the <strong>/<br/> around it are ours and deliberate, so
+        // only the item text is escaped -- it is the one part that came from Steam.
+        totalText += `${sortable[i][1]}x ${escapeHtml(sortable[i][0])}<br/>`;
         totalNumOfItems += sortable[i][1];
     }
     totalText += `<br/><strong>Total items: ${totalNumOfItems}</strong><br/>`;

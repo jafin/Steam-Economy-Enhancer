@@ -1976,6 +1976,15 @@
 			return callback(true, cached);
 		});
 	}
+	function escapeHtml(value) {
+		return String(value).replace(/[&<>"']/g, (c) => ({
+			"&": "&amp;",
+			"<": "&lt;",
+			">": "&gt;",
+			"\"": "&quot;",
+			"'": "&#39;"
+		})[c] ?? c);
+	}
 	function aggregateTradeOfferAssets(assets, resolve) {
 		const counts = new Map();
 		let totalPrice = 0;
@@ -2046,7 +2055,7 @@
 		let totalText = `<strong>Number of unique items: ${sortable.length}, worth ${formatPrice(summary.totalPrice)}<br/><br/></strong>`;
 		let totalNumOfItems = 0;
 		for (let i = 0; i < sortable.length; i++) {
-			totalText += `${sortable[i][1]}x ${sortable[i][0]}<br/>`;
+			totalText += `${sortable[i][1]}x ${escapeHtml(sortable[i][0])}<br/>`;
 			totalNumOfItems += sortable[i][1];
 		}
 		totalText += `<br/><strong>Total items: ${totalNumOfItems}</strong><br/>`;

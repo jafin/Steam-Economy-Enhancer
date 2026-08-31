@@ -2,6 +2,8 @@ import { test } from 'vitest';
 import assert from 'node:assert';
 import { aggregateTradeOfferAssets } from '../src/tradeoffer/totals.ts';
 import { sumTradeOfferAssets } from '../src/tradeoffer/ui.ts';
+import { escapeHtml } from '../src/util/escape.ts';
+import $ from 'jquery';
 
 // The aggregation takes the assets of one side of a trade offer and a `resolve` that turns
 // an asset into what is known about it, so the test can say what an asset is without a page.
@@ -127,5 +129,43 @@ test('equal counts display in reverse first-seen order', () => {
     assert.ok(
         betaIndex < alphaIndex,
         "Beta (seen second) is expected before Alpha (seen first) -- today's reverse-first-seen tie order",
+    );
+});
+
+// The names on the 'them' side of an offer are written by whoever sent it, and
+// sumTradeOfferAssets concatenates them into a string that is fed to jQuery's .append().
+// Escaping happens at that sink rather than in getTradeOfferAssetText, which is documented
+// as returning text and is pinned by the aggregation tests above -- so those must still
+// read 'Sackboy (Trading Card)' while this one comes back inert.
+test('an item name carrying markup is escaped in the rendered summary', () => {
+    const win = (globalThis as any).unsafeWindow;
+
+    win.g_rgCurrentTradeStatus.me = {
+        assets: [{ appid: 730, contextid: '2', assetid: '1' }],
+    };
+
+    const itemsById: Record<string, any> = {
+        1: { name: '<img src=x onerror=1>' },
+    };
+
+    win.UserYou.findAsset = (appid: unknown, contextid: unknown, assetid: string) =>
+        itemsById[assetid] || null;
+
+    const summaryText = sumTradeOfferAssets('me');
+
+    assert.ok(
+        summaryText.includes('1x &lt;img src=x onerror=1&gt;'),
+        'the name is expected to appear escaped',
+    );
+    assert.strictEqual($('<div></div>').html(summaryText).find('img').length, 0);
+
+    // The <strong> and <br/> the summary builds around the names are ours and must survive.
+    assert.ok($('<div></div>').html(summaryText).find('strong').length > 0);
+});
+
+test('escapeHtml neutralises every character that can break out of a template literal', () => {
+    assert.strictEqual(
+        escapeHtml(`<a href="x" title='y'>&</a>`),
+        '&lt;a href=&quot;x&quot; title=&#39;y&#39;&gt;&amp;&lt;/a&gt;',
     );
 });
