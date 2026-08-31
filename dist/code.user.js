@@ -1200,9 +1200,9 @@
 								return callback(false);
 							}
 							item.assetid = newAssetId;
-							marketListingsRelistedAssets.push(newAssetId);
 							market.sellItem(item, item.sellPrice, (errorSell, dataSell) => {
 								if (!errorSell) {
+									marketListingsRelistedAssets.push(newAssetId);
 									(0, jquery.default)(".actual_content", listingUI).css("background", COLOR_SUCCESS);
 									setTimeout(() => {
 										removeListingFromLists(item.listing);

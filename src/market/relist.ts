@@ -115,10 +115,19 @@ export function marketOverpricedQueueWorker(item, ignoreErrors, callback) {
                                 }
 
                                 item.assetid = newAssetId;
-                                marketListingsRelistedAssets.push(newAssetId);
 
                                 market.sellItem(item, item.sellPrice, (errorSell, dataSell) => {
                                     if (!errorSell) {
+                                        // Recorded only once the asset is actually listed
+                                        // again. Recording it before the sell was attempted
+                                        // meant a failed relist poisoned its own retry: the
+                                        // scan above skips assets in this list, so the single
+                                        // forced retry -- which exists precisely to rescue an
+                                        // item whose listing has already been removed -- would
+                                        // pass over the right asset and either relist a
+                                        // different copy or give up with newAssetId == -1.
+                                        marketListingsRelistedAssets.push(newAssetId);
+
                                         $('.actual_content', listingUI).css(
                                             'background',
                                             COLOR_SUCCESS,
