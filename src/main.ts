@@ -137,6 +137,11 @@ export function bootstrap(): void {
         .market_relist_auto { margin-bottom: 8px;  }
         .market_relist_auto_label { margin-right: 6px; }
         .quick_sell { margin-right: 4px; }
+        /* Sits in the same flex row as the market buttons, so it centres against them rather
+           than against the text baseline. */
+        .market_overpriced_filter_label { display: flex; align-items: center; gap: 4px; padding: 0 4px;
+            font-size: 12px; color: #b0aeac; cursor: pointer; user-select: none; }
+        .market_overpriced_filter { margin: 0; cursor: pointer; }
 
         /* The "for sale" ribbon on an inventory tile whose listing succeeded -- see
            markRowForSale in src/ui/index.ts. The band is clipped by its own 78px corner box

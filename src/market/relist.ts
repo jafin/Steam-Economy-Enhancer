@@ -11,6 +11,7 @@ import { market } from '../steam/market.ts';
 import { logConsole } from '../ui/logger.ts';
 import { getRandomInt } from '../util/numbers.ts';
 import { getAssetInfoFromListingId } from './assets.ts';
+import { refreshOverpricedFilter } from './filter.ts';
 import { marketListingsRelistedAssets } from './listings.ts';
 import { listingState } from './listingState.ts';
 import { addWork, marketProgress, workDone } from './progress.ts';
@@ -226,7 +227,7 @@ export function queueOverpricedItemListing(listingid) {
 
 // Shows the number of overpriced listings on the overpriced buttons.
 // The count is taken from the matching items so it reflects exactly what the buttons act on,
-// which means it follows the search filter.
+// which means it follows the search box and the "Overpriced only" filter alike.
 //
 // While a relist run is in progress the relist overpriced button shows the progress of the
 // shared relist queue instead of the count, and is marked busy because everything it would
@@ -242,7 +243,15 @@ export function updateMarketOverpricedButtons() {
             return;
         }
 
-        const { rows, group } = selection;
+        const { list, group } = selection;
+
+        // The filter selects on the same verdict class this counts, and both are written by
+        // the pricing pass one row at a time -- so a listing that has just become overpriced
+        // has to enter the filter before it is counted, or the count would describe a list
+        // the user is not looking at. Reading matchingItems afterwards is what picks that up.
+        refreshOverpricedFilter(list, group);
+
+        const rows = list.matchingItems;
         const count = rows.filter((item) => $(item.elm).hasClass(VERDICT_OVERPRICED)).length;
 
         $('.relist_overpriced > span', group).text(

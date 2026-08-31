@@ -5,10 +5,11 @@ import { openSettings } from '../settings/dialog.ts';
 import { SETTING_RELIST_AUTOMATICALLY, setSetting } from '../settings/index.ts';
 import { steamPage } from '../steam/instance.ts';
 import { replaceNonNumbers } from '../util/numbers.ts';
+import { applyOverpricedFilter } from './filter.ts';
 import { initializeMarketHistoryUI } from './history.ts';
 import { processMarketListings } from './listings.ts';
 import { addWork, setProgressBar } from './progress.ts';
-import { queueOverpricedItemListing } from './relist.ts';
+import { queueOverpricedItemListing, refreshMarketOverpricedButtons } from './relist.ts';
 import { marketRemoveQueue } from './remove.ts';
 import { getListingFromLists } from './rows.ts';
 import { marketSectionFor, selectionFor, tableHeaderSectionFor } from './selection.ts';
@@ -63,6 +64,9 @@ export function initializeMarketUI() {
         <a class="item_market_action_button item_market_action_button_green select_overpriced market_listing_button">
             <span class="item_market_action_button_contents">Select overpriced (0)</span>
         </a>
+        <label class="market_overpriced_filter_label">
+            <input type="checkbox" class="market_overpriced_filter"> Overpriced only
+        </label>
     </div>`);
 
     // Listings confirmations and buy orders.
@@ -205,6 +209,21 @@ export function initializeMarketUI() {
                 addWork(1);
             }
         }
+    });
+
+    // Hiding the rows this section's other overpriced buttons would act on anyway, so it sits
+    // at the end of their group rather than with the selection buttons on the left.
+    $('.market_overpriced_filter').on('change', function () {
+        const selection = selectionFor(this);
+
+        if (selection == null) {
+            return;
+        }
+
+        applyOverpricedFilter(selection.list, selection.group);
+
+        updateMarketSelectAllButton();
+        refreshMarketOverpricedButtons();
     });
 
     $('.market_relist_auto').change(() => {
