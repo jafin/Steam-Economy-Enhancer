@@ -376,7 +376,15 @@ SteamMarket.prototype.getCurrentPriceHistory = function (appid, market_name, cal
             return;
         }
 
-        if (data && (steamRefused(data) || !data.prices)) {
+        // `!data` and not `data &&`. A 200 with an empty or null JSON body yields `null`
+        // here, which skipped this guard and then threw dereferencing `data.prices` below.
+        // The throw is the smaller half of the problem: it happens inside request()'s
+        // setTimeout, so it escapes as an uncaught timer exception and no callback ever
+        // runs -- not this one, not fetchPricingInputs's, so not itemQueueWorker's, so
+        // runQueue's next() is never called and the concurrency-1 queue is dead for the
+        // rest of the page's life. listings.ts and getCurrentOrderBook already write the
+        // guard this way.
+        if (!data || steamRefused(data) || !data.prices) {
             callback(ERROR_DATA, null, false);
             return;
         }

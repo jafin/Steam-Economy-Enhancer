@@ -281,6 +281,22 @@ test('getCurrentPriceHistory reports a success:false body as ERROR_DATA', () => 
     assert.deepStrictEqual(cb.calls, [[ERROR_DATA, null, false]]);
 });
 
+// A 200 with an empty or null JSON body. `responseType: 'json'` yields `null` for that,
+// which the old `if (data && ...)` guard skipped -- so the loop below it dereferenced null
+// and threw. The throw happens inside request()'s setTimeout, so it escaped as an uncaught
+// timer exception and no callback ran at all: runQueue's next() was never called and the
+// concurrency-1 pricing queue was dead for the rest of the page's life. This test fails with
+// a TypeError on the old guard, which is the point of it.
+test('getCurrentPriceHistory reports a null body as ERROR_DATA rather than throwing', () => {
+    answerWith({ data: null });
+
+    const cb = recorder();
+    market.getCurrentPriceHistory(730, 'Some Item', cb);
+    vi.advanceTimersByTime(0);
+
+    assert.deepStrictEqual(cb.calls, [[ERROR_DATA, null, false]]);
+});
+
 test('getCurrentPriceHistory reports prices in pennies, uncached', () => {
     answerWith({ data: { success: true, prices: [['1 Jan 2026 01: +0', 1.5, '3']] } });
 

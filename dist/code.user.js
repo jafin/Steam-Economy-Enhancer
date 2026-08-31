@@ -871,7 +871,7 @@
 				callback(1, null, false);
 				return;
 			}
-			if (data && (steamRefused(data) || !data.prices)) {
+			if (!data || steamRefused(data) || !data.prices) {
 				callback(2, null, false);
 				return;
 			}
