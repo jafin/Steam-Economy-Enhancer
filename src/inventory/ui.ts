@@ -384,18 +384,35 @@ export async function updateInventorySelection(selectedItem) {
 
         baseLink.next().append(groupMain);
 
-        let buttons = '<div id="price_buttons">';
-        prices.forEach((e) => {
-            buttons += `<a class="item_market_action_button item_market_action_button_green quick_sell" id="quick_sell${e}">
+        // Each ladder button closes over its price. It used to be serialised into the
+        // element's id (`id="quick_sell499"`) and parsed back out of it on click, which made
+        // a DOM id the data model -- the same thing market/listingState.ts was written to
+        // stop when a CSS class was carrying the verdict. It worked only because
+        // getPriceBeforeFees opens with Math.round(), which coerced the string back to a
+        // number; the binding in between was typed string and held a number.
+        const buttonRow = $('<div id="price_buttons"></div>');
+
+        prices.forEach((cents) => {
+            $(
+                `<a class="item_market_action_button item_market_action_button_green quick_sell">
                     <span class="item_market_action_button_edge item_market_action_button_left"></span>
-                    <span class="item_market_action_button_contents">${formatPrice(e)}</span>
+                    <span class="item_market_action_button_contents">${formatPrice(cents)}</span>
                     <span class="item_market_action_button_edge item_market_action_button_right"></span>
                     <span class="item_market_action_button_preload"></span>
-                </a>`;
-        });
-        buttons += '</div>';
+                </a>`,
+            )
+                .on('click', () => {
+                    queued(1);
 
-        ownerActions.append(buttons);
+                    sellQueue.push({
+                        item: selectedItem,
+                        sellPrice: market.getPriceBeforeFees(cents),
+                    });
+                })
+                .appendTo(buttonRow);
+        });
+
+        ownerActions.append(buttonRow);
 
         ownerActions.append(`<div id="sell_button" style="display:flex">
                 <input id="quick_sell_input" style="background-color: black;color: white;border: transparent;max-width:65px;text-align:center;" type="number" value="${(defaultPrice / 100).toFixed(2)}" step="0.01" />&nbsp;
@@ -408,32 +425,23 @@ export async function updateInventorySelection(selectedItem) {
             </div>`);
 
         // Scoped to ownerActions rather than document-wide: a document-wide selector matches
-        // any leftover .quick_sell/.quick_sell_custom button from a panel Steam has not yet
-        // removed, and that stale button still closes over the *previous* selectedItem -- a
-        // click on it would queue the wrong item at the previous item's price. Correctness
-        // used to depend entirely on Steam having torn down the old panel before this one
-        // rendered; nothing asserted that.
-        ownerActions.find('.quick_sell').on('click', function () {
-            let price = $(this).attr('id')!.replace('quick_sell', '');
-            price = market.getPriceBeforeFees(price);
-
-            queued(1);
-
-            sellQueue.push({
-                item: selectedItem,
-                sellPrice: price,
-            });
-        });
-
+        // any leftover .quick_sell_custom button from a panel Steam has not yet removed, and
+        // that stale button still closes over the *previous* selectedItem -- a click on it
+        // would queue the wrong item at the previous item's price. Correctness used to depend
+        // entirely on Steam having torn down the old panel before this one rendered; nothing
+        // asserted that.
+        //
+        // The ladder buttons above no longer need this: their handlers are bound to the
+        // elements as those are built, so a stale button is unreachable by construction. The
+        // .quick_sell class is kept because main.ts styles it.
         ownerActions.find('.quick_sell_custom').on('click', () => {
-            let price = Number($('#quick_sell_input', ownerActions).val()) * 100;
-            price = market.getPriceBeforeFees(price);
+            const price = Number($('#quick_sell_input', ownerActions).val()) * 100;
 
             queued(1);
 
             sellQueue.push({
                 item: selectedItem,
-                sellPrice: price,
+                sellPrice: market.getPriceBeforeFees(price),
             });
         });
     });

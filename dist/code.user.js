@@ -2622,17 +2622,22 @@
                 </div>
             </div>`);
 			baseLink.next().append(groupMain);
-			let buttons = "<div id=\"price_buttons\">";
-			prices.forEach((e) => {
-				buttons += `<a class="item_market_action_button item_market_action_button_green quick_sell" id="quick_sell${e}">
+			const buttonRow = (0, jquery.default)("<div id=\"price_buttons\"></div>");
+			prices.forEach((cents) => {
+				(0, jquery.default)(`<a class="item_market_action_button item_market_action_button_green quick_sell">
                     <span class="item_market_action_button_edge item_market_action_button_left"></span>
-                    <span class="item_market_action_button_contents">${formatPrice(e)}</span>
+                    <span class="item_market_action_button_contents">${formatPrice(cents)}</span>
                     <span class="item_market_action_button_edge item_market_action_button_right"></span>
                     <span class="item_market_action_button_preload"></span>
-                </a>`;
+                </a>`).on("click", () => {
+					queued(1);
+					sellQueue.push({
+						item: selectedItem,
+						sellPrice: market.getPriceBeforeFees(cents)
+					});
+				}).appendTo(buttonRow);
 			});
-			buttons += "</div>";
-			ownerActions.append(buttons);
+			ownerActions.append(buttonRow);
 			ownerActions.append(`<div id="sell_button" style="display:flex">
                 <input id="quick_sell_input" style="background-color: black;color: white;border: transparent;max-width:65px;text-align:center;" type="number" value="${(defaultPrice / 100).toFixed(2)}" step="0.01" />&nbsp;
                 <a class="item_market_action_button item_market_action_button_green quick_sell_custom">
@@ -2642,22 +2647,12 @@
                     <span class="item_market_action_button_preload"></span>
                 </a>
             </div>`);
-			ownerActions.find(".quick_sell").on("click", function() {
-				let price = (0, jquery.default)(this).attr("id").replace("quick_sell", "");
-				price = market.getPriceBeforeFees(price);
-				queued(1);
-				sellQueue.push({
-					item: selectedItem,
-					sellPrice: price
-				});
-			});
 			ownerActions.find(".quick_sell_custom").on("click", () => {
-				let price = Number((0, jquery.default)("#quick_sell_input", ownerActions).val()) * 100;
-				price = market.getPriceBeforeFees(price);
+				const price = Number((0, jquery.default)("#quick_sell_input", ownerActions).val()) * 100;
 				queued(1);
 				sellQueue.push({
 					item: selectedItem,
-					sellPrice: price
+					sellPrice: market.getPriceBeforeFees(price)
 				});
 			});
 		});
