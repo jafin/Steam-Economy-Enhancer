@@ -1186,6 +1186,10 @@
 				(0, jquery.default)(".actual_content", listingUI).css("background", COLOR_PENDING);
 				setTimeout(() => {
 					const itemName = (0, jquery.default)(".market_listing_item_name_link", listingUI).first().attr("href");
+					if (itemName == null) {
+						(0, jquery.default)(".actual_content", listingUI).css("background", COLOR_ERROR);
+						return callback(false);
+					}
 					const marketHashNameIndex = itemName.lastIndexOf("/") + 1;
 					const marketHashName = itemName.substring(marketHashNameIndex);
 					const decodedMarketHashName = decodeURIComponent(itemName.substring(marketHashNameIndex));

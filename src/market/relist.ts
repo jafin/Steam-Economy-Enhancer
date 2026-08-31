@@ -83,10 +83,25 @@ export function marketOverpricedQueueWorker(item, ignoreErrors, callback) {
                     const itemName = $('.market_listing_item_name_link', listingUI)
                         .first()
                         .attr('href');
-                    const marketHashNameIndex = itemName!.lastIndexOf('/') + 1;
-                    const marketHashName = itemName!.substring(marketHashNameIndex);
+
+                    // No market link means no hash name to relist under, so there is nothing
+                    // this task can do. It used to be asserted three times over, and the
+                    // listing has *already been removed* by the time this runs -- so the
+                    // throw came after the item was delisted, leaving it in the inventory
+                    // neither listed nor relisted, which is the same outcome ADR 0002
+                    // describes. Fail the task properly instead: the row goes red and the
+                    // callback reports failure, which is what runQueue's single forced retry
+                    // reads to try the item again.
+                    if (itemName == null) {
+                        $('.actual_content', listingUI).css('background', COLOR_ERROR);
+
+                        return callback(false);
+                    }
+
+                    const marketHashNameIndex = itemName.lastIndexOf('/') + 1;
+                    const marketHashName = itemName.substring(marketHashNameIndex);
                     const decodedMarketHashName = decodeURIComponent(
-                        itemName!.substring(marketHashNameIndex),
+                        itemName.substring(marketHashNameIndex),
                     );
                     let newAssetId: any = -1;
 
