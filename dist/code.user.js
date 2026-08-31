@@ -483,24 +483,23 @@
 		"KRW",
 		"VND"
 	].includes(currencyCode);
-	function priceBeforeFees(price, item, rules) {
+	function publisherFeeFor(item, rules) {
 		let publisherFee = -1;
 		if (item != null) {
 			if (item.market_fee != null) publisherFee = item.market_fee;
 			else if (item.description != null && item.description.market_fee != null) publisherFee = item.description.market_fee;
 		}
-		if (publisherFee == -1) publisherFee = rules.walletInfo != null ? rules.walletInfo["wallet_publisher_fee_percent_default"] : .1;
+		if (publisherFee == -1) return rules.walletInfo != null ? rules.walletInfo["wallet_publisher_fee_percent_default"] : .1;
+		return publisherFee;
+	}
+	function priceBeforeFees(price, item, rules) {
+		const publisherFee = publisherFeeFor(item, rules);
 		price = Math.round(price);
 		const feeInfo = CalculateFeeAmount(price, publisherFee, rules.walletInfo, rules.useRound);
 		return price > feeInfo.fees ? price - feeInfo.fees : 1;
 	}
 	function priceIncludingFees(price, item, rules) {
-		let publisherFee = -1;
-		if (item != null) {
-			if (item.market_fee != null) publisherFee = item.market_fee;
-			else if (item.description != null && item.description.market_fee != null) publisherFee = item.description.market_fee;
-		}
-		if (publisherFee == -1) publisherFee = rules.walletInfo != null ? rules.walletInfo["wallet_publisher_fee_percent_default"] : .1;
+		const publisherFee = publisherFeeFor(item, rules);
 		price = Math.round(price);
 		return CalculateAmountToSendForDesiredReceivedAmount(price, publisherFee, rules.walletInfo, rules.useRound).amount;
 	}

@@ -7,6 +7,7 @@ import {
     calculateSellPriceBeforeFees,
     createPricingRules,
 } from '../src/pricing/algorithms.ts';
+import { priceIncludingFees } from '../src/pricing/fees.ts';
 
 // Characterisation tests. They pin what the price calculation does today, before it is given
 // an honest interface. If a refactor changes any number here, that is a real change to what
@@ -429,4 +430,59 @@ test('the ignore-lowest-quantity ladder reaches every one of its six branches', 
             `q2=${secondQuantity} pct=${percentage}: expected the thin lowest listing to be ignored`,
         );
     }
+});
+
+// --- the publisher fee's fallback order ---------------------------------------------------
+//
+// priceBeforeFees and priceIncludingFees each resolved the publisher's cut with the same
+// sixteen lines; that is now one helper, and this pins the order it resolves in so the
+// extraction cannot quietly reorder it: item.market_fee, then item.description.market_fee,
+// then the wallet's default, then 10%.
+//
+// Observed through priceIncludingFees, which is monotonic in the fee -- a higher publisher
+// cut means the buyer pays more for the same seller proceeds -- so a change in which fee was
+// picked shows up as a change in the number.
+function buyerPriceFor(item: any) {
+    return priceIncludingFees(1000, item, {
+        walletInfo: {
+            wallet_fee: 1,
+            wallet_fee_base: 0,
+            wallet_fee_percent: 0.05,
+            wallet_fee_minimum: 1,
+            wallet_publisher_fee_percent_default: 0.1,
+        },
+        useRound: true,
+    });
+}
+
+test('the publisher fee prefers the item over its description', () => {
+    const both = buyerPriceFor({ market_fee: 0.2, description: { market_fee: 0.4 } });
+    const itemOnly = buyerPriceFor({ market_fee: 0.2 });
+
+    assert.strictEqual(both, itemOnly, 'item.market_fee wins over description.market_fee');
+});
+
+test('the publisher fee falls back to the description', () => {
+    const fromDescription = buyerPriceFor({ description: { market_fee: 0.4 } });
+    const direct = buyerPriceFor({ market_fee: 0.4 });
+
+    assert.strictEqual(fromDescription, direct);
+});
+
+test('the publisher fee falls back to the wallet default when the item names none', () => {
+    const noFee = buyerPriceFor({ description: {} });
+    const walletDefault = buyerPriceFor({ market_fee: 0.1 });
+
+    assert.strictEqual(noFee, walletDefault);
+});
+
+test('a null item resolves to the wallet default too', () => {
+    assert.strictEqual(buyerPriceFor(null), buyerPriceFor({ market_fee: 0.1 }));
+});
+
+// The -1 sentinel, preserved from the original rather than rewritten as early returns: an
+// item whose market_fee is -1 falls through to the wallet default. No real Steam item carries
+// it, but the extraction is only a refactor if this stays true.
+test('a market_fee of -1 falls through to the wallet default, as the sentinel intends', () => {
+    assert.strictEqual(buyerPriceFor({ market_fee: -1 }), buyerPriceFor({ market_fee: 0.1 }));
 });

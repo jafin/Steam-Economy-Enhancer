@@ -37,10 +37,18 @@ export interface FeeAmount {
     amount?: number;
 }
 
-// Pure: the fee schedule and rounding rule come from `rules` rather than from the
-// `market` singleton or the module-level `useRound`. SteamMarket.prototype.getPriceBeforeFees
-// is a thin adapter over this for the call sites that use the market instance directly.
-export function priceBeforeFees(price: number, item: any, rules: PricingRules) {
+// The publisher's cut for this item, or the wallet's default when the item does not name one.
+//
+// Sixteen byte-identical lines in priceBeforeFees and priceIncludingFees before this. The
+// fallback order matters and is preserved exactly: item.market_fee, then
+// item.description.market_fee, then the wallet's default, then 10%.
+//
+// The -1 sentinel is kept rather than rewritten as early returns. It is not decorative: with
+// early returns an item whose market_fee is literally -1 would be used as the fee, where the
+// original falls through to the wallet default. No real Steam item carries -1 -- it would be
+// a -100% publisher cut -- but this is fee arithmetic on real money, and a pure extraction is
+// worth more here than a tidier shape.
+function publisherFeeFor(item: any, rules: PricingRules): number {
     let publisherFee = -1;
 
     if (item != null) {
@@ -52,11 +60,19 @@ export function priceBeforeFees(price: number, item: any, rules: PricingRules) {
     }
 
     if (publisherFee == -1) {
-        publisherFee =
-            rules.walletInfo != null
-                ? rules.walletInfo['wallet_publisher_fee_percent_default']
-                : 0.1;
+        return rules.walletInfo != null
+            ? rules.walletInfo['wallet_publisher_fee_percent_default']
+            : 0.1;
     }
+
+    return publisherFee;
+}
+
+// Pure: the fee schedule and rounding rule come from `rules` rather than from the
+// `market` singleton or the module-level `useRound`. SteamMarket.prototype.getPriceBeforeFees
+// is a thin adapter over this for the call sites that use the market instance directly.
+export function priceBeforeFees(price: number, item: any, rules: PricingRules) {
+    const publisherFee = publisherFeeFor(item, rules);
 
     price = Math.round(price);
     const feeInfo = CalculateFeeAmount(price, publisherFee, rules.walletInfo, rules.useRound);
@@ -66,22 +82,7 @@ export function priceBeforeFees(price: number, item: any, rules: PricingRules) {
 
 // Calculate the buyer price from the seller price. See priceBeforeFees.
 export function priceIncludingFees(price: number, item: any, rules: PricingRules) {
-    let publisherFee = -1;
-
-    if (item != null) {
-        if (item.market_fee != null) {
-            publisherFee = item.market_fee;
-        } else if (item.description != null && item.description.market_fee != null) {
-            publisherFee = item.description.market_fee;
-        }
-    }
-
-    if (publisherFee == -1) {
-        publisherFee =
-            rules.walletInfo != null
-                ? rules.walletInfo['wallet_publisher_fee_percent_default']
-                : 0.1;
-    }
+    const publisherFee = publisherFeeFor(item, rules);
 
     price = Math.round(price);
     const feeInfo = CalculateAmountToSendForDesiredReceivedAmount(
