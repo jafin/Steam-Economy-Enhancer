@@ -13,8 +13,9 @@ import { ICON } from './src/icon.ts';
 // is a hard fork of. The identity that must stay distinct is @name and the update URLs, not
 // the credit line.
 //
-// @version is not set here: it is derived from the git tag in CI, falling back to
-// package.json for local builds. See vite.config.ts.
+// @version is not set here: every build derives it from the last git tag and the
+// conventional-commit messages since it, so a local build and a CI build at the same commit
+// agree. See scripts/version.ts for the rules and vite.config.ts for the wiring.
 //
 // The @require list is five entries, not the original eight. jquery-observe and checkboxes.js
 // were pinned to raw.githubusercontent.com commit URLs -- a host GitHub does not support as

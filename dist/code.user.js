@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Steam Economy Enhancer (jafin)
 // @namespace    https://github.com/jafin
-// @version      7.3.2
+// @version      7.4.0-dev.664
 // @author       Jason Finch, Nuklon (original author)
 // @description  Enhances the Steam Inventory and Steam Market.
 // @license      MIT
