@@ -36,7 +36,7 @@ export function sortMarketListings(elem, isPrice, isDateOrQuantity, isName) {
         $(this).text($(this).text().replace(` ${arrow_down}`, '').replace(` ${arrow_up}`, ''));
     });
 
-    let market_listing_selector;
+    let market_listing_selector: JQuery<HTMLElement> | undefined;
     if (isPrice) {
         market_listing_selector = $('.market_listing_table_header', elem).children().eq(1);
     } else if (isDateOrQuantity) {
@@ -44,6 +44,22 @@ export function sortMarketListings(elem, isPrice, isDateOrQuantity, isName) {
     } else if (isName) {
         market_listing_selector = $('.market_listing_table_header', elem).children().eq(3);
     }
+
+    // There was no else, so all three false meant `undefined.text()` and a throw. That is
+    // reachable: market/ui.ts binds the sort with a delegated .on('click', 'span'), so a
+    // click on a span nested inside a header span fires the handler a second time with the
+    // inner span as `this`, tableHeaderSectionFor's two-hop walk lands on the header rather
+    // than the section, children() finds nothing, and all three flags come back false.
+    //
+    // Return rather than defaulting to a column. A click that resolves to no column is a
+    // click this script has nothing to say about, and silently sorting by price would be
+    // worse than doing nothing. The arrows have already been stripped by the .each() above,
+    // so the table is left with no arrow at all -- which is honest: the sort did not happen.
+    if (market_listing_selector == null || market_listing_selector.length === 0) {
+        logConsole('No sortable column matched the clicked header, ignoring.');
+        return;
+    }
+
     market_listing_selector.text(
         `${market_listing_selector.text()} ${asc ? arrow_up : arrow_down}`,
     );

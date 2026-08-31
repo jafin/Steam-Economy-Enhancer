@@ -1325,6 +1325,7 @@
 		if (isPrice) market_listing_selector = (0, jquery.default)(".market_listing_table_header", elem).children().eq(1);
 		else if (isDateOrQuantity) market_listing_selector = (0, jquery.default)(".market_listing_table_header", elem).children().eq(2);
 		else if (isName) market_listing_selector = (0, jquery.default)(".market_listing_table_header", elem).children().eq(3);
+		if (market_listing_selector == null || market_listing_selector.length === 0) return;
 		market_listing_selector.text(`${market_listing_selector.text()} ${asc ? arrow_up : arrow_down}`);
 		if (list.sort == null) return;
 		const isBuyOrder = list.list.querySelectorAll(".market_listing_buyorder_qty").length >= 1;
