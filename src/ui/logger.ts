@@ -46,8 +46,19 @@ export function updateScroll() {
     element.scrollTop = element.scrollHeight;
 }
 
+// Appends a text node, not markup. Ten call sites feed this Steam's own strings -- item
+// names, and Steam's error message text -- and an item name is written by whoever owned the
+// item before you, so a trade puts an attacker's markup one `innerHTML +=` away from running
+// on steamcommunity.com with your session.
+//
+// The `+=` was a second, independent problem: it re-serialised and re-parsed the entire log
+// on every line, so a run over 500 items did 500 reparses of a growing string. Appending an
+// element fixes both. The <br/> became a block-level div, which renders the same -- #logger's
+// CSS in main.ts styles the container, not its children.
 export function logDOM(text) {
-    logger.innerHTML += `${text}<br/>`;
+    const line = document.createElement('div');
+    line.textContent = String(text);
+    logger.appendChild(line);
 
     updateScroll();
 }

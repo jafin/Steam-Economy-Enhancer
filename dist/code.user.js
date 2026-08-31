@@ -201,7 +201,9 @@
 		element.scrollTop = element.scrollHeight;
 	}
 	function logDOM(text) {
-		logger.innerHTML += `${text}<br/>`;
+		const line = document.createElement("div");
+		line.textContent = String(text);
+		logger.appendChild(line);
 		updateScroll();
 	}
 	var REQUEST_DELAY_ERROR = 5e3;
@@ -2396,8 +2398,15 @@
 		const totalsElement = document.getElementById("loggerTotal");
 		totalsElement.innerHTML = "";
 		const current = runTotals();
-		if (current.priceWithFeesOnMarket > 0) totalsElement.innerHTML += `<div><strong>Total listed for ${formatPrice(current.priceWithFeesOnMarket)}, you will receive ${formatPrice(current.priceWithoutFeesOnMarket)}.</strong></div>`;
-		if (current.scrap > 0) totalsElement.innerHTML += `<div><strong>Total scrap ${current.scrap}.</strong></div>`;
+		if (current.priceWithFeesOnMarket > 0) appendTotalLine(totalsElement, `Total listed for ${formatPrice(current.priceWithFeesOnMarket)}, you will receive ${formatPrice(current.priceWithoutFeesOnMarket)}.`);
+		if (current.scrap > 0) appendTotalLine(totalsElement, `Total scrap ${current.scrap}.`);
+	}
+	function appendTotalLine(parent, text) {
+		const line = document.createElement("div");
+		const emphasis = document.createElement("strong");
+		emphasis.textContent = text;
+		line.appendChild(emphasis);
+		parent.appendChild(line);
 	}
 	function delay(ms) {
 		return new Promise((resolve) => setTimeout(resolve, ms));

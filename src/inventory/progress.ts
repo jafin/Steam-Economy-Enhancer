@@ -41,11 +41,27 @@ export function updateTotals() {
     const current = runTotals();
 
     if (current.priceWithFeesOnMarket > 0) {
-        totalsElement.innerHTML += `<div><strong>Total listed for ${formatPrice(current.priceWithFeesOnMarket)}, you will receive ${formatPrice(current.priceWithoutFeesOnMarket)}.</strong></div>`;
+        appendTotalLine(
+            totalsElement,
+            `Total listed for ${formatPrice(current.priceWithFeesOnMarket)}, you will receive ${formatPrice(current.priceWithoutFeesOnMarket)}.`,
+        );
     }
     if (current.scrap > 0) {
-        totalsElement.innerHTML += `<div><strong>Total scrap ${current.scrap}.</strong></div>`;
+        appendTotalLine(totalsElement, `Total scrap ${current.scrap}.`);
     }
+}
+
+// <div><strong>text</strong></div>, built rather than concatenated. Nothing here is
+// attacker-controlled -- it is formatPrice output and a number -- so this is the same
+// `innerHTML +=` idiom logDOM shed rather than a second vulnerability, converted with it so
+// the idiom does not survive anywhere to be copied from.
+function appendTotalLine(parent: HTMLElement, text: string): void {
+    const line = document.createElement('div');
+    const emphasis = document.createElement('strong');
+
+    emphasis.textContent = text;
+    line.appendChild(emphasis);
+    parent.appendChild(line);
 }
 
 export function delay(ms) {
