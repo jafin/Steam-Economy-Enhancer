@@ -1134,7 +1134,7 @@
 		if (!listing.elm.id.startsWith("mbuyorder_") && !listing.elm.id.startsWith("mybuyorder_")) return {};
 		return {
 			amount: parseInt((0, jquery.default)(".market_listing_buyorder_qty", listing.elm).text().trim()),
-			price: getPriceValueAsInt((0, jquery.default)(".market_listing_price", listing.elm)[0].innerText)
+			price: getPriceValueAsInt((0, jquery.default)(".market_listing_price", listing.elm).first().text())
 		};
 	}
 	function marketSectionFor(target) {

@@ -58,7 +58,12 @@ export function getAssetInfoFromBuyOrderId(orderid) {
     }
 
     const amount = parseInt($('.market_listing_buyorder_qty', listing.elm).text().trim());
-    const price = getPriceValueAsInt($('.market_listing_price', listing.elm)[0].innerText);
+    // `.first().text()` rather than `[0].innerText`. The unguarded index threw when the row
+    // carried no price element; .text() is also the idiom the sibling reads above use, and
+    // getPriceValueAsInt's `?? 0` already covers an empty string. `.first()` keeps the
+    // original's element selection exactly -- a bare .text() would concatenate every match,
+    // and this is a price.
+    const price = getPriceValueAsInt($('.market_listing_price', listing.elm).first().text());
 
     return { amount, price };
 }
