@@ -20,6 +20,18 @@ import {
     formatPriceDelta,
 } from '../pricing/algorithms.ts';
 import { fetchPricingInputs } from '../pricing/inputs.ts';
+import {
+    RATE_WINDOW_HOURS,
+    type SalesRate,
+    VOLUME_WINDOW_HOURS,
+    daysToSell,
+    formatDaysToSell,
+    formatSalesRate,
+    queueAheadOf,
+    sellSpeedOf,
+    salesRate,
+    salesVolume,
+} from '../pricing/liquidity.ts';
 import { runQueue } from '../queue/index.ts';
 import {
     SETTING_PRICE_MIN_CHECK_PRICE,
@@ -30,7 +42,7 @@ import { currentPage, steamPage } from '../steam/instance.ts';
 import { market } from '../steam/market.ts';
 import { removeSpinner, renderSpinner } from '../ui/index.ts';
 import { logConsole } from '../ui/logger.ts';
-import { replaceNonNumbers } from '../util/numbers.ts';
+import { formatCount, replaceNonNumbers } from '../util/numbers.ts';
 import {
     getAssetInfoFromBuyOrderId,
     getAssetInfoFromListingId,
@@ -104,6 +116,114 @@ function clearPriceCellGrid(listingUI) {
 
     $('.see_price_grid', priceCell).remove();
     $('.market_table_value', priceCell).removeClass('see_hidden');
+}
+
+// How fast this listing is likely to move, as a 2x2 beside the Remove button.
+//
+//     24H SOLD   0     QUEUE     177
+//     7D AVG   1.7     EST SELL  77d
+//
+// The same shape and the same caption-over-value idiom as the price grid two cells to the
+// left, because it answers the other half of the same question. The price grid says what the
+// item is worth; this says whether it will ever sell at that price -- which for a trading
+// card two hundred deep on the order book is the more useful of the two.
+//
+// It goes in the Remove column because that is the only one with room: Steam's own cells are
+// full and the price cell is already carrying four values in a fixed 50px box. It is also
+// the column the reader is looking at when the number matters, since what these four numbers
+// are for is deciding whether to leave a listing alone, undercut it, or take it back.
+//
+// *Beside* the button, not under it, and that is not a preference. Steam draws
+// .market_listing_edit_buttons as a position:absolute box of exactly 50px inside a row with
+// overflow:hidden, so a block appended after the button leaves the box and the row clips it
+// -- the first cut of this came out sliced in half along the row's bottom edge. On the
+// button's own line there is nothing to clip; see the .see_has_stats rule in main.ts, which
+// is what gives the grid the box's full height instead of the 41px left under the button's
+// top margin.
+//
+// Every value has a dash for the case where it is not known, and the dashes mean different
+// things: no history (an algorithm that never fetches it), no order book (the request
+// failed), or no sales in a month to divide by. The tooltip is where that distinction is
+// spelled out, since four dashes on a row otherwise look like one failure.
+//
+// Idempotent for the same reason renderPriceCellGrid is: a row can be priced twice.
+export function renderListingStats(
+    listingUI,
+    stats: {
+        volume: number | null;
+        queueAhead: number | null;
+        rate: SalesRate | null;
+        days: number | null;
+    },
+) {
+    const cell = $('.market_listing_cancel_button', listingUI).last();
+
+    if (cell.length == 0) {
+        return;
+    }
+
+    const rateWindowDays =
+        stats.rate == null ? RATE_WINDOW_HOURS / 24 : stats.rate.windowHours / 24;
+
+    // The one quadrant that carries a verdict rather than a fact, so the one that gets a
+    // colour: past a fortnight the estimate is worth a second look, past a month the listing
+    // is not really selling. On the cell rather than the value, so the caption is inside the
+    // warning -- a coloured number with a grey word over it reads as two things.
+    // See sellSpeedOf for why a dash is never painted.
+    const speed = sellSpeedOf(stats.days);
+
+    const quadrants = [
+        {
+            label: `${VOLUME_WINDOW_HOURS}h sold`,
+            value: stats.volume == null ? '—' : formatCount(stats.volume),
+            cls: '',
+            title:
+                stats.volume == null
+                    ? 'Not known: the price history is only fetched by the average-price algorithms.'
+                    : `${formatCount(stats.volume)} sold in the last ${VOLUME_WINDOW_HOURS} hours.`,
+        },
+        {
+            label: 'Queue',
+            value: stats.queueAhead == null ? '—' : formatCount(stats.queueAhead),
+            cls: '',
+            title:
+                stats.queueAhead == null
+                    ? 'Not known: the order book for this item could not be read.'
+                    : `${formatCount(stats.queueAhead)} listed at or below your price, not counting this one. They sell first.`,
+        },
+        {
+            label: `${rateWindowDays}d avg`,
+            value: formatSalesRate(stats.rate),
+            cls: '',
+            title:
+                stats.rate == null
+                    ? 'Not known: the price history is only fetched by the average-price algorithms.'
+                    : `Sold ${formatSalesRate(stats.rate)} a day on average over the last ${rateWindowDays} days.`,
+        },
+        {
+            label: 'Est sell',
+            value: formatDaysToSell(stats.days),
+            cls: 'see_grid_lead',
+            cellCls: speed == null ? '' : `see_sell_${speed}`,
+            title:
+                stats.days == null
+                    ? 'No estimate: nothing has sold recently enough to give a rate to divide the queue by.'
+                    : `The queue ahead of this listing, plus this listing, at ${formatSalesRate(stats.rate)} a day.`,
+        },
+    ];
+
+    const grid = $('<div class="see_stats_grid"></div>');
+    quadrants.forEach((q) => {
+        $(`<div class="see_grid_cell ${'cellCls' in q ? q.cellCls : ''}"></div>`)
+            .attr('title', q.title)
+            .append($('<span class="see_grid_label"></span>').text(q.label))
+            .append($(`<span class="see_grid_value ${q.cls}"></span>`).text(q.value))
+            .appendTo(grid);
+    });
+
+    $('.see_stats_grid', cell).remove();
+    cell.addClass('see_has_stats');
+    grid.prependTo(cell);
 }
 
 export const marketListingsQueue = runQueue(marketListingsQueueWorker, {
@@ -295,6 +415,20 @@ export function marketListingsQueueWorker(listing, ignoreErrors, callback) {
                 net: $('span:nth-child(3)', steamPrices).text().trim().replace(/[()]/g, ''),
                 buyOrder: highestBuyOrderPrice,
                 delta: formatPriceDelta(priceDelta),
+            });
+
+            // From the same history and order book the price was calculated against, so
+            // every number on the row describes one answer from Steam rather than several
+            // fetched moments apart. `price` is this listing's own listed price in cents,
+            // which is what the queue is measured against.
+            const rate = salesRate(history, { now: rules.now! });
+            const queueAhead = queueAheadOf(orderbook, price);
+
+            renderListingStats(listingUI, {
+                volume: salesVolume(history, { now: rules.now! }),
+                queueAhead,
+                rate,
+                days: daysToSell(queueAhead, rate),
             });
 
             $('.market_listing_my_price', listingUI)

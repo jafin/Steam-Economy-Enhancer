@@ -22,3 +22,14 @@ export function padLeftZero(str, max): string {
 export function replaceNonNumbers(str) {
     return str.replace(/\D/g, '');
 }
+
+// Groups a whole number in threes: 1284 -> '1,284'.
+//
+// Not toLocaleString(). The separator that returns depends on the machine's locale rather
+// than on anything the user chose here, so the same count renders differently on two
+// browsers looking at the same page -- and in a test, differently on two CI runners. One
+// predictable rendering everywhere, for the same reason formatPriceDelta applies its own
+// sign instead of asking Steam's formatter for one.
+export function formatCount(value: number): string {
+    return String(value).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+}

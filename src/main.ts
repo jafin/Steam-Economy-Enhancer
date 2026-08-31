@@ -142,6 +142,38 @@ export function bootstrap(): void {
         .market_overpriced_filter_label { display: flex; align-items: center; gap: 4px; padding: 0 4px;
             font-size: 12px; color: #b0aeac; cursor: pointer; user-select: none; }
         .market_overpriced_filter { margin: 0; cursor: pointer; }
+        /* The liquidity 2x2 beside the Remove button -- see renderListingStats. It borrows
+           .see_grid_cell/.see_grid_label/.see_grid_value from the price grid rather than
+           restating them, which is what keeps the two readouts on a row looking like one
+           thing rather than two features that landed separately.
+           The geometry cannot be borrowed, though. The price grid owns its whole cell; this
+           one shares a 50px box with the Remove button. margin-right:auto is what separates
+           them: the cell is a flex row justified to the end, so the auto margin absorbs the
+           slack and leaves the grid against the left edge with the button still on the
+           right, rather than the two sitting together as one right-aligned clump.
+           .see_has_stats is the reason it fits at all. Steam gives the cancel cell a 9px top
+           margin inside that 50px box, which leaves 41px -- less than two captioned rows
+           need, and the row's overflow:hidden would take the difference off the bottom.
+           Reclaiming the margin and centring the cell's contents gives the grid the full
+           height, and the class scopes that to rows that actually have a grid: buy orders
+           and pending confirmations carry the same cancel cell and must keep Steam's. */
+        .market_listing_cancel_button.see_has_stats { display: flex; align-items: center;
+            justify-content: flex-end; gap: 10px; height: 50px; margin-top: 0;
+            padding-right: 34px; box-sizing: border-box; }
+        .see_stats_grid { display: grid; grid-template-columns: auto auto; gap: 1px 10px;
+            margin-right: auto; line-height: 1.05; text-align: right; padding: 3px 7px;
+            border-radius: 3px; background: rgba(26, 159, 255, 0.20); }
+        .see_stats_grid .see_grid_value { white-space: nowrap; }
+        /* The estimate's two thresholds -- see sellSpeedOf in pricing/liquidity.ts.
+           The box-shadow repeats the background rather than drawing a border: it is what pads
+           the tint out past the text without giving the cell a size, which in a grid whose
+           columns are auto-sized would push the other three quadrants around depending on
+           whether this one happened to be warning. Same reason the radius is small: the tint
+           is a highlight on a quadrant, not a badge of its own. */
+        .see_stats_grid .see_sell_slow { background: rgba(255, 193, 7, 0.22);
+            box-shadow: 0 0 0 3px rgba(255, 193, 7, 0.22); border-radius: 2px; }
+        .see_stats_grid .see_sell_stalled { background: rgba(255, 77, 77, 0.25);
+            box-shadow: 0 0 0 3px rgba(255, 77, 77, 0.25); border-radius: 2px; }
 
         /* The "for sale" ribbon on an inventory tile whose listing succeeded -- see
            markRowForSale in src/ui/index.ts. The band is clipped by its own 78px corner box

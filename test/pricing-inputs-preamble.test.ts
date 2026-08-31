@@ -233,7 +233,9 @@ test('inventoryPriceQueueWorker: the order book is cached reports (true, cached)
 // Matches the shape addMarketListings() (src/market/listings.ts) builds a row into, plus
 // the nested spans marketListingsQueueWorker itself reads: the listed/net price at
 // '.market_listing_price > span:nth-child(1) > span:nth-child(1|3)' (see the comment above
-// renderPriceCellGrid), inside a '.market_listing_my_price' cell.
+// renderPriceCellGrid), inside a '.market_listing_my_price' cell. The empty
+// '.market_listing_cancel_button' is Steam's Remove column, which renderVolumeCell writes
+// the day's sales volume into.
 function registerListing(listingId: string, appid: number, assetid: string) {
     const containerId = `market-${listingId}`;
 
@@ -242,6 +244,7 @@ function registerListing(listingId: string, appid: number, assetid: string) {
             <div class="list">
                 <div class="market_listing_row">
                     <span class="market_listing_item_name" id="mylisting_${listingId}_name"></span>
+                    <div class="market_listing_cancel_button"></div>
                     <div class="market_listing_my_price">
                         <span class="market_listing_price">
                             <span>
@@ -284,6 +287,34 @@ test('marketListingsQueueWorker: both requests succeed reports (true, not cached
     await flush();
 
     assert.deepStrictEqual(cb.calls, [[true, false]]);
+});
+
+test('marketListingsQueueWorker: a priced row gets the liquidity grid in its Remove column', async () => {
+    // The wiring, end to end: the worker hands renderListingStats the same history and order
+    // book it priced the row against. historyResponse carries no sales -- Steam saying the
+    // item did not sell, a real zero rather than an unknown -- and the order book has no sell
+    // side, so the queue is a real zero too and the estimate has no rate to divide by.
+    installRoutedAjax([
+        { match: '/market/pricehistory/', data: historyResponse },
+        { match: '/market/orderbook', data: orderBookResponse },
+    ]);
+
+    const listing = registerListing('999', 730, '9009');
+
+    marketListingsQueueWorker(listing, false, recorder());
+    await flush();
+
+    const row = $(`#mylisting_999_name`).closest('.market_listing_row');
+    const quadrants = $('.see_stats_grid .see_grid_cell', row)
+        .toArray()
+        .map((el) => [$('.see_grid_label', el).text(), $('.see_grid_value', el).text()]);
+
+    assert.deepStrictEqual(quadrants, [
+        ['24h sold', '0'],
+        ['Queue', '0'],
+        ['30d avg', '0'],
+        ['Est sell', '—'],
+    ]);
 });
 
 test('marketListingsQueueWorker: history fails and ignoreErrors is false reports (false, not cached)', async () => {
