@@ -24,7 +24,8 @@ export default defineConfig({
         },
     },
     build: {
-        // Readable output: this file is committed and reviewed, and users install it by URL.
+        // Readable output: people install this file by URL and read it before trusting it
+        // with a Steam session, so it stays reviewable rather than minified.
         minify: false,
         outDir: 'dist',
         emptyOutDir: false,

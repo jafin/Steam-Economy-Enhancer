@@ -47,10 +47,14 @@ export const userscript: MonkeyUserScript = {
     homepage: 'https://github.com/jafin/Steam-Economy-Enhancer',
     homepageURL: 'https://github.com/jafin/Steam-Economy-Enhancer',
     supportURL: 'https://github.com/jafin/Steam-Economy-Enhancer/issues',
+    // The latest release asset, not a path in the repository. `releases/latest` resolves to
+    // the newest non-prerelease, which is what makes the -dev.N builds safe to publish: they
+    // are pre-releases, so an update check never sees them and only tagged releases reach
+    // anyone. The filename has to stay `code.user.js` for this URL to keep resolving.
     downloadURL:
-        'https://raw.githubusercontent.com/jafin/Steam-Economy-Enhancer/master/dist/code.user.js',
+        'https://github.com/jafin/Steam-Economy-Enhancer/releases/latest/download/code.user.js',
     updateURL:
-        'https://raw.githubusercontent.com/jafin/Steam-Economy-Enhancer/master/dist/code.user.js',
+        'https://github.com/jafin/Steam-Economy-Enhancer/releases/latest/download/code.user.js',
 };
 
 /** Bare import specifier -> the window global its @require script defines. */

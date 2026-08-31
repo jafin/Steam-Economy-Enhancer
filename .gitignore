@@ -1,1 +1,5 @@
 /node_modules/
+
+# The built userscript is published as a GitHub Release asset, not committed. See the
+# @downloadURL note in userscript.config.ts.
+/dist/
