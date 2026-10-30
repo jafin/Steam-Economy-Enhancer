@@ -209,8 +209,20 @@ export function bootstrap(): void {
 
         .see_inventory_buttons {display:flex;flex-wrap:wrap;gap:10px;align-items:start;}
         .see_inventory_buttons > .see_inventory_buttons, .see_inventory_buttons > #inventory_items_spinner {flex-basis: 100%;}
+        .see_progress_row { display: flex; align-items: center; gap: 10px; }
         #see_market_progress { display: block; width: 50%; height: 20px; }
         #see_market_progress[hidden] { visibility: hidden; }
+        /* The page spinner bars, sized to sit beside the progress bar and inside a row.
+           A flex row that cannot wrap: the bars are inline-block with whitespace between them
+           in the markup, and five 3px bars plus four spaces overflowed a 26px box onto a
+           second line. Flex ignores the whitespace and the gap is explicit. */
+        .spinner.see_spinner_small { display: flex; flex-wrap: nowrap; align-items: stretch;
+            gap: 2px; flex: none; margin: 0; width: auto; height: 20px; }
+        .see_spinner_small > div { display: block; flex: none; width: 3px; }
+        .see_spinner_small[hidden] { display: flex; visibility: hidden; }
+        /* Steam floats the cells of a row right, so this one lands between Remove and the price. */
+        .see_row_spinner { float: right; width: 40px; height: 50px; display: flex;
+            align-items: center; justify-content: center; }
         .item_market_action_button.see_button_busy { pointer-events: none; opacity: 0.6; cursor: default; }
 
         #see_settings { background: #26566c; margin-right: 10px; height: 24px; line-height:24px; display:inline-block; padding: 0px 6px; }

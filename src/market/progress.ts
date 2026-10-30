@@ -37,6 +37,14 @@ export function setProgressBar(el: HTMLProgressElement): void {
     bar = el;
 }
 
+// The small spinner beside the bar. It follows the bar's visibility rather than keeping a
+// state of its own, so the two can only ever agree: work outstanding, both showing.
+let spinner: HTMLElement | null = null;
+
+export function setProgressSpinner(el: HTMLElement): void {
+    spinner = el;
+}
+
 // The bar's own counter: how much work this run declared with addWork(), and how much of it
 // workDone() has finished. Plain numbers rather than fields on the <progress> element itself,
 // so the count can be asserted with no DOM in the loop -- see test/market-progress.test.ts.
@@ -51,6 +59,16 @@ const progress: ProgressCounter = { total: 0, done: 0 };
 // step, rather than the counter and the element drifting out of step the way bar.max and
 // bar.value used to.
 function render(): void {
+    const working = progress.total > 0 && progress.done < progress.total;
+
+    if (spinner != null) {
+        if (working) {
+            spinner.removeAttribute('hidden');
+        } else {
+            spinner.setAttribute('hidden', 'true');
+        }
+    }
+
     if (bar == null) {
         return;
     }
@@ -58,7 +76,7 @@ function render(): void {
     bar.max = progress.total;
     bar.value = progress.done;
 
-    if (progress.total > 0 && progress.done < progress.total) {
+    if (working) {
         bar.removeAttribute('hidden');
     } else {
         bar.setAttribute('hidden', 'true');

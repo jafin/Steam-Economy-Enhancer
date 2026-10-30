@@ -8,9 +8,10 @@ import { replaceNonNumbers } from '../util/numbers.ts';
 import { applyOverpricedFilter } from './filter.ts';
 import { initializeMarketHistoryUI } from './history.ts';
 import { processMarketListings } from './listings.ts';
-import { addWork, setProgressBar } from './progress.ts';
+import { addWork, setProgressBar, setProgressSpinner } from './progress.ts';
 import { queueOverpricedItemListing, refreshMarketOverpricedButtons } from './relist.ts';
 import { marketRemoveQueue } from './remove.ts';
+import { SPINNER_BARS } from './rowSpinner.ts';
 import { getListingFromLists } from './rows.ts';
 import { marketSectionFor, selectionFor, tableHeaderSectionFor } from './selection.ts';
 import { sortMarketListings } from './sort.ts';
@@ -32,8 +33,15 @@ export function updateMarketSelectAllButton() {
 
 // Initialize the market UI.
 export function initializeMarketUI() {
-    $('.market_header_text').append('<progress id="see_market_progress" value="1" max="1" hidden>');
+    // The bar and a small spinner on its right, in a row of their own so the spinner sits beside
+    // the bar rather than under it. The spinner is shown and hidden with the bar; see render()
+    // in progress.ts.
+    $('.market_header_text').append(`<div class="see_progress_row">
+        <progress id="see_market_progress" value="1" max="1" hidden></progress>
+        <div id="see_market_progress_spinner" class="spinner see_spinner_small" hidden>${SPINNER_BARS}</div>
+    </div>`);
     setProgressBar(document.getElementById('see_market_progress') as HTMLProgressElement);
+    setProgressSpinner(document.getElementById('see_market_progress_spinner') as HTMLElement);
 
     // Sell orders.
     // Steam prepends a "listings awaiting confirmation" block whenever a confirmation is pending,

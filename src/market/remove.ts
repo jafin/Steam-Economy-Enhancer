@@ -11,6 +11,7 @@ import { getRandomInt } from '../util/numbers.ts';
 import { workDone } from './progress.ts';
 import { refreshMarketOverpricedButtons } from './relist.ts';
 import { getListingFromLists, marketLists, removeListingFromLists } from './rows.ts';
+import { hideRowSpinner, showRowSpinner } from './rowSpinner.ts';
 import $ from 'jquery';
 export const marketRemoveQueue = runQueue(marketRemoveQueueWorker, {
     retryOnFailure: true,
@@ -22,18 +23,25 @@ export const marketRemoveQueue = runQueue(marketRemoveQueueWorker, {
 // The task carries the listing id rather than being it. runQueue marks a task for its one
 // forced retry by setting a property on it, and a bare string cannot carry one -- assigning
 // to a primitive throws in a module, which is always strict.
-export function marketRemoveQueueWorker(task, _ignoreErrors, callback) {
+export function marketRemoveQueueWorker(task, _ignoreErrors, done) {
     const listingid = task.listingid;
     const listing = getListingFromLists(listingid);
     if (listing == null) {
         logConsole(`Listing ${listingid} not found in the lists, skipping.`);
 
-        callback(true);
+        done(true);
 
         return;
     }
 
     const listingUI = listing.elm;
+
+    showRowSpinner(listingUI);
+
+    const callback = (success: boolean) => {
+        hideRowSpinner(listingUI);
+        done(success);
+    };
     const isBuyOrder = listingUI.id.startsWith('mybuyorder_');
 
     market.removeListing(listingid, isBuyOrder, (errorRemove) => {

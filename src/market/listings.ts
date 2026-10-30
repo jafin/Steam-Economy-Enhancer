@@ -41,6 +41,7 @@ import {
 import { currentPage, steamPage } from '../steam/instance.ts';
 import { market } from '../steam/market.ts';
 import { removeSpinner, renderSpinner } from '../ui/index.ts';
+import { hideRowSpinner, showRowSpinner } from './rowSpinner.ts';
 import { logConsole } from '../ui/logger.ts';
 import { formatCount, replaceNonNumbers } from '../util/numbers.ts';
 import {
@@ -232,7 +233,7 @@ export const marketListingsQueue = runQueue(marketListingsQueueWorker, {
     onTaskDone: () => workDone(),
 });
 
-export function marketListingsQueueWorker(listing, ignoreErrors, callback) {
+export function marketListingsQueueWorker(listing, ignoreErrors, done) {
     const asset = steamPage.assetFor(listing.appid, listing.contextid, listing.assetid);
 
     // An asset:
@@ -282,12 +283,18 @@ export function marketListingsQueueWorker(listing, ignoreErrors, callback) {
     if (listingUI == null) {
         logConsole(`Listing ${listing.listingid} not found in the lists, skipping.`);
 
-        callback(true, true);
+        done(true, true);
 
         return;
     }
 
     listingUI = $(listingUI.elm);
+
+    // Every way out of the worker from here on takes the row's spinner down first.
+    const callback = (success: boolean, cached?: boolean) => {
+        hideRowSpinner(listingUI);
+        done(success, cached);
+    };
 
     const game_name = asset.type;
     const price = getPriceValueAsInt(
@@ -315,6 +322,9 @@ export function marketListingsQueueWorker(listing, ignoreErrors, callback) {
             market_hash_name: market_hash_name,
         },
     };
+
+    // Only now: the paths above answer without asking Steam anything.
+    showRowSpinner(listingUI);
 
     fetchPricingInputs(
         item,

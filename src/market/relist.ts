@@ -13,6 +13,7 @@ import { getRandomInt } from '../util/numbers.ts';
 import { getAssetInfoFromListingId } from './assets.ts';
 import { refreshOverpricedFilter } from './filter.ts';
 import { marketListingsRelistedAssets } from './listings.ts';
+import { hideRowSpinner, showRowSpinner } from './rowSpinner.ts';
 import { listingState } from './listingState.ts';
 import { addWork, marketProgress, workDone } from './progress.ts';
 import { getListingFromLists, removeListingFromLists } from './rows.ts';
@@ -63,17 +64,25 @@ export const marketOverpricedQueue = runQueue(marketOverpricedQueueWorker, {
     },
 });
 
-export function marketOverpricedQueueWorker(item, _ignoreErrors, callback) {
+export function marketOverpricedQueueWorker(item, _ignoreErrors, done) {
     let listingUI = getListingFromLists(item.listing);
     if (listingUI == null) {
         logConsole(`Listing ${item.listing} not found in the lists, skipping.`);
 
-        callback(true);
+        done(true);
 
         return;
     }
 
     listingUI = listingUI.elm;
+
+    // The row shows it is being worked on until the task reports, whichever way it ends.
+    showRowSpinner(listingUI);
+
+    const callback = (success: boolean) => {
+        hideRowSpinner(listingUI);
+        done(success);
+    };
 
     // The forced retry runs this whole worker again on the same task. The listing was removed
     // by the first attempt, so asking Steam to remove it a second time fails and the retry
