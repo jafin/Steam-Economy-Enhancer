@@ -16,6 +16,18 @@ on:
         tags: ['v*']
     pull_request:
 
+# One run per ref at a time. The release tag is computed from the tags that exist when a run
+# checks out, so two pushes to main in quick succession would both compute the same next
+# version and the later one would overwrite the first release's asset with a build from a
+# different commit than its tag. Queued, the second run starts after the first has tagged and
+# derives the number after it.
+#
+# A pull request's superseded runs are cancelled, which is only a saving. A run on main or on
+# a tag is never cancelled: stopping one part way through a release is worse than waiting.
+concurrency:
+    group: build-${{ github.ref }}
+    cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
     build:
         name: CI
