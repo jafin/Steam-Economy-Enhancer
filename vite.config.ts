@@ -1,7 +1,7 @@
 import { defineConfig } from 'vite';
 import monkey from 'vite-plugin-monkey';
 import { resolve } from 'node:path';
-import { version as pkgVersion } from './package.json' with { type: 'json' };
+import pkg from './package.json' with { type: 'json' };
 import { userscript, externalGlobals } from './userscript.config.ts';
 import { versionFromGit } from './scripts/version.ts';
 
@@ -15,7 +15,7 @@ import { versionFromGit } from './scripts/version.ts';
 //
 // package.json's version is the base only until the first tag exists, since it is the one
 // thing that knows where the numbering was before tagging started.
-const version = process.env.APP_VERSION ?? versionFromGit(pkgVersion).version;
+const version = process.env.APP_VERSION ?? versionFromGit(pkg.version).version;
 
 export default defineConfig({
     resolve: {
