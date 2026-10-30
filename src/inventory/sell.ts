@@ -44,7 +44,7 @@ export const sellQueue = async.queue((task: QueueTask, next) => {
     const padLeft = `${padLeftZero(`${current.processedQueueItems}`, digits)} / ${current.queuedItems}`;
 
     if (
-        getSetting(SETTING_PRICE_MIN_LIST_PRICE) * 100 >=
+        Math.round(getSetting(SETTING_PRICE_MIN_LIST_PRICE) * 100) >=
         market.getPriceIncludingFees(task.sellPrice)
     ) {
         logDOM(`${padLeft} - ${itemNameWithAmount} is not listed due to ignoring price settings.`);

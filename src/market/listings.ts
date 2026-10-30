@@ -295,7 +295,7 @@ export function marketListingsQueueWorker(listing, ignoreErrors, callback) {
     );
 
     if (
-        price <= getSetting(SETTING_PRICE_MIN_CHECK_PRICE) * 100 ||
+        price <= Math.round(getSetting(SETTING_PRICE_MIN_CHECK_PRICE) * 100) ||
         listingUI.hasClass('removing')
     ) {
         $('.market_listing_my_price', listingUI).last().css('background', COLOR_PRICE_NOT_CHECKED);

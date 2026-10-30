@@ -144,24 +144,31 @@ beforeEach(() => {
     sellQueue.kill();
 });
 
-vitestTest('each ladder button queues its own price, before fees', async () => {
+// A fresh panel for a fresh item, then one click on the button at `index`. One item takes one
+// sale, so each button is exercised on an item of its own.
+async function clickLadderButton(index: number, id: string) {
     const marketLink = 'https://steamcommunity.com/market/listings/753/Sackboy';
+    document.body.innerHTML = '';
     buildItemInfoPanel(marketLink);
     answerOrderBookWith(500, 200);
-
-    const pushed: any[] = [];
-    const originalPush = sellQueue.push;
-    (sellQueue as any).push = (task: any) => pushed.push(task);
 
     await updateInventorySelection({
         appid: 753,
         contextid: '6',
-        id: '1',
+        id,
         marketable: 1,
         name: 'Sackboy',
         description: { market_hash_name: 'Sackboy' },
     });
     await waitForSelector('#price_buttons .quick_sell');
+
+    $('#price_buttons .quick_sell').eq(index).trigger('click');
+}
+
+vitestTest('each ladder button queues its own price, before fees', async () => {
+    const pushed: any[] = [];
+    const originalPush = sellQueue.push;
+    (sellQueue as any).push = (task: any) => pushed.push(task);
 
     // The ladder rule itself is pinned by the tests above; what matters here is that the
     // rendered buttons are one-for-one with it and that a click carries the right one.
@@ -170,17 +177,16 @@ vitestTest('each ladder button queues its own price, before fees', async () => {
         formatPrice,
     ).prices;
 
-    const buttons = $('#price_buttons .quick_sell');
-    assert.strictEqual(buttons.length, expected.length, 'one button per ladder price');
+    try {
+        for (let i = 0; i < expected.length; i++) {
+            await clickLadderButton(i, `10${i}`);
+        }
+    } finally {
+        (sellQueue as any).push = originalPush;
+    }
 
     // No price is serialised into the markup any more.
     assert.strictEqual($('#price_buttons [id^="quick_sell"]').length, 0);
-
-    buttons.each(function () {
-        $(this).trigger('click');
-    });
-
-    (sellQueue as any).push = originalPush;
 
     assert.deepStrictEqual(
         pushed.map((task) => task.sellPrice),
@@ -191,6 +197,22 @@ vitestTest('each ladder button queues its own price, before fees', async () => {
     // And the item, not a stale one from a previous panel.
     assert.deepStrictEqual(
         pushed.map((task) => task.item.id),
-        expected.map(() => '1'),
+        expected.map((_: number, i: number) => `10${i}`),
     );
+});
+
+vitestTest('clicking a price twice, or two prices, queues the item once', async () => {
+    const pushed: any[] = [];
+    const originalPush = sellQueue.push;
+    (sellQueue as any).push = (task: any) => pushed.push(task);
+
+    try {
+        await clickLadderButton(0, '200');
+        $('#price_buttons .quick_sell').eq(0).trigger('click');
+        $('#price_buttons .quick_sell').eq(1).trigger('click');
+    } finally {
+        (sellQueue as any).push = originalPush;
+    }
+
+    assert.strictEqual(pushed.length, 1, 'the second sale of an already-queued item would fail');
 });

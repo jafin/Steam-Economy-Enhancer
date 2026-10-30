@@ -13,12 +13,10 @@ import { boosterQueue } from './boosters.ts';
 import { scrapQueue } from './gems.ts';
 import { itemQueue, sellQueue } from './sell.ts';
 export function onQueueDrain() {
-    if (
-        itemQueue.length() == 0 &&
-        sellQueue.length() == 0 &&
-        scrapQueue.length() == 0 &&
-        boosterQueue.length() == 0
-    ) {
+    // idle(), not length() == 0. length() counts the tasks waiting and not the one being
+    // worked on, so the last item in one queue's worker read as an empty queue, and another
+    // queue draining ended the run and zeroed its totals underneath that item.
+    if (itemQueue.idle() && sellQueue.idle() && scrapQueue.idle() && boosterQueue.idle()) {
         removeSpinner();
         endRun();
     }

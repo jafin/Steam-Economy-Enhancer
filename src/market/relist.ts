@@ -75,7 +75,26 @@ export function marketOverpricedQueueWorker(item, _ignoreErrors, callback) {
 
     listingUI = listingUI.elm;
 
-    market.removeListing(item.listing, false, (errorRemove) => {
+    // The forced retry runs this whole worker again on the same task. The listing was removed
+    // by the first attempt, so asking Steam to remove it a second time fails and the retry
+    // gives up before it reaches the sell it exists to rescue.
+    const removeOnce = (done) => {
+        if (item.listingRemoved) {
+            done(false);
+
+            return;
+        }
+
+        market.removeListing(item.listing, false, (errorRemove) => {
+            if (!errorRemove) {
+                item.listingRemoved = true;
+            }
+
+            done(errorRemove);
+        });
+    };
+
+    removeOnce((errorRemove) => {
         if (!errorRemove) {
             $('.actual_content', listingUI).css('background', COLOR_PENDING);
 

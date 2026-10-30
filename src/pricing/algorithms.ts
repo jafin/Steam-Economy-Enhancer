@@ -119,7 +119,9 @@ export const NO_LISTING_PRICE_SENTINEL = 65535;
 export function createPricingRules(item?): PricingRules {
     const rules: PricingRules = {
         algorithm: getSetting(SETTING_PRICE_ALGORITHM),
-        offsetCents: getSetting(SETTING_PRICE_OFFSET) * 100,
+        // Whole cents. 0.29 * 100 is 28.999999999999996, and the sum with an integer price is
+        // posted to Steam as the listing price.
+        offsetCents: Math.round(getSetting(SETTING_PRICE_OFFSET) * 100),
         historyHours: getSetting(SETTING_PRICE_HISTORY_HOURS),
         ignoreLowestOnLowQuantity: getSetting(SETTING_PRICE_IGNORE_LOWEST_Q) == 1,
         ...walletRules(),
@@ -233,6 +235,13 @@ export function calculateBuyOrderPriceBeforeFees(
     // buildOrderBook returns null for an unsuccessful response, so null reaches here as
     // readily as undefined. calculateListingPriceBeforeFees has always guarded both.
     if (typeof orderbook === 'undefined' || orderbook == null) {
+        return 0;
+    }
+
+    // A falsy buy order, as calculateListingPriceBeforeFees does for the lowest sell order:
+    // buildOrderBook writes an absent one as 0, and priceBeforeFees(0) is the 1-cent floor,
+    // not 0. Left as it was, "nobody is buying" priced as a real 1-cent order.
+    if (!orderbook.highest_buy_order) {
         return 0;
     }
 

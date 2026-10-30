@@ -18,7 +18,7 @@ import { enqueueInventoryItems, hasOwnerAction, withInventory } from '../src/inv
 import { logger } from '../src/ui/logger.ts';
 import { turnSelectedItemsIntoGems } from '../src/inventory/gems.ts';
 import { updateButtons } from '../src/inventory/ui.ts';
-import { endRun, runTotals } from '../src/totals.ts';
+import { endRun, queued, runTotals } from '../src/totals.ts';
 
 test('hasOwnerAction is false when the item has no owner_actions at all', () => {
     assert.strictEqual(hasOwnerAction({}, 'GetGooValue'), false);
@@ -231,4 +231,65 @@ test('the Processing spinner counts every item queued this run, not just the lat
     assert.match($('#market_listings_spinner').text(), /Processing 5 items/);
 
     endRun();
+});
+
+// --- onQueueDrain: a run is over only when every queue is idle ------------------------------
+//
+// length() counts tasks waiting, not the one in flight. The last item sitting in itemQueue's
+// worker reads as length 0, so sellQueue draining ended the run -- and zeroed the totals --
+// while that item was still being priced.
+test('onQueueDrain does not end the run while a queue still has a task in flight', async () => {
+    const { onQueueDrain } = await import('../src/inventory/progress.ts');
+    const { itemQueue, sellQueue } = await import('../src/inventory/sell.ts');
+    const { scrapQueue } = await import('../src/inventory/gems.ts');
+    const { boosterQueue } = await import('../src/inventory/boosters.ts');
+
+    // Earlier tests in this file leave real work on these, so idleness is stated, not read.
+    const queues = [itemQueue, sellQueue, scrapQueue, boosterQueue];
+    const original = queues.map((queue) => queue.idle);
+    const setIdle = (answers: boolean[]) =>
+        queues.forEach((queue, i) => {
+            queue.idle = () => answers[i];
+        });
+
+    endRun();
+    queued(3);
+
+    try {
+        setIdle([false, true, true, true]);
+        onQueueDrain();
+
+        assert.strictEqual(runTotals().queuedItems, 3, 'the run totals survive');
+
+        setIdle([true, true, true, true]);
+        onQueueDrain();
+
+        assert.strictEqual(runTotals().queuedItems, 0, 'and are reset once everything is idle');
+    } finally {
+        queues.forEach((queue, i) => {
+            queue.idle = original[i];
+        });
+    }
+});
+
+test('loadAllInventories rejects when Steam fails the load, so withInventory can report it', async () => {
+    buildSpinnerHost();
+    logger.innerHTML = '';
+
+    // Steam's deferred: done() for success, fail() for a refused load. Only done() was ever
+    // listened to, so a failed load left the promise pending and the spinner up forever.
+    (globalThis as any).unsafeWindow.g_ActiveInventory.LoadCompleteInventory = () => ({
+        done: () => {},
+        fail: (callback: (reason: string) => void) => callback('refused'),
+    });
+
+    try {
+        withInventory(() => assert.fail('the action must not run'));
+        await flush();
+
+        assert.strictEqual(spinnerCount(), 0, 'the spinner comes down');
+        assert.match(logger.textContent ?? '', /Could not load the inventory/);
+    } finally {
+        restoreInventoryLoad();
+    }
 });

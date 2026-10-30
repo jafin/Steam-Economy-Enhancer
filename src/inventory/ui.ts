@@ -5,7 +5,13 @@
 
 import $ from 'jquery';
 import { openSettings } from '../settings/dialog.ts';
-import { flattenItem, getItemName, getMarketHashName, isItemQueued } from '../items/index.ts';
+import {
+    flattenItem,
+    getItemName,
+    getMarketHashName,
+    isItemQueued,
+    markItemQueued,
+} from '../items/index.ts';
 import { formatPrice } from '../pricing/algorithms.ts';
 import {
     SETTING_INVENTORY_PRICE_LABELS,
@@ -289,6 +295,21 @@ export function quickSellPanel(orderbook, formatPrice) {
     };
 }
 
+// One item, one listing. The panel checks isItemQueued before it draws, but a button stays
+// on screen after it is clicked, so a second click -- or a click on another price -- queued
+// the same item again and the second sale failed against an item already listed. Marking it
+// is also what keeps Sell All from queuing it a third time.
+function queueQuickSell(item, sellPrice: number): void {
+    if (isItemQueued(item)) {
+        return;
+    }
+
+    markItemQueued(item);
+    queued(1);
+
+    sellQueue.push({ item, sellPrice });
+}
+
 export async function updateInventorySelection(selectedItem) {
     if (getSetting(SETTING_QUICK_SELL_BUTTONS) != 1) {
         return;
@@ -401,14 +422,7 @@ export async function updateInventorySelection(selectedItem) {
                     <span class="item_market_action_button_preload"></span>
                 </a>`,
             )
-                .on('click', () => {
-                    queued(1);
-
-                    sellQueue.push({
-                        item: selectedItem,
-                        sellPrice: market.getPriceBeforeFees(cents),
-                    });
-                })
+                .on('click', () => queueQuickSell(selectedItem, market.getPriceBeforeFees(cents)))
                 .appendTo(buttonRow);
         });
 
@@ -437,12 +451,7 @@ export async function updateInventorySelection(selectedItem) {
         ownerActions.find('.quick_sell_custom').on('click', () => {
             const price = Number($('#quick_sell_input', ownerActions).val()) * 100;
 
-            queued(1);
-
-            sellQueue.push({
-                item: selectedItem,
-                sellPrice: market.getPriceBeforeFees(price),
-            });
+            queueQuickSell(selectedItem, market.getPriceBeforeFees(price));
         });
     });
 }

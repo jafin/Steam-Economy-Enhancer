@@ -25,7 +25,18 @@ export async function loadAllInventories() {
     const childs = Object.values(main.m_rgChildInventories);
 
     for (const inventory of [...childs, main]) {
-        await new Promise((resolve) => inventory.LoadCompleteInventory().done(resolve));
+        await new Promise((resolve, reject) => {
+            const loading = inventory.LoadCompleteInventory();
+
+            loading.done(resolve);
+
+            // Steam's deferred rejects when the load fails. Without this the promise stayed
+            // pending forever, so withInventory's failure handler could never run and the
+            // spinner never stopped.
+            if (typeof loading.fail === 'function') {
+                loading.fail(reject);
+            }
+        });
     }
 }
 

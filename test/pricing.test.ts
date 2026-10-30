@@ -486,3 +486,29 @@ test('a null item resolves to the wallet default too', () => {
 test('a market_fee of -1 falls through to the wallet default, as the sentinel intends', () => {
     assert.strictEqual(buyerPriceFor({ market_fee: -1 }), buyerPriceFor({ market_fee: 0.1 }));
 });
+
+test('the offset is whole cents, not the float 0.29 * 100 produces', () => {
+    // 0.29 * 100 is 28.999999999999996. Added to an integer price it made a fractional-cent
+    // listing price, which is what sellItem posts to Steam as-is.
+    globalThis.localStorage.setItem('SETTING_PRICE_OFFSET', '0.29');
+
+    assert.strictEqual(createPricingRules().offsetCents, 29);
+});
+
+test('the highest-buy-order algorithm treats a missing buy order as no price, not the 1-cent floor', () => {
+    // buildOrderBook writes an absent buy order as 0, and priceBeforeFees(0) is the 1-cent
+    // floor rather than 0, so "nobody is buying" used to read as a real 1-cent price and
+    // the "no price yet, use the maximum" branch could never be reached. The lowest-listing
+    // calculation was fixed for the same case.
+    const book = { highest_buy_order: 0, lowest_sell_order: 1000, sell_order_graph: [] };
+
+    assert.strictEqual(calculateBuyOrderPriceBeforeFees(book, rulesWithBounds(0, 65535)), 0);
+
+    const rules = { ...rulesWithBounds(50, 700), algorithm: 3 };
+
+    assert.strictEqual(
+        calculateSellPriceBeforeFees(null, book, false, rules),
+        700,
+        'an item nobody has a buy order for is listed at the maximum',
+    );
+});

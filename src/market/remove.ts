@@ -48,7 +48,8 @@ export function marketRemoveQueueWorker(task, _ignoreErrors, callback) {
                 // here as well.
                 refreshMarketOverpricedButtons();
 
-                const numberOfListings = marketLists[0].size;
+                // size() is a method on a list.js List.
+                const numberOfListings = marketLists[0].size();
                 if (numberOfListings > 0) {
                     $('#my_market_selllistings_number').text(numberOfListings.toString());
 
