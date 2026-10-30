@@ -211,6 +211,14 @@ export function initializeMarketUI() {
                 }
 
                 const listingUI = $(listing.elm);
+
+                // Already on its way out. A second click, or a second selection, queued it
+                // again, and the second removelisting hit a listing that was already gone and
+                // counted towards the request breaker.
+                if (listingUI.hasClass('removing')) {
+                    continue;
+                }
+
                 listingUI.addClass('removing');
 
                 marketRemoveQueue.push({ listingid });

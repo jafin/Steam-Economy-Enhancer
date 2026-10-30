@@ -4,6 +4,7 @@
 // on each item, and the selection behaviour that lets Shift and Ctrl pick several at once.
 
 import $ from 'jquery';
+import { escapeHtml } from '../util/escape.ts';
 import { openSettings } from '../settings/dialog.ts';
 import {
     flattenItem,
@@ -285,7 +286,12 @@ export function quickSellPanel(orderbook, formatPrice) {
         prices.push(parseInt(orderbook.lowest_sell_order));
     }
 
-    prices = prices.filter((v, i) => prices.indexOf(v) === i).sort((a, b) => a - b);
+    // buildOrderBook writes an absent order as 0, which passes the null checks above. A 0
+    // button lists for the 1-cent floor (priceBeforeFees(0) is 1), so it is not a price.
+    prices = prices
+        .filter((v) => v > 0)
+        .filter((v, i, all) => all.indexOf(v) === i)
+        .sort((a, b) => a - b);
 
     return {
         sellRows,
@@ -361,7 +367,7 @@ export async function updateInventorySelection(selectedItem) {
         const tradingCardsUrl = `/market/search?q=&category_753_Game%5B%5D=tag_app_${selectedItem.market_fee_app}&category_753_item_class%5B%5D=tag_item_class_2&appid=753`;
         const communityHeader = $('h1', item_info).next().find('span').eq(0);
         communityHeader.replaceWith(
-            `<a href="${tradingCardsUrl}"><span>${communityHeader.text()}</span></a>`,
+            `<a href="${tradingCardsUrl}"><span>${escapeHtml(communityHeader.text())}</span></a>`,
         );
     }
 
@@ -450,6 +456,12 @@ export async function updateInventorySelection(selectedItem) {
         // .quick_sell class is kept because main.ts styles it.
         ownerActions.find('.quick_sell_custom').on('click', () => {
             const price = Number($('#quick_sell_input', ownerActions).val()) * 100;
+
+            // An empty, zero or negative input is NaN or at most 0 here, and getPriceBeforeFees
+            // turns all of those into the 1-cent floor rather than refusing them.
+            if (!(price > 0)) {
+                return;
+            }
 
             queueQuickSell(selectedItem, market.getPriceBeforeFees(price));
         });

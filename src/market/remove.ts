@@ -17,7 +17,16 @@ export const marketRemoveQueue = runQueue(marketRemoveQueueWorker, {
     retryOnFailure: true,
     retryPlacement: 'front',
     successDelayMs: () => getRandomInt(50, 100),
-    onTaskDone: () => workDone(),
+    onTaskDone: (task, success) => {
+        // A removal that never happened leaves the row on the page, so it must not stay marked
+        // as on its way out: the pricing pass skips such rows, and "Remove selected" would
+        // refuse to try it again.
+        if (!success) {
+            $(getListingFromLists(task.listingid)?.elm).removeClass('removing');
+        }
+
+        workDone();
+    },
 });
 
 // The task carries the listing id rather than being it. runQueue marks a task for its one
@@ -44,6 +53,10 @@ export function marketRemoveQueueWorker(task, _ignoreErrors, done) {
     };
     const isBuyOrder = listingUI.id.startsWith('mybuyorder_');
 
+    // The list the row belongs to, found now because the row is detached by the time it is
+    // removed from it.
+    const ownList = marketLists.find((list) => list.listContainer?.contains(listingUI));
+
     market.removeListing(listingid, isBuyOrder, (errorRemove) => {
         if (!errorRemove) {
             $('.actual_content', listingUI).css('background', COLOR_SUCCESS);
@@ -56,8 +69,9 @@ export function marketRemoveQueueWorker(task, _ignoreErrors, done) {
                 // here as well.
                 refreshMarketOverpricedButtons();
 
-                // size() is a method on a list.js List.
-                const numberOfListings = marketLists[0].size();
+                // size() is a method on a list.js List. The row's own list, not marketLists[0]:
+                // a confirmations table can come first, and a buy order is not a sell listing.
+                const numberOfListings = isBuyOrder || ownList == null ? 0 : ownList.size();
                 if (numberOfListings > 0) {
                     $('#my_market_selllistings_number').text(numberOfListings.toString());
 

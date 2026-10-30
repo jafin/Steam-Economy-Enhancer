@@ -276,6 +276,17 @@ export function marketListingsQueueWorker(listing, ignoreErrors, done) {
     // "owner" : 0
     //}
 
+    // assetFor answers undefined for an asset the page does not hold (a page not merged yet, a
+    // failed fetch). Everything below reads the asset, and a throw here never reaches `done`,
+    // which stalls this one-at-a-time queue for the rest of the page.
+    if (asset == null) {
+        logConsole(`Asset for listing ${listing.listingid} not found, skipping.`);
+
+        done(true, true);
+
+        return;
+    }
+
     const market_hash_name = getMarketHashName(asset);
     const appid = listing.appid;
 

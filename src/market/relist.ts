@@ -242,6 +242,9 @@ export function queueOverpricedItemListing(listingid) {
             assetid: assetInfo.assetid,
             contextid: assetInfo.contextid,
             appid: assetInfo.appid,
+            // sellItem lists `item.amount || 1`. Without the quantity a listing of several
+            // units was removed whole and put back as one, leaving the rest in the inventory.
+            amount: assetInfo.amount,
             sellPrice: price,
         });
 

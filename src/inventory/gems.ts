@@ -7,7 +7,7 @@ import { enqueueInventoryItems, hasOwnerAction, withInventory } from './actions.
 import { getInventoryItems } from './data.ts';
 import { updateTotals } from './progress.ts';
 import { getSelectedItems } from './selection.ts';
-import { duplicatesByClassId } from '../items/index.ts';
+import { duplicatesByClassId, getItemName } from '../items/index.ts';
 import { ERROR_SUCCESS } from '../constants.ts';
 import { runQueue } from '../queue/index.ts';
 import { market } from '../steam/market.ts';
@@ -29,7 +29,7 @@ export function gemAllDuplicateItems() {
 export const scrapQueue = runQueue(scrapQueueWorker, { successDelayMs: 250 });
 
 export function scrapQueueWorker(item, _ignoreErrors, callback) {
-    const itemName = item.name || item.description.name;
+    const itemName = getItemName(item);
     const itemId = item.assetid || item.id;
 
     market.getGooValue(item, (err, goo) => {
@@ -47,7 +47,19 @@ export function scrapQueueWorker(item, _ignoreErrors, callback) {
             return callback(false);
         }
 
-        const gooValueExpected = parseInt(goo.goo_value, 10);
+        // Not a success check -- docs/adr/0002 explains why those are not made on this
+        // endpoint. This is only "did we get a number to grind against": a null body threw out
+        // of the request callback and stalled the queue, and a missing value was sent to Steam
+        // as NaN on an action that cannot be undone.
+        const gooValueExpected = parseInt(goo?.goo_value, 10);
+
+        if (isNaN(gooValueExpected)) {
+            logConsole(`No gems value in the answer for ${itemName}`);
+            logDOM(`${padLeft} - ${itemName} not turned into gems due to missing gems value.`);
+
+            markRow(`${item.appid}_${item.contextid}_${itemId}`, 'error');
+            return callback(false);
+        }
 
         market.grindIntoGoo(item, gooValueExpected, (err) => {
             if (err != ERROR_SUCCESS) {

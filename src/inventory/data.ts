@@ -7,8 +7,10 @@
 import $ from 'jquery';
 import { listingState } from '../market/listingState.ts';
 import { PAGE_TRADEOFFER } from '../constants.ts';
-import { getAssetKey, readInventoryItems } from '../items/index.ts';
+import { getAssetKey, getItemName, readInventoryItems } from '../items/index.ts';
 import {
+    ALGORITHM_AVERAGE_HISTORY,
+    ALGORITHM_LOWEST_LISTING,
     NO_LISTING_PRICE_SENTINEL,
     calculateSellPriceBeforeFees,
     createPricingRules,
@@ -75,7 +77,7 @@ export function setInventoryPrices(items) {
 export const inventoryPriceQueue = runQueue(inventoryPriceQueueWorker, { retryOnFailure: true });
 
 export function inventoryPriceQueueWorker(item, ignoreErrors, callback) {
-    const itemName = item.name || item.description.name;
+    const itemName = getItemName(item);
 
     // Only get the market orders here, the history is not important to visualize the current prices.
     fetchPricingInputs(
@@ -89,8 +91,17 @@ export function inventoryPriceQueueWorker(item, ignoreErrors, callback) {
             // Nobody to undercut, so the bounds are overridden explicitly rather than taken from
             // an item's settings-derived class: no minimum, and a ceiling that reads back as
             // "unpriced" instead of a real price.
+            const rules = createPricingRules();
+
             const sellPrice = calculateSellPriceBeforeFees(null, orderbook, false, {
-                ...createPricingRules(),
+                ...rules,
+                // No history is fetched here, and the history-only algorithm prices from
+                // nothing else: every label read "∞" and every trade offer total 0. The label
+                // is the going rate, which is the lowest listing.
+                algorithm:
+                    rules.algorithm === ALGORITHM_AVERAGE_HISTORY
+                        ? ALGORITHM_LOWEST_LISTING
+                        : rules.algorithm,
                 minPriceBeforeFees: 0,
                 maxPriceBeforeFees: NO_LISTING_PRICE_SENTINEL,
             });

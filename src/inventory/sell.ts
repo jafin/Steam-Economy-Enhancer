@@ -12,7 +12,7 @@ import {
     RETRY_DELAY_SHORT_MAX,
     RETRY_DELAY_SHORT_MIN,
 } from '../constants.ts';
-import { duplicatesByClassId, getIsCrate, getIsTradingCard } from '../items/index.ts';
+import { duplicatesByClassId, getIsCrate, getIsTradingCard, getItemName } from '../items/index.ts';
 import { isRetryMessage } from '../net/request.ts';
 import {
     calculateSellPriceBeforeFees,
@@ -38,7 +38,7 @@ export const sellQueue = async.queue((task: QueueTask, next) => {
     const digits = getNumberOfDigits(current.queuedItems);
     const itemId = task.item.assetid || task.item.id;
     const assetKey = `${task.item.appid}_${task.item.contextid}_${itemId}`;
-    const itemName = task.item.name || task.item.description.name;
+    const itemName = getItemName(task.item);
     const itemNameWithAmount =
         task.item.amount == 1 ? itemName : `${task.item.amount}x ${itemName}`;
     const padLeft = `${padLeftZero(`${current.processedQueueItems}`, digits)} / ${current.queuedItems}`;
@@ -203,7 +203,7 @@ export function sellItems(items) {
 export const itemQueue = runQueue(itemQueueWorker, { retryOnFailure: true });
 
 export function itemQueueWorker(item, ignoreErrors, callback) {
-    const itemName = item.name || item.description.name;
+    const itemName = getItemName(item);
 
     fetchPricingInputs(
         item,

@@ -4,6 +4,7 @@
 // inventory afterwards, because the new cards are not in the inventory Steam already sent.
 
 import { ERROR_SUCCESS } from '../constants.ts';
+import { getItemName } from '../items/index.ts';
 import { runQueue } from '../queue/index.ts';
 import { market } from '../steam/market.ts';
 import { processed, runTotals } from '../totals.ts';
@@ -16,7 +17,7 @@ import { getSelectedItems } from './selection.ts';
 export const boosterQueue = runQueue(boosterQueueWorker, { successDelayMs: 250 });
 
 export function boosterQueueWorker(item, _ignoreErrors, callback) {
-    const itemName = item.name || item.description.name;
+    const itemName = getItemName(item);
     const itemId = item.assetid || item.id;
 
     market.unpackBoosterPack(item, (err) => {
