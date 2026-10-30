@@ -14,7 +14,7 @@ import { test } from 'vitest';
 import assert from 'node:assert';
 import $ from 'jquery';
 import { markItemQueued } from '../src/items/index.ts';
-import { hasOwnerAction, withInventory } from '../src/inventory/actions.ts';
+import { enqueueInventoryItems, hasOwnerAction, withInventory } from '../src/inventory/actions.ts';
 import { logger } from '../src/ui/logger.ts';
 import { turnSelectedItemsIntoGems } from '../src/inventory/gems.ts';
 import { updateButtons } from '../src/inventory/ui.ts';
@@ -212,4 +212,23 @@ test('hasOwnerAction is unaffected by properties added to Array.prototype', () =
 
 test('hasOwnerAction tolerates a null entry in owner_actions', () => {
     assert.strictEqual(hasOwnerAction({ owner_actions: [null] } as any, 'GetGooValue'), false);
+});
+
+// A second page's "Sell items" lands while the first page's run is still going. The spinner
+// reads the run's total, not just the batch just queued.
+test('the Processing spinner counts every item queued this run, not just the latest batch', () => {
+    endRun();
+    buildSpinnerHost();
+
+    const queue = { push: () => {} };
+    const item = (id: string) => ({ appid: 730, contextid: 2, id });
+
+    enqueueInventoryItems(queue, [item('p1a'), item('p1b'), item('p1c')], {
+        spinnerLabel: 'items',
+    });
+    enqueueInventoryItems(queue, [item('p2a'), item('p2b')], { spinnerLabel: 'items' });
+
+    assert.match($('#market_listings_spinner').text(), /Processing 5 items/);
+
+    endRun();
 });

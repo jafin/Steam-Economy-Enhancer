@@ -7,7 +7,7 @@
 // See .docs/tasks/TASK-03-inventory-action-pipeline.md for the drift this fixes.
 
 import { isItemQueued, markItemQueued } from '../items/index.ts';
-import { queued } from '../totals.ts';
+import { queued, runTotals } from '../totals.ts';
 import { removeSpinner, renderSpinner } from '../ui/index.ts';
 import { logConsole, logDOM } from '../ui/logger.ts';
 import { getInventoryItems, loadAllInventories } from './data.ts';
@@ -105,7 +105,10 @@ export function enqueueInventoryItems(
     if (numberOfQueuedItems > 0) {
         queued(numberOfQueuedItems);
 
-        renderSpinner(`Processing ${numberOfQueuedItems} ${opts.spinnerLabel}`);
+        // The run's total, not this batch's. Selling from page 2 while page 1 is still being
+        // worked through is one run, and the spinner reading only the latest batch understated
+        // it -- the "x / y" progress prefix beside it already counts the whole run.
+        renderSpinner(`Processing ${runTotals().queuedItems} ${opts.spinnerLabel}`);
     }
 
     return numberOfQueuedItems;
