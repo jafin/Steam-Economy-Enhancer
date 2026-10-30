@@ -40,7 +40,7 @@ export const userscript: MonkeyUserScript = {
         'https://cdnjs.cloudflare.com/ajax/libs/jquery/4.0.0/jquery.min.js',
         'https://cdnjs.cloudflare.com/ajax/libs/async/3.2.6/async.js',
         'https://cdnjs.cloudflare.com/ajax/libs/localforage/1.10.0/localforage.min.js',
-        'https://cdnjs.cloudflare.com/ajax/libs/luxon/3.5.0/luxon.min.js',
+        'https://cdnjs.cloudflare.com/ajax/libs/luxon/3.7.2/luxon.min.js',
         'https://cdnjs.cloudflare.com/ajax/libs/list.js/2.3.1/list.js',
     ],
     grant: ['unsafeWindow'],
