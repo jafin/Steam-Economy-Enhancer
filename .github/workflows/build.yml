@@ -33,15 +33,15 @@ jobs:
         name: CI
         runs-on: ubuntu-latest
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   # Full history and tags: the version is derived from the last tag and every
                   # commit message since it, so a shallow clone would compute the wrong number.
                   fetch-depth: 0
 
-            - uses: pnpm/action-setup@v4
+            - uses: pnpm/action-setup@v6
 
-            - uses: actions/setup-node@v4
+            - uses: actions/setup-node@v7
               with:
                   node-version: 22
                   cache: pnpm
@@ -74,7 +74,7 @@ jobs:
             # earns its place: it checks the header where the header actually exists.
             - run: pnpm lint:dist
 
-            - uses: actions/upload-artifact@v4
+            - uses: actions/upload-artifact@v7
               with:
                   name: userscript
                   path: dist/code.user.js
